@@ -512,14 +512,14 @@ BOOL CWorldBuilderApp::InitInstance()
 		"WARNING: This build of WorldBuilder is a work in progress.\n"
 		"Unauthorized use or distribution without notifying Adriane [Deathscythe] is discouraged.\n\n"
 		"This version is still in testing and may corrupt or break your map, so please make a backup before using it.\n\n"
-		"Build Version: fdace71d\n"
+		"Build Version: 3027781c\n"
 		"If you find a bug or do want to suggest a feature, please report it on our WorldBuilder Discord server:\nhttps://discord.gg/tJ6zyGb",
 		MB_ICONEXCLAMATION | MB_OK
 	);
 
 	CToastDialog* pToast = new CToastDialog(
         _T("Press F11 to enter full screen"),
-        20000, true);
+        5000, true);
     pToast->Create(CToastDialog::IDD);
     pToast->ShowWindow(SW_SHOWNOACTIVATE);
 
@@ -1110,6 +1110,9 @@ void CWorldBuilderApp::OnAppAbout()
 		{ "Ctrl+A", "Show All of 3D Map" },
 		{ "Ctrl+Shift+G", "Snap To Grid" },
 
+		{ "Ctrl+Q", "Fixed Colored Waypoints"},
+		{ "Ctrl+E", "Show Water"},
+
 		{ "==", "===============================" },
 
 		{ "Alt+1", "Show Objects" },
@@ -1121,7 +1124,7 @@ void CWorldBuilderApp::OnAppAbout()
 		{ "Alt+7", "Show Sight Ranges" },
 		{ "Alt+8", "Show Weapon Ranges" },
 		{ "Alt+9", "Show Map Boundaries" },
-		{ "Alt+0", "Show Terrain" },
+		{ "Alt+0", "Show Ruler Grid" },
 
 		{ "==", "===============================" },
 
@@ -1132,9 +1135,9 @@ void CWorldBuilderApp::OnAppAbout()
         { "Ctrl+4", "Select Shrubbery" },
         { "Ctrl+5", "Select Props" },
         { "Ctrl+6", "Select Natural" },
-        { "Ctrl+7", "Select Debris" },
+        { "Ctrl+7", "Select Debris / Scorch" },
         { "Ctrl+8", "Select Waypoints & Areas" },
-        { "Ctrl+9", "Select Roads" },
+        { "Ctrl+9", "Select Roads / Bridges" },
 
 		{ "==", "===============================" },
 

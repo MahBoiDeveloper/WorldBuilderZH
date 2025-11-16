@@ -209,6 +209,23 @@ BOOL GroveOptions::OnInitDialog()
 {
 	_buildTreeList();
 	_buildTreeListProps();
+
+
+	CWnd *pWnd = GetDlgItem(IDC_OBJECT_HEIGHT_EDIT);
+	if (pWnd) {
+		CString s;
+		s.Format("%d",MAGIC_GROUND_Z);
+		pWnd->SetWindowText(s);
+	}
+
+	CRect rect;
+	pWnd = GetDlgItem(IDC_TERRAIN_SWATCHES);
+	pWnd->GetWindowRect(&rect);
+	ScreenToClient(&rect);
+	rect.DeflateRect(2,2,2,2);
+	m_objectPreview.Create(NULL, "", WS_CHILD, rect, this, IDC_TERRAIN_SWATCHES);
+	m_objectPreview.ShowWindow(SW_SHOW);
+
 	_setTreesToLists();
 	_setDefaultRatios();
 	_updateTreeWeights();
@@ -473,6 +490,67 @@ void GroveOptions::_updateGroveMakeup()
 	CString key;
 	key.Format("TreeTypeSet%d", setIndex);
 	CustomConfigProfile::WriteString("AdrianeGroveOptions", key, saveLine, GROVE_INI_FILE);
+
+	//--------------------------------------------------------------------------
+	// Update the object preview based on whichever dropdown was last changed.
+	//--------------------------------------------------------------------------
+	CWnd* pFocus = GetFocus();
+	if (!pFocus)
+		return;
+
+	// Identify which combo fired
+	int ctrlID = pFocus->GetDlgCtrlID();
+
+	static const int treeTypeComboIDsNew[TREES_PER_SET] = {
+		IDC_Grove_Type1, IDC_Grove_Type2, IDC_Grove_Type3, IDC_Grove_Type4,
+		IDC_Grove_Type5, IDC_Grove_Type6, IDC_Grove_Type7, IDC_Grove_Type8,
+		IDC_Grove_Type9, IDC_Grove_Type10, IDC_Grove_Type11
+	};
+
+	const PairNameDisplayName* pPair = NULL;
+
+	for (int b = 0; b < TREES_PER_SET; ++b)
+	{
+		if (ctrlID == treeTypeComboIDsNew[b])
+		{
+			CComboBox* pCombo = (CComboBox*)GetDlgItem(treeTypeComboIDsNew[b]);
+			if (!pCombo)
+				break;
+
+			int sel = pCombo->GetCurSel();
+			if (sel <= 0)
+				break;
+
+			// Determine which list to use (props-only uses list #2 but only for Type11)
+			if (b == 10)  // index 10 = Type11
+			{
+				if (sel < mVecDisplayNames_PropsOnly.size())
+					pPair = &mVecDisplayNames_PropsOnly[sel];
+			}
+			else
+			{
+				if (sel < mVecDisplayNames.size())
+					pPair = &mVecDisplayNames[sel];
+			}
+
+			break;
+		}
+	}
+
+	if (pPair)
+	{
+		// Load ThingTemplate
+		const ThingTemplate* tpl =
+			TheThingFactory->findTemplate(pPair->first.str());
+
+		m_objectPreview.SetThingTemplate(tpl);
+	}
+	else
+	{
+		m_objectPreview.SetThingTemplate(NULL);
+	}
+
+	m_objectPreview.Invalidate();
 
 	DEBUG_LOG(("Saved TreeTypeSet%d = %s\n", setIndex, (LPCSTR)saveLine));
 }

@@ -45,6 +45,7 @@ class GroveOptions : public COptionsPanel
 		std::vector<std::pair<Int, Int> >	mVecGroup;
 		VecPairNameDisplayName mVecDisplayNames;
 		VecPairNameDisplayName mVecDisplayNames_PropsOnly;
+		ObjectPreview			m_objectPreview;
 
 		Int	mNumTrees;
 	

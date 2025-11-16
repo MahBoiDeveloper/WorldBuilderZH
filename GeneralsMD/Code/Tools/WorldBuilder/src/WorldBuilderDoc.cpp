@@ -1795,15 +1795,26 @@ BOOL CWorldBuilderDoc::OnNewDocument()
 	ICoord3D loc;
 	pTrig->setWaterArea(true);
 	pTrig->setTriggerName(AsciiString("Default Water"));
-	loc.x = -hi.borderWidth*MAP_XY_FACTOR;
-	loc.y = -hi.borderWidth*MAP_XY_FACTOR;
+
+	const float leftX   = -hi.borderWidth * MAP_XY_FACTOR;
+	const float bottomY = -hi.borderWidth * MAP_XY_FACTOR;
+	
+	// Bottom-left
+	loc.x = leftX;
+	loc.y = bottomY;
 	loc.z = TheGlobalData->m_waterPositionZ;
 	pTrig->addPoint(loc);
-	loc.x = (hi.xExtent+hi.borderWidth)*MAP_XY_FACTOR;
+
+	// Bottom-right
+	loc.x = (hi.xExtent + hi.borderWidth - 1) * MAP_XY_FACTOR;
 	pTrig->addPoint(loc);
-	loc.y = (hi.yExtent+hi.borderWidth)*MAP_XY_FACTOR;
+
+	// Top-right
+	loc.y = (hi.yExtent + hi.borderWidth - 1) * MAP_XY_FACTOR;
 	pTrig->addPoint(loc);
-	loc.x = -hi.borderWidth*MAP_XY_FACTOR;
+
+	// Top-left
+	loc.x = leftX;
 	pTrig->addPoint(loc);
 	PolygonTrigger::addPolygonTrigger(pTrig);
 	TheLayersList->addPolygonTriggerToLayersList(pTrig, pTrig->getLayerName()); 

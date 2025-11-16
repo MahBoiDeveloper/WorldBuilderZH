@@ -3089,6 +3089,19 @@ int WbView3d::OnCreate(LPCREATESTRUCT lpCreateStruct)
 		::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "ShowTracingOverlay", m_showTracingOverlay ? 1 : 0);
 	}
 
+	if (m_showObjects &&
+		::AfxGetApp()->GetProfileInt(TOOLTIP_SECTION, "ShowObjectIconsWarningShown", 0) == 0)
+	{
+		AfxMessageBox(
+			"Showing ALL object icons can noticeably slow down rendering performance.\n\n"
+			"You may want to disable this option, since the updated version now allows "
+			"you to rotate objects simply by selecting them, no need to display all icons.",
+			MB_OK | MB_ICONWARNING
+		);
+
+		::AfxGetApp()->WriteProfileInt(TOOLTIP_SECTION, "ShowObjectIconsWarningShown", 1);
+	}
+
 
 	DrawObject::setDoBoundaryFeedback(m_showMapBoundaries);
 	DrawObject::setDoGridFeedback(m_showRulerGrid);
@@ -3606,6 +3619,25 @@ void WbView3d::drawLabels(HDC hdc)
 		::SetBkMode(hdc, TRANSPARENT);
 		::SetTextColor(hdc, RGB(255, 255, 255));
 		::TextOut(hdc, offsetX, offsetY, text, text.GetLength());
+	}
+
+	if (CMainFrame::GetMainFrame()->showAutoSaveMessage()){
+		CString autoSaveText = _T("Auto-saving in 10 seconds...");
+
+		if (m3DFont) {
+			RECT rct = { offsetX, offsetY + 20, offsetX + 400, offsetY + 50 };
+			m3DFont->DrawText(
+				autoSaveText,
+				autoSaveText.GetLength(),
+				&rct,
+				DT_LEFT | DT_TOP | DT_NOCLIP | DT_SINGLELINE,
+				0xFFFFFF00 // Yellow color
+			);
+		} else if (hdc) {
+			::SetBkMode(hdc, TRANSPARENT);
+			::SetTextColor(hdc, RGB(255, 255, 0)); // Yellow color
+			::TextOut(hdc, offsetX, offsetY + 20, autoSaveText, autoSaveText.GetLength());
+		}
 	}
 
 	if (hdc && m_doRulerFeedback) {

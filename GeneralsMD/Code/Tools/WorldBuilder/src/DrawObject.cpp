@@ -2814,8 +2814,8 @@ if (_skip_drawobject_render) {
 						Coord3D center = *pMapObj->getLocation();
 						center.z = TheTerrainRenderObject->getHeightMapHeight(center.x, center.y, NULL);
 
-						const Real innerRadius = 550.0f;
-						const Real outerRadius = 700.0f;
+						const Real innerRadius = 600.0f;
+						const Real outerRadius = innerRadius + 150.0f;
 						const Real lineWidth = 2.0f;
 
 						// Use the same circle drawer you already have
@@ -3142,10 +3142,10 @@ if (_skip_drawobject_render) {
 		const int gridX = 64;
 		const int gridY = 64;
 
-		float left   = ADJUST_FROM_INDEX_TO_REAL(1);
-		float top    = ADJUST_FROM_INDEX_TO_REAL(1);
-		float right  = ADJUST_FROM_INDEX_TO_REAL(pMap->getXExtent() - 2);
-		float bottom = ADJUST_FROM_INDEX_TO_REAL(pMap->getYExtent() - 2);
+		float left   = ADJUST_FROM_INDEX_TO_REAL(3);
+		float top    = ADJUST_FROM_INDEX_TO_REAL(3);
+		float right  = ADJUST_FROM_INDEX_TO_REAL(pMap->getXExtent() - 3);
+		float bottom = ADJUST_FROM_INDEX_TO_REAL(pMap->getYExtent() - 3);
 
 		float dx = (right - left) / (gridX - 1);
 		float dy = (bottom - top) / (gridY - 1);

@@ -180,7 +180,7 @@ void GroveTool::_plantGroveInBox(CPoint tl, CPoint br, WbView* pView,  CWorldBui
 		position.z = 0;
 
 		// (maybe) don't put me inside someone
-		if(localIsInsideMapObject(position.x, position.y)){
+		if(!TheGroveOptions->getCanPlaceOnCliffs() && localIsInsideMapObject(position.x, position.y)) {
 			continue;
 		}
 

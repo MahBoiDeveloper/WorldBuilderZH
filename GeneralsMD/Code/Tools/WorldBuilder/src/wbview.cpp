@@ -65,7 +65,7 @@ WbView::WbView() :
 	m_showWaypoints = (showWay!=0);
 	Int showPoly = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowPolygonTriggers", 1);
 	m_showPolygonTriggers = (showPoly!=0);
-	Int showObj = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowObjectIcons", 1);
+	Int showObj = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowObjectIcons", 0);
 	m_showObjects = (showObj!=0);
 	Int showObjSel = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowObjectIconsSelected", 1);
 	m_showObjectsSelected = (showObjSel!=0);

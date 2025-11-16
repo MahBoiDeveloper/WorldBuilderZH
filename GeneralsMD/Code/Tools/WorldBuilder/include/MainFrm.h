@@ -54,6 +54,7 @@
 
 #define TWO_D_WINDOW_SECTION "TwoDWindow"
 #define MAIN_FRAME_SECTION "MainFrame"
+#define TOOLTIP_SECTION "ToolTips"
 
 class LayersList;
 class ScriptDialog;
@@ -95,6 +96,7 @@ public:
 	void ScheduleAdjustViewAfterResize(void);
 	void adjustWindowSize(Bool forcedResolution = false, Bool dynamicResolution = false);
 	Bool isAutoSaving(void) {return m_autoSaving;};
+	Bool showAutoSaveMessage(void) {return m_showAutoSaveMessage;};
 	void handleCameraChange(void);
 	void onEditScripts();
 	CString getPointerText(void) {return m_pointerText;};
@@ -139,6 +141,7 @@ protected:  // control bar embedded members
     // Int m_newHeight;
 	// Bool m_disableOnSize;
 
+	Bool							m_showAutoSaveMessage;  ///< True if we are autosaving.
 	Bool							m_autoSaving;  ///< True if we are autosaving.
 	UINT							m_hAutoSaveTimer;  ///< Timer that triggers for autosave.
 	Bool							m_autoSave;    ///< If true, then do autosaves.

@@ -654,9 +654,16 @@ void CMainFrame::OnTimer(UINT nIDEvent)
 			if ((int)secondsRemaining == 10)
 			{
 
-				// CToastDialog* pToast = new CToastDialog(_T(msg), 10000, false);
-				// pToast->Create(CToastDialog::IDD);
-				// pToast->ShowWindow(SW_SHOWNOACTIVATE);
+				// CWnd* pMain = AfxGetMainWnd();
+				// bool mainIsActive = (pMain && pMain->m_hWnd == ::GetForegroundWindow());
+				// if (mainIsActive)
+				// {
+				// 	CToastDialog* pToast = new CToastDialog(_T(msg), 5000, false);
+				// 	pToast->Create(CToastDialog::IDD);
+				// 	pToast->ShowWindow(SW_SHOWNOACTIVATE);
+				// }
+
+				m_showAutoSaveMessage = true;
 					
 				PlaySound("data\\editor\\audio\\autosaving.wav", NULL, SND_FILENAME | SND_ASYNC);
 				// PlaySound((LPCTSTR)SND_ALIAS_SYSTEMASTERISK, NULL, SND_ALIAS_ID | SND_ASYNC);
@@ -682,6 +689,7 @@ void CMainFrame::OnTimer(UINT nIDEvent)
 
             if (old) SetCursor(old);
             SetMessageText("Auto Save Complete.");
+			m_showAutoSaveMessage = false;
             m_autoSaving = false;
 
             CView* pView = GetActiveView();
