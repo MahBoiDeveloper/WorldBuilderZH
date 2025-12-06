@@ -36,6 +36,7 @@
 #include "wbview3d.h"
 #include "ObjectTool.h"
 #include "ToastDialog.h"
+#include "DrawObject.h"
 
 
 CString PointerTool::m_lastPointerInfo = _T("");
@@ -91,6 +92,92 @@ static void helper_pickAllWaypointsInPath( Int sourceID, CWorldBuilderDoc *pDoc,
 	}
 }
 
+
+
+//
+// Collect all connected road points starting from any road point.
+// Similar idea to the waypoint recursive spider, but uses next/prev logic.
+//
+static void selectAllConnectedRoadPoints(MapObject* startObj, Bool select)
+{
+	std::list<MapObject*> roadSegs;
+	std::list<MapObject*> connectedSegs;
+	for (MapObject* pMapObj = MapObject::getFirstMapObject(); pMapObj; pMapObj = pMapObj->getNext()) 
+	{
+		if (pMapObj->getFlag(FLAG_ROAD_POINT1)) 
+		{
+			if (pMapObj->isSelected() || pMapObj->getNext() && pMapObj->getNext()->isSelected()) 
+			{
+				connectedSegs.push_back(pMapObj);
+			}
+			else 
+			{
+				roadSegs.push_back(pMapObj);
+			}
+		}
+	}
+	Bool changed = true;
+	while (changed) 
+	{
+		changed = false;
+		for (std::list<MapObject*>::iterator it = roadSegs.begin(); it != roadSegs.end(); ++it)
+		{
+			MapObject* o = *it;
+			const Coord3D *oLoc = o->getLocation();
+			const Coord3D *onLoc = o->getNext()->getLocation();
+			for (std::list<MapObject*>::iterator connected = connectedSegs.begin(); connected != connectedSegs.end(); ++connected)
+			{
+				MapObject* p = *connected;
+				const Coord3D *pLoc = p->getLocation();
+				const Coord3D *pnLoc = p->getNext()->getLocation();
+
+				Real dx1 = oLoc->x - pLoc->x;
+				Real dy1 = oLoc->y - pLoc->y;
+				dx1 = abs(dx1);
+				dy1 = abs(dy1);
+				Real qd1 = max(dx1, dy1);
+				//Real dist1 = sqrt(dx1*dx1+dy1*dy1);
+
+				Real dx2 = oLoc->x - pnLoc->x;
+				Real dy2 = oLoc->y - pnLoc->y;
+				dx2 = abs(dx2);
+				dy2 = abs(dy2);
+				Real qd2 = max(dx2, dy2);
+				//Real dist2 = sqrt(dx2*dx2+dy2*dy2);
+
+				Real dx3 = onLoc->x - pLoc->x;
+				Real dy3 = onLoc->y - pLoc->y;
+				dx3 = abs(dx3);
+				dy3 = abs(dy3);
+				Real qd3 = max(dx3, dy3);
+				//Real dist3 = sqrt(dx3*dx3+dy3*dy3);
+
+				Real dx4 = onLoc->x - pnLoc->x;
+				Real dy4 = onLoc->y - pnLoc->y;
+				dx4 = abs(dx4);
+				dy4 = abs(dy4);
+				Real qd4 = max(dx4, dy4);
+				//Real dist4 = sqrt(dx4*dx4+dy4*dy4);
+
+				if (qd1 < MAP_XY_FACTOR/100 || qd2 < MAP_XY_FACTOR/100 || qd3 < MAP_XY_FACTOR/100 || qd4 < MAP_XY_FACTOR/100) {
+					connectedSegs.push_back(o);
+					roadSegs.erase(it);
+					changed = true;
+					break;
+				}
+			}
+		}
+	}
+
+	for (std::list<MapObject*>::iterator connected = connectedSegs.begin(); connected != connectedSegs.end(); ++connected)
+	{
+		MapObject* p = *connected;
+		if (p) {
+			p->setSelected(true);
+			p->getNext()->setSelected(true);
+		}
+	}
+}
 //
 // PointerTool class.
 //
@@ -209,6 +296,7 @@ void PointerTool::deactivate()
 {
 	m_curObject = NULL;
 	m_pointerIsActive = false;
+	m_dragSelect = false;
 	PolygonTool::deactivate();
 }
 
@@ -353,7 +441,7 @@ void PointerTool::mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CWorl
 		if (!allowPick(pObj, pView)) {
 			continue;
 		}
-		Bool picked = (pView->picked(pObj, cpt) != PICK_NONE);
+		Bool picked = (pView->picked(pObj, cpt, ctrlKey) != PICK_NONE);
 		if (picked) {
 			loc = *pObj->getLocation();
 			Real dx = m_downPt3d.x-loc.x;
@@ -389,6 +477,10 @@ void PointerTool::mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CWorl
 			if (ctrlKey && pClosestPicked->isWaypoint()) {
 				pickAllWaypointsInPath(pClosestPicked->getWaypointID(), true);
 			}
+			if (ctrlKey && (pClosestPicked->getFlags() & FLAG_ROAD_FLAGS))
+			{
+				selectAllConnectedRoadPoints(pClosestPicked, true);
+			}
 
 		}
 	}
@@ -413,7 +505,7 @@ void PointerTool::mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CWorl
 	if (anySelected) {
 		if (m_curObject) {
 			// See if we are picking on the arrow. 
-			if (pView->picked(m_curObject, cpt) == PICK_ARROW) {
+			if (pView->picked(m_curObject, cpt, ctrlKey) == PICK_ARROW) {
 				m_rotating = true;
 
 				if(!g_PointerToolTip){
@@ -438,16 +530,23 @@ void PointerTool::mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CWorl
 		if (m_curObject) {
 			// adjust the starting point so if we are snapping, the object snaps as well.
 			loc = *m_curObject->getLocation();
+			float angle = m_curObject->getAngle(); 
 			Coord3D snapLoc = loc;
 			pView->snapPoint(&snapLoc);
 			m_downPt3d.x += (loc.x-snapLoc.x);
 			m_downPt3d.y += (loc.y-snapLoc.y);
+
+			CString text;
+			text.Format(_T("X: %.2f\nY: %.2f\nAngle: %.2f"), loc.x, loc.y, angle);
+			m_lastPointerInfo = text;
+
 		}
 	}	else {
 		m_dragSelect = true;
 	}
 
 	m_isMouseDown = true;
+	
 }
 
 bool m_groupRotationInit = false;
@@ -459,7 +558,7 @@ std::vector<MapObject*> m_tempDeselectedRoads;
 void PointerTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBuilderDoc *pDoc) {
     Coord3D cpt;
     pView->viewToDocCoords(viewPt, &cpt, false);
-    Bool KEY = (0x8000 & ::GetAsyncKeyState(VK_CONTROL)) != 0;
+    Bool ctrlKey = (0x8000 & ::GetAsyncKeyState(VK_CONTROL)) != 0;
 	m_rotateObjectsWithGroup = ::AfxGetApp()->GetProfileInt("MainFrame", "ToggleObjectRotationWithGroup", 1);
 	m_useFarthestObjectPivot = ::AfxGetApp()->GetProfileInt("MainFrame", "TogglePivotFarthest", 1);
 
@@ -469,8 +568,10 @@ void PointerTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWor
         m_mouseUpRotate = false;
         m_mouseUpMove = false;
         while (pObj) {
+			DrawObject::setForceDrawArrow(ctrlKey);
+
             if (allowPick(pObj, pView)) {
-                TPickedStatus stat = pView->picked(pObj, cpt);
+                TPickedStatus stat = pView->picked(pObj, cpt, ctrlKey);
                 if (stat == PICK_ARROW) { m_mouseUpRotate = true; break; }
                 if (stat == PICK_CENTER) { m_mouseUpMove = true; break; }
             }
@@ -526,7 +627,7 @@ void PointerTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWor
             m_modifyUndoable = new ModifyObjectUndoable(pDoc);
 
             // Calculate group pivot when starting movement in group rotate mode
-            if (m_rotating && KEY) {
+            if (m_rotating && ctrlKey) {
                 Coord3D pivot = {0, 0, 0};
 
                 if (m_useFarthestObjectPivot) {
@@ -587,7 +688,7 @@ void PointerTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWor
 
     CString text;
     if (m_rotating) {
-        if (KEY) {
+        if (ctrlKey) {
             // --- FIXED GROUP ROTATION MODE ---
             Coord3D pivot = m_groupPivot;
 
@@ -680,7 +781,8 @@ void PointerTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWor
         Real yOffset = (cpt.y - m_downPt3d.y);
         m_modifyUndoable->SetOffset(xOffset, yOffset);
         Coord3D center = *m_curObject->getLocation();
-        text.Format(_T("X: %.2f\nY: %.2f"), center.x, center.y);
+		float angle = m_curObject->getAngle(); 
+        text.Format(_T("X: %.2f\nY: %.2f\nAngle: %.2f"), center.x, center.y, angle);
         m_lastPointerInfo = text;
     }
 

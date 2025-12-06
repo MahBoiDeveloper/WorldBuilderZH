@@ -87,6 +87,7 @@ enum DIRECTION
 };
 
 static Bool g_mapiniloaded = false;
+static Bool g_warnedfordupedforthismap = false;
 static bool secondGreaterThan(const std::pair<AsciiString, Int>& __t1, const std::pair<AsciiString, Int>& __t2)
 {
 	return __t1.second > __t2.second;
@@ -1156,7 +1157,7 @@ BOOL CWorldBuilderDoc::DoSave(LPCTSTR lpszPathName, BOOL bReplace)
 {
 	// Check current map for duplicates before opening another one
     WorldHeightMapEdit *pMap = GetHeightMap();
-    if (pMap != NULL)
+    if (pMap != NULL && !g_warnedfordupedforthismap)
     {
         Bool check = pMap->selectDuplicates();
         if (check)
@@ -1170,6 +1171,7 @@ BOOL CWorldBuilderDoc::DoSave(LPCTSTR lpszPathName, BOOL bReplace)
 				MB_OKCANCEL | MB_ICONERROR | MB_TOPMOST
 			);
 
+			g_warnedfordupedforthismap = true;
             if (res == IDCANCEL)
                 return FALSE; // user canceled open
         }
@@ -1982,6 +1984,8 @@ BOOL CWorldBuilderDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	// TileTool::clearCopiedTiles();
 	// TerrainMaterial::OnImportFavoritesFromMapFolder();
 	
+	//The dude opened a new map so we set this to false;
+	g_warnedfordupedforthismap = false;
 
 	// Adriane [Deathscythe] : Map.ini loader support
 	AsciiString iniPath = lpszPathName;

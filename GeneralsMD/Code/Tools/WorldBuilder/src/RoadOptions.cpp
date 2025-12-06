@@ -253,8 +253,37 @@ BOOL RoadOptions::OnInitDialog()
 
 	ScreenToClient(&rect);
 	rect.DeflateRect(2,2,2,2);
-	m_roadTreeView.Create(TVS_HASLINES|TVS_LINESATROOT|TVS_HASBUTTONS|
-		TVS_SHOWSELALWAYS|TVS_DISABLEDRAGDROP, rect, this, IDC_ROAD_TREEVIEW);
+	
+	// Create the font for the treeview
+	m_treeFont.CreateFont(
+		14,
+		0,
+		0,
+		0,
+		FW_MEDIUM,
+		FALSE,
+		FALSE,
+		0,
+		ANSI_CHARSET,
+		OUT_DEFAULT_PRECIS,
+		CLIP_DEFAULT_PRECIS,
+		DEFAULT_QUALITY,
+		DEFAULT_PITCH | FF_SWISS,
+		_T("Segoe UI")
+	);
+
+	// Create the TreeView
+	m_roadTreeView.Create(
+		TVS_HASLINES | TVS_LINESATROOT | TVS_HASBUTTONS |
+		TVS_SHOWSELALWAYS | TVS_DISABLEDRAGDROP,
+		rect,
+		this,
+		IDC_ROAD_TREEVIEW
+	);
+
+	// Apply the font
+	m_roadTreeView.SetFont(&m_treeFont);
+
 	m_roadTreeView.ShowWindow(SW_SHOW);
 
 	Int index = 0;
@@ -559,11 +588,18 @@ void RoadOptions::SelectConnected(void)
 
 void RoadOptions::ChangeRoadType(AsciiString newRoad)
 {
+	// if (AfxMessageBox(
+    //     _T("Changing the road type have a broken undo at the moment -- you will have to save your map before continuing. Continue?"),
+    //     MB_YESNO | MB_ICONWARNING) != IDYES)
+    // {
+    //     return;
+    // }
+
 	SelectConnected();
 	CWorldBuilderDoc* pDoc = CWorldBuilderDoc::GetActiveDoc();
 	ModifyObjectUndoable *pUndo = new ModifyObjectUndoable(pDoc);
 	pDoc->AddAndDoUndoable(pUndo);
-	pUndo->SetName(newRoad);
+	pUndo->SetRoadType(newRoad);
 	REF_PTR_RELEASE(pUndo); // belongs to pDoc now.
 }
 

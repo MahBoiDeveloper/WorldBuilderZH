@@ -168,6 +168,11 @@ protected:
 	afx_msg void OnUpdateOnWindowLODMode2(CCmdUI* pCmdUI);
 	afx_msg void OnWindowLODMode3();
 	afx_msg void OnUpdateOnWindowLODMode3(CCmdUI* pCmdUI);
+	afx_msg void OnViewShowSubDraw();
+	afx_msg void OnUpdateViewShowSubDraw(CCmdUI* pCmdUI);
+	afx_msg void OnViewShowBaseRadius();
+	afx_msg void OnUpdateViewShowBaseRadius(CCmdUI* pCmdUI);
+
   //}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 
@@ -231,6 +236,8 @@ private:
 	Bool										m_showLetterbox;
 	Bool										m_showRulerGrid;
 	Bool										m_showTracingOverlay; ///< Flag whether to show the tracing overlay or not
+	Bool										m_showBaseRadius; ///< Flag whether to show the base radius or not
+	Bool										m_showSubDraw; ///< Flag whether to show the sub models
 
 	Bool m_showBuildZoneFeedback;
 	Int m_lod;

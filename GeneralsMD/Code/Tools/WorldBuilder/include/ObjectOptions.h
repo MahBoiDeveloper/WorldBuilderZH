@@ -83,6 +83,7 @@ protected:
 	static Int				m_currentObjectIndex;
 	static char				m_currentObjectName[NAME_MAX_LEN];
 	static AsciiString	m_curOwnerName;
+	CFont m_treeFont;
 
 	Bool m_isObjectOptsWindowOpen;
 	Bool m_bPreviewAmbient;

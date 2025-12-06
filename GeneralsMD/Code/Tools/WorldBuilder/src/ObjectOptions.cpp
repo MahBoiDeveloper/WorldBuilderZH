@@ -388,8 +388,37 @@ BOOL ObjectOptions::OnInitDialog()
 
 	ScreenToClient(&rect);
 	rect.DeflateRect(2,2,2,2);
-	m_objectTreeView.Create(TVS_HASLINES|TVS_LINESATROOT|TVS_HASBUTTONS|
-		TVS_SHOWSELALWAYS|TVS_DISABLEDRAGDROP, rect, this, IDC_TERRAIN_TREEVIEW);
+		
+	// Create the font for the treeview
+	m_treeFont.CreateFont(
+		14,
+		0,
+		0,
+		0,
+		FW_MEDIUM,
+		FALSE,
+		FALSE,
+		0,
+		ANSI_CHARSET,
+		OUT_DEFAULT_PRECIS,
+		CLIP_DEFAULT_PRECIS,
+		DEFAULT_QUALITY,
+		DEFAULT_PITCH | FF_SWISS,
+		_T("Segoe UI")
+	);
+
+	// Create the TreeView
+	m_objectTreeView.Create(
+		TVS_HASLINES | TVS_LINESATROOT | TVS_HASBUTTONS |
+		TVS_SHOWSELALWAYS | TVS_DISABLEDRAGDROP,
+		rect,
+		this,
+		IDC_TERRAIN_TREEVIEW
+	);
+
+	// Apply the font
+	m_objectTreeView.SetFont(&m_treeFont);
+
 	m_objectTreeView.ShowWindow(SW_SHOW);
 
 	pWnd = GetDlgItem(IDC_TERRAIN_SWATCHES);
@@ -413,12 +442,12 @@ BOOL ObjectOptions::OnInitDialog()
 	OnPreviewAmbientSound();
 
 	pButton = (CButton*)GetDlgItem(IDC_TOGGLE_PREV_FEEDBACK);
-	m_bPreviewBuildZone=::AfxGetApp()->GetProfileInt(OBJECT_OPTION_PANEL, "PreviewBuildZone", 0);
+	m_bPreviewBuildZone=::AfxGetApp()->GetProfileInt(OBJECT_OPTION_PANEL, "PreviewBuildZone", 1);
 	pButton->SetCheck(m_bPreviewBuildZone ? 1:0);
 	OnPreviewBuildZone();
 
 	pButton = (CButton*)GetDlgItem(IDC_TOGGLE_WATER_HEIGHT);
-	m_bUseWaterHeight=::AfxGetApp()->GetProfileInt(OBJECT_OPTION_PANEL, "UseWaterHeight", 0);
+	m_bUseWaterHeight=::AfxGetApp()->GetProfileInt(OBJECT_OPTION_PANEL, "UseWaterHeight", 1);
 	pButton->SetCheck(m_bUseWaterHeight ? 1:0);
 	OnUseWaterHeight();
 
@@ -882,11 +911,6 @@ Int ObjectOptions::getObjectNamedIndex(const AsciiString& name)
 	return(NULL);
 }
 
-void ObjectOptions::OnOK()
-{
-    OnSearch(); 
-}
-
 // Adriane [Deathscythe] : This function is mainly used for loading new objects from map.ini
 void ObjectOptions::reprocessObjectList()
 {
@@ -926,6 +950,11 @@ void ObjectOptions::reprocessObjectList()
 		index++;
 		pMap = pMap->getNext();
 	}
+}
+
+void ObjectOptions::OnOK()
+{
+    OnSearch(); 
 }
 
 // Add the function that handles the search button click
@@ -997,7 +1026,8 @@ void ObjectOptions::OnSearch()
 
     if (matchCount == 0)
     {
-        MessageBox("No matches found.", "Search", MB_OK | MB_ICONINFORMATION);
+		::MessageBeep(MB_ICONEXCLAMATION);
+        // MessageBox("No matches found.", "Search", MB_OK | MB_ICONINFORMATION);
     }
     else
     {

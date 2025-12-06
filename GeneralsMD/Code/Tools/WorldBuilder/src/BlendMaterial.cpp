@@ -40,8 +40,8 @@ static Int defaultMaterialIndex = -1;
 // BlendMaterial dialog
 
 Int BlendMaterial::m_currentBlendTexture(-1);
-Bool BlendMaterial::m_hvgap(false);
-Bool BlendMaterial::m_dgap(false);
+Bool BlendMaterial::m_hvgap(true);
+Bool BlendMaterial::m_dgap(true);
 Bool BlendMaterial::m_revalblends(true);
 
 BlendMaterial::BlendMaterial(CWnd* pParent /*=NULL*/) :
@@ -189,6 +189,12 @@ BOOL BlendMaterial::OnInitDialog()
 
 	CButton* button = (CButton*)m_staticThis->GetDlgItem(IDC_REVALIDATEBLENDS);
 	button->SetCheck(m_revalblends);
+
+	button = (CButton*)m_staticThis->GetDlgItem(IDC_HVGAP);
+	button->SetCheck(m_hvgap);
+
+	button = (CButton*)m_staticThis->GetDlgItem(IDC_DGAP);
+	button->SetCheck(m_dgap);
 
 	updateTextures();
 	m_updating = false;

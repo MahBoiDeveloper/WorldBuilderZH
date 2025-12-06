@@ -118,6 +118,8 @@ Bool	DrawObject::m_boundaryFeedback = false;
 Bool	DrawObject::m_rulerGridFeedback = true;
 Bool	DrawObject::m_showTracingOverlay = false;
 Bool	DrawObject::m_ambientSoundFeedback = false;
+Bool	DrawObject::m_baseRadiusFeedback = false;
+Bool	DrawObject::m_forceDrawArrow = false;
 Coord3D	DrawObject::m_feedbackPoint;
 CPoint DrawObject::m_cellCenter;
 
@@ -1823,6 +1825,15 @@ Int DrawObject::updateVB(DX8VertexBufferClass	*pVB, Int color, Bool doArrow, Boo
 			theRadius /= 20;
 			halfLineWidth /= 20;
 		}
+
+		// int oldRadius = theRadius;
+
+		// Adriane [Deathscythe]
+		// We reset the radius for the arrow and selection parts.
+		// Why we need to do arrow here? coz normally doDiamond is false when doArrow is true.
+		// But ever since we support the force draw arrow we needed this part so the length of the arrow is correct
+		// theRadius = 10.0f; // reset to normal arrow size
+
 		/* Now do the arrow. */
 		for (k=0; k<3; k++) {
 			vb->x=	(k&1)?2*theRadius:0.0f;	 
@@ -1865,6 +1876,8 @@ Int DrawObject::updateVB(DX8VertexBufferClass	*pVB, Int color, Bool doArrow, Boo
 			vb[3*NUM_TRI] = *vb;
 			vb++;
 		}
+
+		// theRadius = oldRadius;
 
 		if (!doArrow) {
 			theRadius *= 20;
@@ -2783,7 +2796,7 @@ if (_skip_drawobject_render) {
 			}
 
 			Bool doArrow = true;
-			if (pMapObj->getFlag(FLAG_ROAD_FLAGS) || pMapObj->getFlag(FLAG_BRIDGE_FLAGS) || pMapObj->isWaypoint()) 
+			if (!m_forceDrawArrow && (pMapObj->getFlag(FLAG_ROAD_FLAGS) || pMapObj->getFlag(FLAG_BRIDGE_FLAGS) || pMapObj->isWaypoint()) ) 
 			{
 				doArrow = false;
 			}
@@ -2796,7 +2809,7 @@ if (_skip_drawobject_render) {
 
 				Bool exists = false;
 				AsciiString wpName = pMapObj->getProperties()->getAsciiString(TheKey_waypointName, &exists);
-				if (exists && wpName.startsWith("Player_") && wpName.endsWith("_Start")) {
+				if (exists && wpName.startsWith("Player_") && wpName.endsWith("_Start") && m_baseRadiusFeedback) {
 					const char* fullName = wpName.str();
 					const char* numStart = fullName + 7; // skip "Player_"
 					const char* numEnd = strstr(numStart, "_Start");
@@ -2846,7 +2859,8 @@ if (_skip_drawobject_render) {
 						updateVBWithSoundRanges(pMapObj, &rinfo.Camera); 
 					}
 				} 
-				if (doArrow && m_drawTestArtHighlight) {
+				// Force draw arrow triggering test art highlight by mistake
+				if (doArrow && m_drawTestArtHighlight && !m_forceDrawArrow) {
 					linesToRender = true;
 					updateVBWithTestArtHighlight(pMapObj, &rinfo.Camera); 
 				}
@@ -3056,20 +3070,6 @@ if (_skip_drawobject_render) {
 	}
 
 #if 1
-	if (m_rampFeedback) {
-		updateRampVB();
-		if (m_feedbackIndexCount>0) {
- 			DX8Wrapper::Set_Vertex_Buffer(m_vertexFeedback);
-			DX8Wrapper::Set_Index_Buffer(m_indexFeedback,0);
-			DX8Wrapper::Set_Shader(SC_OPAQUE_Z);
-			DX8Wrapper::Set_DX8_Render_State(D3DRS_FILLMODE,D3DFILL_WIREFRAME);	// we want a solid ramp
-			DX8Wrapper::Set_DX8_Render_State(D3DRS_LIGHTING, FALSE);				// disable lighting
-			DX8Wrapper::Draw_Triangles(	0, m_feedbackIndexCount/3, 0,	m_feedbackVertexCount);
-		}
-	}
-#endif
-
-#if 1
 	if (m_boundaryFeedback) {
 		updateBoundaryVB();
 		if (m_feedbackIndexCount > 0) {
@@ -3086,6 +3086,20 @@ if (_skip_drawobject_render) {
 			DX8Wrapper::Draw_Triangles(	0, m_feedbackIndexCount/3, 0,	m_feedbackVertexCount);
 		}
 	}
+
+#if 1
+	if (m_rampFeedback) {
+		updateRampVB();
+		if (m_feedbackIndexCount>0) {
+ 			DX8Wrapper::Set_Vertex_Buffer(m_vertexFeedback);
+			DX8Wrapper::Set_Index_Buffer(m_indexFeedback,0);
+			DX8Wrapper::Set_Shader(SC_OPAQUE_Z);
+			DX8Wrapper::Set_DX8_Render_State(D3DRS_FILLMODE,D3DFILL_WIREFRAME);	// we want a solid ramp
+			DX8Wrapper::Set_DX8_Render_State(D3DRS_LIGHTING, FALSE);				// disable lighting
+			DX8Wrapper::Draw_Triangles(	0, m_feedbackIndexCount/3, 0,	m_feedbackVertexCount);
+		}
+	}
+#endif
 
 	if (m_rulerGridFeedback) {
 		updateGridVB();

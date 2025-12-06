@@ -494,65 +494,49 @@ void GroveOptions::_updateGroveMakeup()
 	//--------------------------------------------------------------------------
 	// Update the object preview based on whichever dropdown was last changed.
 	//--------------------------------------------------------------------------
+	// Find the combo box that triggered the update.
 	CWnd* pFocus = GetFocus();
 	if (!pFocus)
 		return;
 
-	// Identify which combo fired
 	int ctrlID = pFocus->GetDlgCtrlID();
 
-	static const int treeTypeComboIDsNew[TREES_PER_SET] = {
-		IDC_Grove_Type1, IDC_Grove_Type2, IDC_Grove_Type3, IDC_Grove_Type4,
-		IDC_Grove_Type5, IDC_Grove_Type6, IDC_Grove_Type7, IDC_Grove_Type8,
-		IDC_Grove_Type9, IDC_Grove_Type10, IDC_Grove_Type11
-	};
-
-	const PairNameDisplayName* pPair = NULL;
-
+	// Only handle tree-type combos
+	bool isTreeCombo = false;
 	for (int b = 0; b < TREES_PER_SET; ++b)
 	{
-		if (ctrlID == treeTypeComboIDsNew[b])
+		if (ctrlID == treeTypeComboIDs[b])
 		{
-			CComboBox* pCombo = (CComboBox*)GetDlgItem(treeTypeComboIDsNew[b]);
-			if (!pCombo)
-				break;
-
-			int sel = pCombo->GetCurSel();
-			if (sel <= 0)
-				break;
-
-			// Determine which list to use (props-only uses list #2 but only for Type11)
-			if (b == 10)  // index 10 = Type11
-			{
-				if (sel < mVecDisplayNames_PropsOnly.size())
-					pPair = &mVecDisplayNames_PropsOnly[sel];
-			}
-			else
-			{
-				if (sel < mVecDisplayNames.size())
-					pPair = &mVecDisplayNames[sel];
-			}
-
+			isTreeCombo = true;
 			break;
 		}
 	}
+	if (!isTreeCombo)
+		return;
 
-	if (pPair)
-	{
-		// Load ThingTemplate
-		const ThingTemplate* tpl =
-			TheThingFactory->findTemplate(pPair->first.str());
+	// Extract template name directly from the dropdown text
+	CComboBox* pCombo = (CComboBox*)GetDlgItem(ctrlID);
+	if (!pCombo)
+		return;
 
-		m_objectPreview.SetThingTemplate(tpl);
-	}
-	else
+	int sel = pCombo->GetCurSel();
+	if (sel <= 0)
 	{
 		m_objectPreview.SetThingTemplate(NULL);
+		m_objectPreview.Invalidate();
+		return;
 	}
 
-	m_objectPreview.Invalidate();
+	CString text;
+	pCombo->GetLBText(sel, text);
 
-	DEBUG_LOG(("Saved TreeTypeSet%d = %s\n", setIndex, (LPCSTR)saveLine));
+	// Find the template by name
+	const ThingTemplate* tpl =
+		TheThingFactory->findTemplate(AsciiString(text));
+
+	// Apply preview
+	m_objectPreview.SetThingTemplate(tpl);
+	m_objectPreview.Invalidate();
 }
 
 void GroveOptions::_buildTreeList(void)

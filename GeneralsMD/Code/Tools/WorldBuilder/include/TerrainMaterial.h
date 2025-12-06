@@ -50,7 +50,7 @@ public:
 	//{{AFX_VIRTUAL(TerrainMaterial)
 	protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
-	virtual void OnOK(){return;};  ///< Modeless dialogs don't OK, so eat this for modeless.
+	virtual void OnOK();
 	virtual void OnCancel(){return;}; ///< Modeless dialogs don't close on ESC, so eat this for modeless.
 	virtual BOOL OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pResult);
 	//}}AFX_VIRTUAL
@@ -71,6 +71,9 @@ protected:
 	afx_msg void OnCopyMode();
 	afx_msg void OnCopyModeTerrain();
 	afx_msg void OnRaiseOnly();
+
+	afx_msg void OnSearch();
+	afx_msg void OnReset();
 	
 	afx_msg void OnSetFavorite();
 	afx_msg void OnDeleteFavorite();
@@ -92,6 +95,7 @@ protected:
 	static Int							m_currentBgTexture;
 	CTreeCtrl								m_terrainTreeView;
 	CTreeCtrl m_favTreeView;
+	CFont m_treeFont;
 	TerrainSwatches					m_terrainSwatches;
 	WBPopupSliderButton			m_widthPopup;
 	WBPopupSliderButton			m_heightPopup;
@@ -111,6 +115,7 @@ protected:
 
 protected:
 	void addTerrain(char *pPath, Int terrainNdx, HTREEITEM parent);
+	void ExpandAllItems(CTreeCtrl& treeCtrl, HTREEITEM hItem);
 	HTREEITEM findOrAdd(HTREEITEM parent, const char *pLabel);
 	void updateLabel(void);
 	void SaveFavoritesToMapFolder();

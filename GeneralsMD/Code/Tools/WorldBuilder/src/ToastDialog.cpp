@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "ToastDialog.h"
+#include <mmsystem.h>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -65,6 +66,8 @@ BOOL CToastDialog::OnInitDialog()
 
     // Start timer
     m_nTimerID = SetTimer(1, m_durationMs, NULL);
+
+    PlaySound("data\\editor\\audio\\tooltip.wav", NULL, SND_FILENAME | SND_ASYNC);
 
     return TRUE;
 }

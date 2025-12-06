@@ -1110,12 +1110,12 @@ void CWorldBuilderApp::OnAppAbout()
 		{ "Ctrl+A", "Show All of 3D Map" },
 		{ "Ctrl+Shift+G", "Snap To Grid" },
 
-		{ "Ctrl+Q", "Fixed Colored Waypoints"},
+		{ "Ctrl+Q", "Show Ruler Grid"},
 		{ "Ctrl+E", "Show Water"},
 
 		{ "==", "===============================" },
 
-		{ "Alt+1", "Show Objects" },
+		{ "Alt+1", "Show Objects Icons" },
 		{ "Alt+2", "Show Waypoints" },
 		{ "Alt+3", "Show Polygon Triggers" },
 		{ "Alt+4", "Show Labels" },
@@ -1124,7 +1124,7 @@ void CWorldBuilderApp::OnAppAbout()
 		{ "Alt+7", "Show Sight Ranges" },
 		{ "Alt+8", "Show Weapon Ranges" },
 		{ "Alt+9", "Show Map Boundaries" },
-		{ "Alt+0", "Show Ruler Grid" },
+		{ "Alt+0", "Use Fixed Colored Waypoints" },
 
 		{ "==", "===============================" },
 

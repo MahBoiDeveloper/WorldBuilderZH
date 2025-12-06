@@ -89,6 +89,9 @@ BEGIN_MESSAGE_MAP(TerrainMaterial, COptionsPanel)
 	ON_BN_CLICKED(IDC_TERRAIN_COPY_SELECT, OnCopySelect)
 	ON_BN_CLICKED(IDC_TERRAIN_COPY_APPLY, OnCopyApply)
 
+	ON_BN_CLICKED(IDC_OBJECT_SEARCH_BUTTON, OnSearch)
+	ON_BN_CLICKED(IDC_OBJECT_SEARCH_RESET_BTN, OnReset)
+
 	ON_BN_CLICKED(IDC_TERRAIN_ROTATE1, OnRotate0)
 	ON_BN_CLICKED(IDC_TERRAIN_ROTATE2, OnRotate90)
 	ON_BN_CLICKED(IDC_TERRAIN_ROTATE3, OnRotate180)
@@ -491,8 +494,37 @@ BOOL TerrainMaterial::OnInitDialog()
 
 	ScreenToClient(&rect);
 	rect.DeflateRect(2,2,2,2);
-	m_terrainTreeView.Create(TVS_HASLINES|TVS_LINESATROOT|TVS_HASBUTTONS|
-		TVS_SHOWSELALWAYS|TVS_DISABLEDRAGDROP, rect, this, IDC_TERRAIN_TREEVIEW);
+
+	// Create the font for the treeview
+	m_treeFont.CreateFont(
+		14,
+		0,
+		0,
+		0,
+		FW_MEDIUM,
+		FALSE,
+		FALSE,
+		0,
+		ANSI_CHARSET,
+		OUT_DEFAULT_PRECIS,
+		CLIP_DEFAULT_PRECIS,
+		DEFAULT_QUALITY,
+		DEFAULT_PITCH | FF_SWISS,
+		_T("Segoe UI")
+	);
+
+	// Create the TreeView
+	m_terrainTreeView.Create(
+		TVS_HASLINES | TVS_LINESATROOT | TVS_HASBUTTONS |
+		TVS_SHOWSELALWAYS | TVS_DISABLEDRAGDROP,
+		rect,
+		this,
+		IDC_TERRAIN_TREEVIEW
+	);
+
+	// Apply the font
+	m_terrainTreeView.SetFont(&m_treeFont);
+
 	m_terrainTreeView.ShowWindow(SW_SHOW);
 
 	pWnd = GetDlgItem(IDC_TERRAIN_SWATCHES);
@@ -504,9 +536,35 @@ BOOL TerrainMaterial::OnInitDialog()
 	ScreenToClient(&favRect);
 	favRect.DeflateRect(2, 2, 2, 2);
 
+	// Create the font for the treeview
+	m_treeFont.CreateFont(
+		14,
+		0,
+		0,
+		0,
+		FW_MEDIUM,
+		FALSE,
+		FALSE,
+		0,
+		ANSI_CHARSET,
+		OUT_DEFAULT_PRECIS,
+		CLIP_DEFAULT_PRECIS,
+		DEFAULT_QUALITY,
+		DEFAULT_PITCH | FF_SWISS,
+		_T("Segoe UI")
+	);
+
+	// Create the TreeView
 	m_favTreeView.Create(
-		TVS_HASLINES | TVS_LINESATROOT | TVS_HASBUTTONS | TVS_SHOWSELALWAYS,
-		favRect, this, IDC_TERRAIN_TREEVIEW_FAV);
+		TVS_HASLINES | TVS_LINESATROOT | TVS_HASBUTTONS |
+		TVS_SHOWSELALWAYS | TVS_DISABLEDRAGDROP,
+		favRect,
+		this,
+		IDC_TERRAIN_TREEVIEW_FAV
+	);
+
+	// Apply the font
+	m_favTreeView.SetFont(&m_treeFont);	
 	m_favTreeView.ShowWindow(SW_SHOW);
 
 	ScreenToClient(&rect);
@@ -1077,4 +1135,98 @@ void TerrainMaterial::OnRotate180()
 void TerrainMaterial::OnRotate270() 
 {
 	m_copyRotation = 270;
+}
+
+
+void TerrainMaterial::OnOK()
+{
+    OnSearch(); 
+}
+
+
+
+// Add the function that handles the search button click
+void TerrainMaterial::OnReset()
+{
+    CWorldBuilderDoc* pDoc = CWorldBuilderDoc::GetActiveDoc();
+    if (!pDoc) return;
+
+    WorldHeightMapEdit* pMap = pDoc->GetHeightMap();
+    if (!pMap) return;
+
+    m_terrainTreeView.SetRedraw(FALSE);   // stop redraw
+    m_terrainTreeView.DeleteAllItems();   // clear tree
+
+    updateTextures(pMap);                  // repopulate
+    m_terrainTreeView.SetRedraw(TRUE);    // resume redraw
+    m_terrainTreeView.Invalidate();       // force repaint
+}
+
+
+// Add the function that handles the search button click
+void TerrainMaterial::OnSearch()
+{
+    CWorldBuilderDoc* pDoc = CWorldBuilderDoc::GetActiveDoc();
+    if (!pDoc) return;
+
+    WorldHeightMapEdit* pMap = pDoc->GetHeightMap();
+    if (!pMap) return;
+
+    CString searchText;
+    GetDlgItemText(IDC_OBJECT_SEARCH_EDIT, searchText);
+    searchText.MakeLower();
+
+    m_terrainTreeView.SetRedraw(FALSE);   // stop redraw
+    m_terrainTreeView.DeleteAllItems();   // clear tree
+
+    if (searchText.IsEmpty())
+    {
+        // No search text → reset tree
+        updateTextures(pMap);
+    }
+    else
+    {
+        // Filter textures that contain search text
+        for (int i = 0; i < pMap->getNumTexClasses(); i++)
+        {
+            CString name = pMap->getTexClassUiName(i).str();
+            CString lowerName = name;
+            lowerName.MakeLower();
+
+            if (lowerName.Find(searchText) != -1)
+            {
+                char path[_MAX_PATH];
+                strncpy(path, name, _MAX_PATH-2);
+                addTerrain(path, i, TVI_ROOT);
+            }
+        }
+
+        if (m_terrainTreeView.GetCount() == 0)
+        {
+            ::MessageBeep(MB_ICONEXCLAMATION);
+        }
+    }
+
+    // Expand all root items
+    HTREEITEM hRoot = m_terrainTreeView.GetRootItem();
+    while (hRoot)
+    {
+        ExpandAllItems(m_terrainTreeView, hRoot);
+        hRoot = m_terrainTreeView.GetNextSiblingItem(hRoot);
+    }
+
+    m_terrainTreeView.SetRedraw(TRUE);    // resume redraw
+    m_terrainTreeView.Invalidate();       // force repaint
+}
+void TerrainMaterial::ExpandAllItems(CTreeCtrl& treeCtrl, HTREEITEM hItem)
+{
+    while (hItem)
+    {
+        treeCtrl.Expand(hItem, TVE_EXPAND);
+        HTREEITEM hChild = treeCtrl.GetChildItem(hItem);
+        if (hChild)
+            ExpandAllItems(treeCtrl, hChild);
+
+        hItem = treeCtrl.GetNextSiblingItem(hItem);
+    }
 }

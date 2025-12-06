@@ -33,12 +33,15 @@
 #include "MainFrm.h"
 #include "DrawObject.h"
 #include "Common/WellKnownKeys.h"
+#include "ToastDialog.h"
+
 
 //
 // WaypointTool class.
 //
 
 Bool WaypointTool::m_isActive = false;
+static bool g_waypointSelectTooltip = false;
 
 
 /// Constructor
@@ -65,6 +68,16 @@ void WaypointTool::activate()
 	WaypointOptions::update();
 	DrawObject::setDoBrushFeedback(false);
 	m_isActive = true;
+
+	if(!g_waypointSelectTooltip)
+	{
+		CToastDialog* pToast = new CToastDialog(
+		_T("Hold Ctrl and click a waypoint to select all connected waypoints."),
+		20000, true);
+		pToast->Create(CToastDialog::IDD);
+		pToast->ShowWindow(SW_SHOWNOACTIVATE);
+		g_waypointSelectTooltip = true;
+	}
 }
 
 // Pick a waypoint.

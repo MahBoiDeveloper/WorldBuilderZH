@@ -126,6 +126,7 @@ public:
 	void RotateTo(CWorldBuilderDoc *pDoc, Real angle);
 	void SetThingTemplate(CWorldBuilderDoc *pDoc, const ThingTemplate* thing);
 	void SetName(CWorldBuilderDoc *pDoc, AsciiString name);
+	void SetRoadType(CWorldBuilderDoc *pDoc, AsciiString newRoadType);
 
 public:
 	MapObject				 *m_objectToModify;
@@ -161,6 +162,7 @@ public:
 		void RotateTo(Real angle);
 		void SetThingTemplate(const ThingTemplate* thing);
 		void SetName(AsciiString name);
+		void SetRoadType(AsciiString newRoadType);
 };
 
 ///                            ModifyFlagsUndoable

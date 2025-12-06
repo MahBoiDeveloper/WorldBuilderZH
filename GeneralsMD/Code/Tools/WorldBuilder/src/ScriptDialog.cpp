@@ -234,6 +234,7 @@ BEGIN_MESSAGE_MAP(ScriptDialog, CDialog)
 	ON_BN_CLICKED(IDC_NEWICONS, OnNewIcons)
 	ON_BN_CLICKED(IDC_DEEPSCAN, OnDisableDeepScan)
 	ON_BN_CLICKED(IDC_REFRENCEMODE1, OnCheckByParameterForReference)
+	ON_BN_CLICKED(IDC_DISABLEREFERENCE, OnDisableReferencesEntirely)
 	ON_BN_CLICKED(IDC_CLEANSCRIPTNAME, OnCleanScriptName)
 	ON_BN_CLICKED(IDC_FIND_NEXT, OnFindNext)
 	ON_BN_CLICKED(IDC_SMART_COPY, OnSmartCopy)
@@ -344,54 +345,17 @@ void ScriptDialog::OnSelchangedScriptTree(NMHDR* pNMHDR, LRESULT* pResult)
 
 		// 🔀 Toggle: choose between parameter-based or text-based reference detection
 		bool checkByParameter = m_bCheckByParameter; 
+		bool disableReference = m_bDisableReferences; 
 
-		for (int i = 0; i < m_sides.getNumSides(); ++i) {
-			ScriptList* pSL = m_sides.getSideInfo(i)->getScriptList();
-			if (!pSL) continue;
+		if(!disableReference){
+			for (int i = 0; i < m_sides.getNumSides(); ++i) {
+				ScriptList* pSL = m_sides.getSideInfo(i)->getScriptList();
+				if (!pSL) continue;
 
-			if (checkByParameter) {
-				// --- Parameter-based search ---
-				// Non-grouped scripts
-				for (Script* s = pSL->getScript(); s; s = s->getNext()) {
-					if (s == pScript) continue;
-					bool referenced = false;
-
-					// Conditions
-					for (OrCondition* pOr = s->getOrCondition(); pOr && !referenced; pOr = pOr->getNextOrCondition()) {
-						for (Condition* c = pOr->getFirstAndCondition(); c && !referenced; c = c->getNext()) {
-							for (int p = 0; p < c->getNumParameters(); ++p) {
-								Parameter* param = c->getParameter(p);
-								if (param && (param->getParameterType() == Parameter::SCRIPT || param->getParameterType() == Parameter::SCRIPT_SUBROUTINE)  &&
-									param->getString() == targetScriptName) {
-									referenced = true;
-									break;
-								}
-							}
-						}
-					}
-
-					// Actions
-					for (ScriptAction* a = s->getAction(); a && !referenced; a = a->getNext()) {
-						for (int p = 0; p < a->getNumParameters(); ++p) {
-							Parameter* param = a->getParameter(p);
-							if (param && (param->getParameterType() == Parameter::SCRIPT || param->getParameterType() == Parameter::SCRIPT_SUBROUTINE)  &&
-								param->getString() == targetScriptName) {
-								referenced = true;
-								break;
-							}
-						}
-					}
-
-					if (referenced && !alreadyListed(usedByTag, s->getName())) {
-						if (foundUse) usedByTag.concat(", ");
-						else foundUse = true;
-						usedByTag.concat(s->getName());
-					}
-				}
-
-				// Grouped scripts
-				for (ScriptGroup* g = pSL->getScriptGroup(); g; g = g->getNext()) {
-					for (Script* s = g->getScript(); s; s = s->getNext()) {
+				if (checkByParameter) {
+					// --- Parameter-based search ---
+					// Non-grouped scripts
+					for (Script* s = pSL->getScript(); s; s = s->getNext()) {
 						if (s == pScript) continue;
 						bool referenced = false;
 
@@ -413,7 +377,7 @@ void ScriptDialog::OnSelchangedScriptTree(NMHDR* pNMHDR, LRESULT* pResult)
 						for (ScriptAction* a = s->getAction(); a && !referenced; a = a->getNext()) {
 							for (int p = 0; p < a->getNumParameters(); ++p) {
 								Parameter* param = a->getParameter(p);
-								if (param && (param->getParameterType() == Parameter::SCRIPT || param->getParameterType() == Parameter::SCRIPT_SUBROUTINE) &&
+								if (param && (param->getParameterType() == Parameter::SCRIPT || param->getParameterType() == Parameter::SCRIPT_SUBROUTINE)  &&
 									param->getString() == targetScriptName) {
 									referenced = true;
 									break;
@@ -427,30 +391,50 @@ void ScriptDialog::OnSelchangedScriptTree(NMHDR* pNMHDR, LRESULT* pResult)
 							usedByTag.concat(s->getName());
 						}
 					}
-				}
-			} 
-			else {
-				// --- Text-based search (existing behavior) ---
-				for (Script* s = pSL->getScript(); s; s = s->getNext()) {
-					if (s == pScript) continue;
-					AsciiString allText;
-					allText.concat(s->getUiText());
-					allText.concat(s->getComment());
-					allText.concat(s->getActionComment());
-					allText.concat(s->getConditionComment());
 
-					CString content = allText.str();
-					CString search = targetScriptName.str();
+					// Grouped scripts
+					for (ScriptGroup* g = pSL->getScriptGroup(); g; g = g->getNext()) {
+						for (Script* s = g->getScript(); s; s = s->getNext()) {
+							if (s == pScript) continue;
+							bool referenced = false;
 
-					if (content.Find(search) != -1 && !alreadyListed(usedByTag, s->getName())) {
-						if (foundUse) usedByTag.concat(", ");
-						else foundUse = true;
-						usedByTag.concat(s->getName());
+							// Conditions
+							for (OrCondition* pOr = s->getOrCondition(); pOr && !referenced; pOr = pOr->getNextOrCondition()) {
+								for (Condition* c = pOr->getFirstAndCondition(); c && !referenced; c = c->getNext()) {
+									for (int p = 0; p < c->getNumParameters(); ++p) {
+										Parameter* param = c->getParameter(p);
+										if (param && (param->getParameterType() == Parameter::SCRIPT || param->getParameterType() == Parameter::SCRIPT_SUBROUTINE)  &&
+											param->getString() == targetScriptName) {
+											referenced = true;
+											break;
+										}
+									}
+								}
+							}
+
+							// Actions
+							for (ScriptAction* a = s->getAction(); a && !referenced; a = a->getNext()) {
+								for (int p = 0; p < a->getNumParameters(); ++p) {
+									Parameter* param = a->getParameter(p);
+									if (param && (param->getParameterType() == Parameter::SCRIPT || param->getParameterType() == Parameter::SCRIPT_SUBROUTINE) &&
+										param->getString() == targetScriptName) {
+										referenced = true;
+										break;
+									}
+								}
+							}
+
+							if (referenced && !alreadyListed(usedByTag, s->getName())) {
+								if (foundUse) usedByTag.concat(", ");
+								else foundUse = true;
+								usedByTag.concat(s->getName());
+							}
+						}
 					}
-				}
-
-				for (ScriptGroup* g = pSL->getScriptGroup(); g; g = g->getNext()) {
-					for (Script* s = g->getScript(); s; s = s->getNext()) {
+				} 
+				else {
+					// --- Text-based search (existing behavior) ---
+					for (Script* s = pSL->getScript(); s; s = s->getNext()) {
 						if (s == pScript) continue;
 						AsciiString allText;
 						allText.concat(s->getUiText());
@@ -465,6 +449,26 @@ void ScriptDialog::OnSelchangedScriptTree(NMHDR* pNMHDR, LRESULT* pResult)
 							if (foundUse) usedByTag.concat(", ");
 							else foundUse = true;
 							usedByTag.concat(s->getName());
+						}
+					}
+
+					for (ScriptGroup* g = pSL->getScriptGroup(); g; g = g->getNext()) {
+						for (Script* s = g->getScript(); s; s = s->getNext()) {
+							if (s == pScript) continue;
+							AsciiString allText;
+							allText.concat(s->getUiText());
+							allText.concat(s->getComment());
+							allText.concat(s->getActionComment());
+							allText.concat(s->getConditionComment());
+
+							CString content = allText.str();
+							CString search = targetScriptName.str();
+
+							if (content.Find(search) != -1 && !alreadyListed(usedByTag, s->getName())) {
+								if (foundUse) usedByTag.concat(", ");
+								else foundUse = true;
+								usedByTag.concat(s->getName());
+							}
 						}
 					}
 				}
@@ -776,6 +780,18 @@ void ScriptDialog::OnSmartCopy()
 	CButton *pButton = (CButton*)GetDlgItem(IDC_SMART_COPY);
 	m_bSmartCopyEnabled = (pButton->GetCheck() == 1);
 	::AfxGetApp()->WriteProfileInt(SCRIPT_DIALOG_SECTION, "SmartCopy", m_bSmartCopyEnabled ? 1 : 0);
+
+
+	if (m_bSmartCopyEnabled)
+	{
+		AfxMessageBox(
+			"This feature will auto increment values on your copied script's parameters\n\n"
+			"Example:   Add  1  to counter 'Counter01' -> click copy ->   Add  1  to counter 'Counter02'\n\n"
+			"Note: This does not support all parameters. Contact Adriane if you want other parameters to be supported adios.",
+			MB_OK | MB_ICONINFORMATION
+		);
+	}
+
 }
 
 void ScriptDialog::OnAutoVerify()
@@ -862,59 +878,59 @@ void ScriptDialog::OnCheckByParameterForReference()
     ::AfxGetApp()->WriteProfileInt(SCRIPT_DIALOG_SECTION, "ReferenceCheckByParameter", m_bCheckByParameter ? 1 : 0);
 }
 
+void ScriptDialog::OnDisableReferencesEntirely()
+{
+	CButton *pButton = (CButton*)GetDlgItem(IDC_DISABLEREFERENCE);
+	m_bDisableReferences = (pButton->GetCheck() == 1);
+    ::AfxGetApp()->WriteProfileInt(SCRIPT_DIALOG_SECTION, "DisableReferences", m_bDisableReferences ? 1 : 0);
+}
+
 void ScriptDialog::OnCompress()
 {
-	CButton *pButton = (CButton*)GetDlgItem(IDC_COMPRESS);
-	m_bCompressed = (pButton->GetCheck() == 1);
+    CButton *pButton = (CButton*)GetDlgItem(IDC_COMPRESS);
+    m_bCompressed = (pButton->GetCheck() == 1);
     ::AfxGetApp()->WriteProfileInt(SCRIPT_DIALOG_SECTION, "CompressScripts", m_bCompressed ? 1 : 0);
 
     CTreeCtrl* pTree = (CTreeCtrl*)GetDlgItem(IDC_SCRIPT_TREE);
-    if (!pTree)
+    CEdit* pComment = (CEdit*)GetDlgItem(IDC_SCRIPT_COMMENT);
+    CEdit* pDescription = (CEdit*)GetDlgItem(IDC_SCRIPT_DESCRIPTION);
+
+    if (!pTree || !pComment || !pDescription)
         return;
 
+    // Always create the small font (used permanently on comments & description)
+    if (m_treeFont.GetSafeHandle())
+        m_treeFont.DeleteObject();
+
+    m_treeFont.CreateFont(
+        14, 0, 0, 0,
+        FW_MEDIUM,
+        FALSE, FALSE, 0,
+        ANSI_CHARSET,
+        OUT_DEFAULT_PRECIS,
+        CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY,
+        DEFAULT_PITCH | FF_SWISS,
+        _T("Segoe UI")
+    );
+
+    // Comment + Description always use new font
+    pComment->SetFont(&m_treeFont);
+    pDescription->SetFont(&m_treeFont);
+
+    // Tree uses font only when compressed
     if (m_bCompressed)
     {
-        // Save original font (only once)
-        if (!m_pOldFont)
-        {
-            CFont* pFont = pTree->GetFont();
-            if (pFont)
-                m_pOldFont = pFont;
-        }
-
-        // Create and apply custom font
-        if (m_treeFont.GetSafeHandle())
-            m_treeFont.DeleteObject();  // Clean up if reusing
-
-        m_treeFont.CreateFont(
-            14,                         // Height
-            0,                          // Width
-            0,                          // Escapement
-            0,                          // Orientation
-            FW_MEDIUM,               // Weight
-            FALSE,                      // Italic
-            FALSE,                      // Underline
-            0,                          // StrikeOut
-            ANSI_CHARSET,               // CharSet
-            OUT_DEFAULT_PRECIS,         // OutPrecision
-            CLIP_DEFAULT_PRECIS,        // ClipPrecision
-            DEFAULT_QUALITY,            // Quality
-            DEFAULT_PITCH | FF_SWISS,   // PitchAndFamily
-            _T("Segoe UI")              // Font face
-        );
-
         pTree->SetFont(&m_treeFont);
     }
-    else
+    else if (m_pOldFont) // only tree reverts if desired, safe keep
     {
-        // Revert to old font
-        if (m_pOldFont)
-            pTree->SetFont(m_pOldFont);
+        pTree->SetFont(m_pOldFont);
     }
 
-    // Force redraw
-    pTree->Invalidate();
-    pTree->UpdateWindow();
+    pTree->Invalidate();   pTree->UpdateWindow();
+    pComment->Invalidate(); pComment->UpdateWindow();
+    pDescription->Invalidate(); pDescription->UpdateWindow();
 }
 
 // Load em cached status baby Adriane [Deathscythe]
@@ -1279,12 +1295,17 @@ BOOL ScriptDialog::OnInitDialog()
 
 	m_staticThis = this;
 
+	m_bDisableReferences=::AfxGetApp()->GetProfileInt(SCRIPT_DIALOG_SECTION, "DisableReferences", 0);
+	pButton = (CButton*)GetDlgItem(IDC_DISABLEREFERENCE);
+	pButton->SetCheck(m_bDisableReferences ? 1:0);
+	OnDisableReferencesEntirely();
+
 	m_bCheckByParameter=::AfxGetApp()->GetProfileInt(SCRIPT_DIALOG_SECTION, "ReferenceCheckByParameter", 1);
 	pButton = (CButton*)GetDlgItem(IDC_REFRENCEMODE1);
 	pButton->SetCheck(m_bCheckByParameter ? 1:0);
 	OnCheckByParameterForReference();
 
-	m_bDisableDeepScan=::AfxGetApp()->GetProfileInt(SCRIPT_DIALOG_SECTION, "DisableDeepScan", 1);
+	m_bDisableDeepScan=::AfxGetApp()->GetProfileInt(SCRIPT_DIALOG_SECTION, "DisableDeepScan", 0);
 	pButton = (CButton*)GetDlgItem(IDC_DEEPSCAN);
 	pButton->SetCheck(m_bDisableDeepScan ? 1:0);
 	OnDisableDeepScan();
@@ -1925,6 +1946,7 @@ void ScriptDialog::applySmartCopyIncrement(Script* pScr)
                     param->getParameterType() == Parameter::SCRIPT ||
                     param->getParameterType() == Parameter::UNIT ||
                     param->getParameterType() == Parameter::REVEALNAME ||
+					param->getParameterType() == Parameter::COUNTER ||
 					param->getParameterType() == Parameter::SIDE
                 )
                 {
@@ -1948,6 +1970,7 @@ void ScriptDialog::applySmartCopyIncrement(Script* pScr)
 				param->getParameterType() == Parameter::SCRIPT_SUBROUTINE ||
                 param->getParameterType() == Parameter::UNIT ||
                 param->getParameterType() == Parameter::REVEALNAME ||
+				param->getParameterType() == Parameter::COUNTER ||
 				param->getParameterType() == Parameter::SIDE
             )
             {
@@ -1970,6 +1993,7 @@ void ScriptDialog::applySmartCopyIncrement(Script* pScr)
 				param->getParameterType() == Parameter::SCRIPT_SUBROUTINE ||
                 param->getParameterType() == Parameter::UNIT ||
                 param->getParameterType() == Parameter::REVEALNAME ||
+				param->getParameterType() == Parameter::COUNTER ||
 				param->getParameterType() == Parameter::SIDE
             )
             {

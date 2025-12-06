@@ -150,7 +150,7 @@ public:
 
 	void snapPoint(Coord3D *thePt) {if (m_snapToGrid || m_lockAngle) {thePt->x = MAP_XY_FACTOR*floor(thePt->x/MAP_XY_FACTOR+0.5); thePt->y = MAP_XY_FACTOR*floor(thePt->y/MAP_XY_FACTOR+0.5);};};
 
-	virtual TPickedStatus picked(MapObject *pObj, Coord3D docPt);
+	virtual TPickedStatus picked(MapObject *pObj, Coord3D docPt, Bool ctrlKeyDown = false);
 	virtual MapObject *picked3dObjectInView(CPoint viewPt) {return NULL;};
 	virtual BuildListInfo *pickedBuildObjectInView(CPoint viewPt) {return NULL;};
 

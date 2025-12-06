@@ -72,6 +72,7 @@ private:
 	void interpolateColorForHeight( RGBColor *color, Real height, Real hiZ, Real midZ, Real loZ );
 	Bool mapPreviewToWorld(const ICoord2D *radar, Coord3D *world);
 	void buildMapPreviewTexture( CString tgaName );
+	void buildMapPreviewTextureAnime( CString tgaName );
 	
 	UnsignedInt m_pixelBuffer[MAP_PREVIEW_HEIGHT][MAP_PREVIEW_WIDTH];
 	

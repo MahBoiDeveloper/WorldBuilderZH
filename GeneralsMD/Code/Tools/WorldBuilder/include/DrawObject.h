@@ -106,6 +106,8 @@ public:
 	static void setDoTracingOverlayFeedback(Bool val) { m_showTracingOverlay = val; }
 
 	static void setDoAmbientSoundFeedback(Bool val) { m_ambientSoundFeedback = val; }
+	static void setDoBaseRadiusFeedback(Bool val) { m_baseRadiusFeedback = val; }
+	static void setForceDrawArrow(Bool val) { m_forceDrawArrow = val; }
 	
 	static void setBrushFeedbackParms(Bool square, Int width, Int featherWidth, Int height = 0) 
 														{ m_squareFeedback = square; m_brushWidth=width;
@@ -188,6 +190,8 @@ protected: // static state vars.
 	static Bool								m_rulerGridFeedback;
 	static Bool								m_showTracingOverlay; ///< True to show tracing overlay.
 	static Bool								m_ambientSoundFeedback;
+	static Bool								m_baseRadiusFeedback;
+	static Bool								m_forceDrawArrow;	///< True to force drawing arrow on roads/waypoints.
 
 	static Bool								m_dragWaypointFeedback; ///< True for the waypoint tool dragging.
 	static Coord3D						m_dragWayStart;///< Start drag waypoint feedback.

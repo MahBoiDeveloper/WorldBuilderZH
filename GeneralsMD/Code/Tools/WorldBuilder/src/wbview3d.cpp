@@ -1984,7 +1984,7 @@ void WbView3d::invalObjectInView(MapObject *pMapObjIn)
 									if (!renderObj) {
 										renderObj = subRenderObj;  // First model is the main renderObj
 
-										if (m_lod == 1) {
+										if (m_lod == 1 || !m_showSubDraw) {
 											break;  // Only use the first model
 										}
 									} else {
@@ -2911,6 +2911,10 @@ BEGIN_MESSAGE_MAP(WbView3d, WbView)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_RULERGRID, OnUpdateViewShowRulerGrid)
 	ON_COMMAND(ID_VIEW_SHOWTRACINGOVERLAY, OnViewShowTracingOverlay)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWTRACINGOVERLAY, OnUpdateViewShowTracingOverlay)
+	ON_COMMAND(ID_VIEW_SHOWSUBDRAW, OnViewShowSubDraw)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWSUBDRAW, OnUpdateViewShowSubDraw)
+	ON_COMMAND(ID_VIEW_SHOWBASERADIUS, OnViewShowBaseRadius)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWBASERADIUS, OnUpdateViewShowBaseRadius)
 	ON_COMMAND(ID_VIEW_SHOWAMBIENTSOUNDS, OnViewShowAmbientSounds)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWAMBIENTSOUNDS, OnUpdateViewShowAmbientSounds)
 	ON_COMMAND(ID_VIEW_SHOW_SOUND_CIRCLES, OnViewShowSoundCircles)
@@ -3066,6 +3070,8 @@ int WbView3d::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	m_showLayersList = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowLayersList", 0);
 	m_showMapBoundaries = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowMapBoundaries", 0);
 	m_showAmbientSounds = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowAmbientSounds", 0);
+	m_showBaseRadius = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowBaseRadius", 1);
+	m_showSubDraw = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowSubDraw", 1);
 	m_showSoundCircles = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowSoundCircles", 0);
 	m_showRulerGrid = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowRulerGrid", 1);
 	m_showTracingOverlay = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowTracingOverlay", 0);
@@ -3107,6 +3113,7 @@ int WbView3d::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	DrawObject::setDoGridFeedback(m_showRulerGrid);
 	DrawObject::setDoAmbientSoundFeedback(m_showAmbientSounds);
 	DrawObject::setDoTracingOverlayFeedback(m_showTracingOverlay);
+	DrawObject::setDoBaseRadiusFeedback(m_showBaseRadius);
 	return 0;
 }
 
@@ -3539,6 +3546,9 @@ void WbView3d::drawLabels(HDC hdc)
 		::FrameRect(hdc, &m_feedbackBox, (HBRUSH)brush.GetSafeHandle());
 	}
 
+	// DEBUG_LOG(("PointerTool::isMouseDown() = %d\n", PointerTool::isMouseDown() ? 1 : 0));
+	// DEBUG_LOG(("AutoEdgeOutTool::isActive() = %d\n", AutoEdgeOutTool::isActive() ? 1 : 0));
+	// DEBUG_LOG(("PointerTool::isDragSelecting() = %d\n", PointerTool::isDragSelecting() ? 1 : 0));
 	//  BE WARNED -- DO NOT ENABLE THIS DUDE WHEN DRAGGING OR ELSE THE DRAG RECT WILL BE BROKEN UNDER POINTER TOOL
 	if ((PointerTool::isMouseDown() || AutoEdgeOutTool::isActive()) 
 			&& !PointerTool::isDragSelecting()
@@ -4459,6 +4469,29 @@ void WbView3d::OnViewShowAmbientSounds()
 void WbView3d::OnUpdateViewShowAmbientSounds(CCmdUI* pCmdUI)
 {
 	pCmdUI->SetCheck(m_showAmbientSounds ? 1 : 0);
+}
+
+void WbView3d::OnViewShowBaseRadius() {
+	m_showBaseRadius = !m_showBaseRadius;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "ShowBaseRadius", m_showBaseRadius ? 1 : 0);
+	DrawObject::setDoBaseRadiusFeedback(m_showBaseRadius);
+}
+
+void WbView3d::OnUpdateViewShowBaseRadius(CCmdUI* pCmdUI) {
+	pCmdUI->SetCheck(m_showBaseRadius ? 1 : 0);
+}
+
+void WbView3d::OnViewShowSubDraw()
+{
+	m_showSubDraw = !m_showSubDraw;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "ShowSubDraw", m_showSubDraw ? 1 : 0);
+	resetRenderObjects();
+	invalObjectInView(NULL);
+}
+
+void WbView3d::OnUpdateViewShowSubDraw(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_showSubDraw ? 1 : 0);
 }
 
 void WbView3d::OnViewShowSoundCircles()

@@ -261,12 +261,8 @@ BEGIN
         MENUITEM "Show Roads And Bridges",      ID_VIEW_SHOWROADS
         MENUITEM "Show Water Mesh\tCtrl+E",     ID_VIEW_SHOWWATER
         MENUITEM "Show Terrain",                ID_VIEW_SHOW_TERRAIN
-        MENUITEM "Show Object Icons \tCtrl+B",  ID_VIEW_SHOW_OBJECTS
-        MENUITEM "Show Objects\tAlt+1",         ID_VIEW_SHOWMODELS
+        MENUITEM "Show Object Icons \tAlt+1",   ID_VIEW_SHOW_OBJECTS
         MENUITEM "Show Waypoints\tAlt+2",       ID_VIEW_SHOWWAYPOINTS
-        MENUITEM "Use Fixed Colored Waypoints \tCtrl+Q", 
-                                                ID_VIEW_FIXEDCOLOREDWAYPOINTS
-
         MENUITEM "Show Trigger Areas\tAlt+3",   ID_VIEW_SHOWPOLYGONTRIGGERS
         MENUITEM "Show Shadows",                ID_VIEW_SHOWSHADOWS
         MENUITEM "Show Labels \tAlt+4",         ID_VIEW_LABELS
@@ -276,8 +272,14 @@ BEGIN
         MENUITEM "Show Weapon Ranges\tAlt+8",   ID_VIEW_WEAPONRANGES
         MENUITEM "Show Garrisoned",             ID_VIEW_GARRISONED
         MENUITEM "Show Map Boundaries\tAlt+9",  ID_VIEW_SHOWMAPBOUNDARIES
-        MENUITEM "Show Ruler Grid\tAlt+0",      ID_VIEW_RULERGRID
+        MENUITEM "Show Ruler Grid\tCtrl+Q",     ID_VIEW_RULERGRID
+        MENUITEM SEPARATOR
+        MENUITEM "Use Fixed Colored Waypoints \tAlt+0", 
+                                                ID_VIEW_FIXEDCOLOREDWAYPOINTS
+
         MENUITEM "Show Tracing Overlay",        ID_VIEW_SHOWTRACINGOVERLAY
+        MENUITEM "Show Base Radius From Player Spawn Points", 
+                                                ID_VIEW_SHOWBASERADIUS
         MENUITEM "Show Letterbox",              ID_SHOW_LETTERBOX
         MENUITEM "Show Sound Flags",            ID_VIEW_SHOWAMBIENTSOUNDS
         MENUITEM "Show Sound Circles",          ID_VIEW_SHOW_SOUND_CIRCLES
@@ -310,6 +312,7 @@ BEGIN
         MENUITEM "Lets lag the whole worldbuilder | NASA PC Required!", 
                                                 ID_LOD_MODE_3
         MENUITEM SEPARATOR
+        MENUITEM "Render Sub Models",           ID_VIEW_SHOWSUBDRAW
         MENUITEM "Show All of 3d Map\tCtrl+A",  ID_VIEW_SHOWENTIRE3DMAP
         POPUP "Partial Map Size"
         BEGIN
@@ -491,8 +494,6 @@ BEGIN
     "T",            ID_MOLD_TOOL,           VIRTKEY 
     "1",            ID_VIEW_SHOW_OBJECTS,   VIRTKEY, ALT
     "2",            ID_VIEW_SHOWWAYPOINTS,  VIRTKEY, ALT
-    "Q",            ID_VIEW_FIXEDCOLOREDWAYPOINTS, VIRTKEY, CONTROL, 
-                                                    NOINVERT
     "E",            ID_VIEW_SHOWWATER,      VIRTKEY, CONTROL, NOINVERT
     "3",            ID_VIEW_SHOWPOLYGONTRIGGERS, VIRTKEY, ALT
     "4",            ID_VIEW_LABELS,         VIRTKEY, ALT
@@ -501,7 +502,8 @@ BEGIN
     "7",            ID_VIEW_SIGHTRANGES,    VIRTKEY, ALT
     "8",            ID_VIEW_WEAPONRANGES,   VIRTKEY, ALT
     "9",            ID_VIEW_SHOWMAPBOUNDARIES, VIRTKEY, ALT
-    "0",            ID_VIEW_RULERGRID,      VIRTKEY, ALT
+    "0",            ID_VIEW_FIXEDCOLOREDWAYPOINTS, VIRTKEY, ALT
+    "Q",            ID_VIEW_RULERGRID,      VIRTKEY, CONTROL, NOINVERT
     "Y",            ID_WATER_TOOL,          VIRTKEY 
     "A",            ID_TILE_TOOL,           VIRTKEY 
     "S",            ID_BIG_TILE_TOOL,       VIRTKEY 
@@ -545,7 +547,7 @@ BEGIN
                     SS_CENTERIMAGE
     EDITTEXT        IDC_FIND_QUERY,312,3,110,14
     PUSHBUTTON      "Find",IDC_FIND_HKEY_BUTTON,428,3,24,14
-    LTEXT           "Kabuse [Hotkey layout] | Gramantio [Tester] | Veloxious [Tester] | Muska [Tester]",
+    LTEXT           "Kabuse [Hotkey layout] | Gramantio | Veloxious | Muska | Vite | Sgtmyers | WWB2 | BKR",
                     IDC_STATIC,62,52,152,31
     CONTROL         "Launch this window on app startup",IDC_LAUNCH_ONSTARTUP,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,4,173,147,14
@@ -653,7 +655,7 @@ CAPTION "Terrain Material Options"
 FONT 8, "MS Sans Serif"
 BEGIN
     CONTROL         "",IDC_TERRAIN_TREEVIEW,"Static",SS_BLACKFRAME | 
-                    SS_SUNKEN,5,5,190,175
+                    SS_SUNKEN,5,19,190,161
     PUSHBUTTON      "Swap",IDC_SWAP_TEXTURES,96,265,25,16
     CONTROL         "",IDC_TERRAIN_SWATCHES,"Static",SS_BLACKFRAME | 
                     SS_SUNKEN,130,244,65,55
@@ -700,6 +702,10 @@ BEGIN
     PUSHBUTTON      "1",IDC_Z_POPUP,78,262,8,12,BS_BITMAP
     CONTROL         "Raise Only",IDC_COPY_MODE2_1,"Button",BS_AUTOCHECKBOX | 
                     WS_TABSTOP,139,323,48,8
+    LTEXT           "Search:",IDC_STATIC,3,7,25,8
+    EDITTEXT        IDC_OBJECT_SEARCH_EDIT,31,5,106,12,ES_AUTOHSCROLL
+    PUSHBUTTON      "Find",IDC_OBJECT_SEARCH_BUTTON,141,5,26,12
+    PUSHBUTTON      "Reset",IDC_OBJECT_SEARCH_RESET_BTN,170,5,26,12
 END
 
 IDD_MOUND_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 146
@@ -794,24 +800,27 @@ CAPTION "Road Options"
 FONT 8, "MS Sans Serif"
 BEGIN
     CONTROL         "",IDC_ROAD_TREEVIEW,"Static",SS_BLACKFRAME | SS_SUNKEN,
-                    5,5,190,226
-    LTEXT           "Two lane",IDC_ROAD_NAME,17,245,86,9
-    GROUPBOX        "Current road type:",IDC_STATIC,5,233,190,27
-    GROUPBOX        "Corner Type:",IDC_STATIC,5,261,190,45
-    CONTROL         199,IDC_STATIC,"Static",SS_BITMAP,19,273,11,30
+                    5,5,190,204
+    LTEXT           "Two lane",IDC_ROAD_NAME,17,222,86,9
+    GROUPBOX        "Current road type:",IDC_STATIC,5,210,190,27
+    GROUPBOX        "Corner Type:",IDC_STATIC,5,238,190,45
+    CONTROL         199,IDC_STATIC,"Static",SS_BITMAP,19,250,11,30
     CONTROL         "Broad Curve",IDC_BROAD_CURVE,"Button",
-                    BS_AUTORADIOBUTTON,33,274,82,8
+                    BS_AUTORADIOBUTTON,33,250,82,8
     CONTROL         "Tight Curve.",IDC_TIGHT_CURVE,"Button",
-                    BS_AUTORADIOBUTTON,33,284,82,8
-    CONTROL         "Angled.",IDC_ANGLED,"Button",BS_AUTORADIOBUTTON,33,294,
+                    BS_AUTORADIOBUTTON,33,261,82,8
+    CONTROL         "Angled.",IDC_ANGLED,"Button",BS_AUTORADIOBUTTON,33,271,
                     82,8
     CONTROL         "Add end cap and/or Join to different road.",IDC_JOIN,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,33,309,158,11
-    PUSHBUTTON      "Apply To Selection",IDC_APPLY_ROAD,123,326,72,14
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,33,286,158,11
+    PUSHBUTTON      "Apply To Selection",IDC_APPLY_ROAD,116,328,72,14
     EDITTEXT        IDC_ROAD_SNAP_POINT_EDIT,84,360,31,12,ES_AUTOHSCROLL
     LTEXT           "Road Snap Distance:",IDC_STATIC,11,362,70,8
     GROUPBOX        "Tool Option:",IDC_STATIC,5,350,190,27
     LTEXT           "(Min: 0.0 - Max: 5.0)",IDC_STATIC,121,362,67,8
+    GROUPBOX        "Road Replacer",IDC_STATIC,5,297,190,48
+    LTEXT           "Updates only the selected road points (single or multiple), spreading to connected segments like a flood fill.",
+                    IDC_STATIC,11,307,178,17
 END
 
 IDD_NO_OPTIONS DIALOG DISCARDABLE  0, 0, 169, 109
@@ -1125,31 +1134,31 @@ BEGIN
     RTEXT           "Intensity:",IDC_STATIC,22,92,29,10
 END
 
-IDD_ScriptDialog DIALOGEX 0, 0, 655, 328
+IDD_ScriptDialog DIALOGEX 0, 0, 690, 328
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION
 CAPTION "Scripts"
-FONT 8, "MS Sans Serif", 0, 0, 0x1
+FONT 8, "MS Sans Serif"
 BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,598,289,50,14
-    PUSHBUTTON      "New &Script...",IDC_NEW_SCRIPT,598,103,50,14
-    PUSHBUTTON      "&Edit...",IDC_EDIT_SCRIPT,598,119,50,14
-    PUSHBUTTON      "&Copy",IDC_COPY_SCRIPT,598,171,50,14
-    PUSHBUTTON      "&Delete",IDC_DELETE,598,187,50,14
-    PUSHBUTTON      "Import Scripts",IDC_LOAD,597,257,51,14
-    PUSHBUTTON      "Export Scripts",IDC_SAVE,598,238,50,14
+    DEFPUSHBUTTON   "OK",IDOK,633,289,50,14
+    PUSHBUTTON      "New &Script...",IDC_NEW_SCRIPT,633,103,50,14
+    PUSHBUTTON      "&Edit...",IDC_EDIT_SCRIPT,633,119,50,14
+    PUSHBUTTON      "&Copy",IDC_COPY_SCRIPT,633,171,50,14
+    PUSHBUTTON      "&Delete",IDC_DELETE,633,187,50,14
+    PUSHBUTTON      "Import Scripts",IDC_LOAD,632,257,51,14
+    PUSHBUTTON      "Export Scripts",IDC_SAVE,633,238,50,14
     CONTROL         "Tree1",IDC_SCRIPT_TREE,"SysTreeView32",TVS_HASBUTTONS | 
                     TVS_HASLINES | TVS_LINESATROOT | TVS_SHOWSELALWAYS | 
-                    WS_TABSTOP,7,25,259,297,WS_EX_CLIENTEDGE
-    PUSHBUTTON      "New &Folder...",IDC_NEW_FOLDER,598,87,50,14
-    EDITTEXT        IDC_SCRIPT_DESCRIPTION,272,25,317,191,ES_MULTILINE | 
+                    WS_TABSTOP,7,25,254,297,WS_EX_CLIENTEDGE
+    PUSHBUTTON      "New &Folder...",IDC_NEW_FOLDER,633,87,50,14
+    EDITTEXT        IDC_SCRIPT_DESCRIPTION,263,25,363,191,ES_MULTILINE | 
                     ES_READONLY | WS_VSCROLL | WS_HSCROLL
-    PUSHBUTTON      "Cancel",IDCANCEL,598,308,50,14
-    EDITTEXT        IDC_SCRIPT_COMMENT,272,233,317,90,ES_MULTILINE | 
+    PUSHBUTTON      "Cancel",IDCANCEL,633,308,50,14
+    EDITTEXT        IDC_SCRIPT_COMMENT,264,233,362,90,ES_MULTILINE | 
                     ES_READONLY | WS_VSCROLL
     CONTROL         "Auto Verify",IDC_AUTO_VERIFY,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,597,7,51,14
-    PUSHBUTTON      "&Verify",IDC_VERIFY,598,44,50,14,NOT WS_VISIBLE
-    PUSHBUTTON      "&Patch ""GC_""",IDC_PATCH_GC,598,204,50,14
+                    WS_TABSTOP,632,7,51,14
+    PUSHBUTTON      "&Verify",IDC_VERIFY,633,44,50,14,NOT WS_VISIBLE
+    PUSHBUTTON      "&Patch ""GC_""",IDC_PATCH_GC,633,204,50,14
     EDITTEXT        IDC_SCRIPT_SEARCH,34,7,127,14
     PUSHBUTTON      "Find Next",IDC_FIND_NEXT,165,7,41,14
     LTEXT           "Search:",IDC_STATIC,7,7,26,13,SS_CENTERIMAGE
@@ -1160,14 +1169,17 @@ BEGIN
     CONTROL         "Disable Script Deep Scan On Load  | Fast Load",
                     IDC_DEEPSCAN,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,424,7,
                     162,14
-    PUSHBUTTON      "Re- Verify All",IDC_VERIFYALL,598,24,50,14
+    PUSHBUTTON      "Re- Verify All",IDC_VERIFYALL,633,24,50,14
     CONTROL         "Smart Copy",IDC_SMART_COPY,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,600,155,48,14
+                    WS_TABSTOP,635,155,48,14
     CONTROL         "Clean Script Name",IDC_CLEANSCRIPTNAME,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,339,7,75,14
     CONTROL         "Detect References via picked Parameters",
                     IDC_REFRENCEMODE1,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,
-                    271,217,150,14
+                    478,218,150,14
+    CONTROL         "Disable references (reduces lag when moving through scripts)",
+                    IDC_DISABLEREFERENCE,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,264,218,207,14
 END
 
 IDD_ScriptTabWindow DIALOG DISCARDABLE  0, 0, 391, 255
@@ -1694,8 +1706,9 @@ BEGIN
     CONTROL         "Add one tile between diagonal gaps",IDC_DGAP,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,11,29,178,8
     GROUPBOX        "Advanced Blend Options",IDC_STATIC,5,46,190,25
-    CONTROL         "Revalidate Blends",IDC_REVALIDATEBLENDS,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,12,57,154,8
+    CONTROL         "Re-revalidate Blends (3x3 around cursor)",
+                    IDC_REVALIDATEBLENDS,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,12,57,154,8
     GROUPBOX        "Tile Gap Options",IDC_STATIC,5,5,190,36
 END
 
@@ -1826,7 +1839,7 @@ BEGIN
                     SS_SUNKEN | NOT WS_VISIBLE,178,269,57,49
 END
 
-IDD_WATER_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 181
+IDD_WATER_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 279
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION
 CAPTION "Water Options"
 FONT 8, "MS Sans Serif"
@@ -1839,12 +1852,17 @@ BEGIN
     RTEXT           "Water height (feet):",IDC_WATER_HEIGHT2,4,54,62,10
     PUSHBUTTON      "1",IDC_HEIGHT_POPUP,89,52,8,12,BS_BITMAP
     CONTROL         "Create Water Polygon",IDC_WATER_POLYGON,"Button",
-                    BS_AUTOCHECKBOX | BS_PUSHLIKE | WS_TABSTOP,50,89,99,16
+                    BS_AUTOCHECKBOX | BS_PUSHLIKE | WS_TABSTOP,9,110,180,16
     CONTROL         "River",IDC_MAKE_RIVER,"Button",BS_AUTOCHECKBOX | 
-                    BS_PUSHLIKE | WS_TABSTOP,50,114,98,16
+                    BS_PUSHLIKE | WS_TABSTOP,10,75,180,16
     GROUPBOX        "Point spacing for water polygons and rivers.",
-                    IDC_STATIC,13,140,168,29
-    EDITTEXT        IDC_SPACING,49,153,63,12,ES_AUTOHSCROLL
+                    IDC_STATIC,1,96,195,66
+    EDITTEXT        IDC_SPACING,9,131,180,12,ES_AUTOHSCROLL
+    LTEXT           "Increase the value for less water nodes",IDC_STATIC,9,
+                    146,139,10
+    GROUPBOX        "Want to create waves?",IDC_STATIC,1,178,195,38
+    PUSHBUTTON      "Jump to Game (with wave editor)",ID_FILE_JUMPTOGAME_WM,
+                    9,190,180,16
 END
 
 IDD_CAMERA_OPTIONS DIALOG DISCARDABLE  0, 0, 144, 162
@@ -2412,7 +2430,7 @@ BEGIN
     IDD_ScriptDialog, DIALOG
     BEGIN
         LEFTMARGIN, 7
-        RIGHTMARGIN, 648
+        RIGHTMARGIN, 683
         TOPMARGIN, 7
         BOTTOMMARGIN, 322
     END
@@ -2634,7 +2652,7 @@ BEGIN
         LEFTMARGIN, 1
         RIGHTMARGIN, 196
         TOPMARGIN, 1
-        BOTTOMMARGIN, 177
+        BOTTOMMARGIN, 274
     END
 
     IDD_CAMERA_OPTIONS, DIALOG

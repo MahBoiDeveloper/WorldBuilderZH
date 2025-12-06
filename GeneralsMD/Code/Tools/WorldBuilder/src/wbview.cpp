@@ -425,13 +425,13 @@ void WbView::OnMButtonDown(UINT nFlags, CPoint point)
 //=============================================================================
 /** Returns true if the pixel location picks the object. */
 //=============================================================================
-TPickedStatus WbView::picked(MapObject *pObj, Coord3D docPt)
+TPickedStatus WbView::picked(MapObject *pObj, Coord3D docPt, Bool ctrlKeyDown)
 {
 	Coord3D cloc = *pObj->getLocation();
-	if (!m_showObjects && !pObj->isSelected() && !pObj->isWaypoint()) {
+	if (!m_showObjects && !pObj->isSelected() && !pObj->isWaypoint() && !ctrlKeyDown) {
 		return PICK_NONE;
 	}
-	if (!m_showWaypoints && !WaypointTool::isActive() && pObj->isWaypoint()) {
+	if (!m_showWaypoints && !WaypointTool::isActive() && pObj->isWaypoint() && !ctrlKeyDown) {
 		return PICK_NONE;
 	}
 
@@ -444,7 +444,10 @@ TPickedStatus WbView::picked(MapObject *pObj, Coord3D docPt)
 	if (cpt.length() < 0.5f*MAP_XY_FACTOR+m_hysteresis) {
 		return PICK_CENTER;
 	}
-	if (pObj->getFlag(FLAG_ROAD_FLAGS) ||  pObj->getFlag(FLAG_BRIDGE_FLAGS) || pObj->isWaypoint()) {
+	if (!ctrlKeyDown && (pObj->getFlag(FLAG_ROAD_FLAGS) ||
+						pObj->getFlag(FLAG_BRIDGE_FLAGS) ||
+						pObj->isWaypoint()))
+	{
 		doArrow = false;
 	}
 	// Check and see if we are within 1 cell size of the center.

@@ -36,6 +36,9 @@
 #include "Common/ThingTemplate.h"
 #include "Common/ThingFactory.h"
 #include "GameClient/Line2D.h"
+#include "ToastDialog.h"
+
+static bool g_roadSelectTooltip = false;
 //
 // RoadTool class.
 //
@@ -155,6 +158,16 @@ void RoadTool::activate()
 	CMainFrame::GetMainFrame()->showOptionsDialog(IDD_ROAD_OPTIONS);
 	RoadOptions::updateSelection();
 	DrawObject::setDoBrushFeedback(false);
+
+	if(!g_roadSelectTooltip)
+	{
+		CToastDialog* pToast = new CToastDialog(
+		_T("Hold Ctrl and click a road point to select all connected road points. \n (All Object Icons must be viewable first.)"),
+		20000, true);
+		pToast->Create(CToastDialog::IDD);
+		pToast->ShowWindow(SW_SHOWNOACTIVATE);
+		g_roadSelectTooltip = true;
+	}
 }
 
 /** Execute the tool on mouse up - Place a road segment. */

@@ -85,6 +85,8 @@ protected:
 	static Bool				m_tightCurve;
 	static Bool				m_doJoin;
 	CTreeCtrl					m_roadTreeView;
+	CFont m_treeFont;
+
 
 protected:
 	void addRoad(char *pPath, Int objectNdx, HTREEITEM parent);

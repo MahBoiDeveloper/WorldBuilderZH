@@ -485,6 +485,18 @@ void MoveInfo::SetName(CWorldBuilderDoc *pDoc, AsciiString name)
 	DoMove(pDoc);
 }
 
+void MoveInfo::SetRoadType(CWorldBuilderDoc *pDoc, AsciiString name)
+{
+	/**  Adriane [Deathscythe] -- this will save the old name and automatically triggering 
+	 * the UNUSED check (as of 29/11/2025) under DoMove and UndoMove which reverts the name change.
+	 * 
+	 * I still dont know why m_oldName where not set before, but this should fix the undo issue.
+	 */
+	m_oldName = m_objectToModify->getName().str();
+	m_newName = name;
+	DoMove(pDoc);
+}
+
 //
 /// Set the angle for all objects in the move list.
 //
@@ -623,6 +635,22 @@ void ModifyObjectUndoable::SetName(AsciiString name)
 	MoveInfo *pCur = m_moveList;
 	while (pCur) {
 		pCur->SetName(m_pDoc, name);
+		pCur = pCur->m_next;
+	}
+	m_inval = true;
+	if (m_inval) 
+	{
+		WbView3d *p3View = m_pDoc->GetActive3DView();
+		p3View->resetRenderObjects();
+		p3View->invalObjectInView(NULL);
+	}
+}
+
+void ModifyObjectUndoable::SetRoadType(AsciiString newRoadType)
+{
+	MoveInfo *pCur = m_moveList;
+	while (pCur) {
+		pCur->SetRoadType(m_pDoc, newRoadType);
 		pCur = pCur->m_next;
 	}
 	m_inval = true;
