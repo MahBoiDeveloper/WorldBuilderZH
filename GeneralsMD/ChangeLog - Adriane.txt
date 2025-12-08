@@ -373,3 +373,20 @@ XXX
 
 == Grove Tool ==
 - Selection now supports 3d preview
+
+
+12/08/2025
+======================================================
+== System ==
+- Labels are now affected by the LOD (lowest LOD will reduce render distance)
+- Added hotkeys for the Script Editor
+- Object Finder / Hotkey List now save their expanded/collapsed state (reopening World Builder restores the last setting)
+- Object Finder / Hotkey List now have new icon
+- Disabled the tile tool's copy blend rotation support ( its crashing probably due to blend limit )
+
+== Blend Tool ==
+- Added Unblend support (hold Shift)
+
+== Layers List ==
+- Screen position is now saved
+- Layers List is now accessible from the toolbar

@@ -32,9 +32,12 @@
 #include "W3DDevice/GameClient/WorldHeightMap.h"
 #include "BrushTool.h"
 #include "DrawObject.h"
+// #include "W3DDevice/GameClient/W3DCustomEdging.h"
 //
 // TileTool class.
 //
+
+static BOOL g_warnedforcopy = false; 
 TileTool::TerrainCopyBuffer TileTool::s_copyBuffer;
 std::vector<TileTool::TileTextureData> TileTool::m_copiedTileTextures;
 
@@ -375,6 +378,43 @@ void TileTool::mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBu
 			int mapWidth = liveMap->getStoredWidth();
 			int mapHeight = liveMap->getStoredHeight();
 
+
+			// if (TerrainMaterial::isCopyTextureMode()) {
+			// 	int potentialNewTiles = (int)m_copiedTileTextures.size();
+			// 	if (liveMap->m_numBlendedTiles + potentialNewTiles > 2000) {
+			// 		AfxMessageBox(
+			// 			_T("Cannot paste: Too many blended tiles! Please reduce the size of your copied area."),
+			// 			MB_OK | MB_ICONWARNING
+			// 		);
+			// 		return; // abort paste safely
+			// 	}
+			// }
+
+			    // int currentBlends = liveMap->m_numBlendedTiles;
+				// int copiedTiles = (int)m_copiedTileTextures.size();
+				// int rotation = TerrainMaterial::getCopyRotation();
+				// int potentialNewBlends = (rotation == 0) ? 0 : copiedTiles;
+
+				// CString msg;
+				// msg.Format(
+				// 	_T("DEBUG: About to paste copied tiles\n")
+				// 	_T("Map size: %dx%d\n")
+				// 	_T("Current blended tiles: %d / MAX_BLENDS=%d\n")
+				// 	_T("Copied tiles: %d\n")
+				// 	_T("Rotation: %d\n")
+				// 	_T("Potential new blended tiles: %d\n")
+				// 	_T("Blended tiles after paste (estimate): %d"),
+				// 	mapWidth, mapHeight,
+				// 	currentBlends, MAX_BLENDS,
+				// 	copiedTiles,
+				// 	rotation,
+				// 	potentialNewBlends,
+				// 	currentBlends + potentialNewBlends
+				// );
+
+				// AfxMessageBox(msg, MB_OK | MB_ICONINFORMATION);
+
+
 			for (int ix = 0; ix < m_copiedTileTextures.size() && allTexturesValid; ++ix) {
 				const TileTextureData& tile = m_copiedTileTextures[ix];
 				bool textureFound = false;
@@ -446,20 +486,23 @@ void TileTool::mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBu
 						// Keep original tile orientation
 						workingMap->m_blendTileNdxes[mapNdx] = tile.blendTileNdx;
 						workingMap->m_extraBlendTileNdxes[mapNdx] = tile.extraBlendTileNdx;
+					} else if (!g_warnedforcopy){
+						AfxMessageBox(_T("Rotation for blend tiles is not fully supported yet. You may need to manually re-blend the textures for now."), MB_OK | MB_ICONWARNING);
+						g_warnedforcopy = true;
 					} 
 					
-					else {
-						// Apply rotated direction
-						const TBlendTileInfo &orig = workingMap->m_blendedTiles[tile.blendTileNdx];
-						TBlendTileInfo rotated = rotateBlendInfo(orig, rotation);
+					// else {
+					// 	// Apply rotated direction
+					// 	const TBlendTileInfo &orig = workingMap->m_blendedTiles[tile.blendTileNdx];
+					// 	TBlendTileInfo rotated = rotateBlendInfo(orig, rotation);
 
-						int newBlendIndex = workingMap->m_numBlendedTiles++;
-						workingMap->m_blendedTiles[newBlendIndex] = rotated;
-						workingMap->m_blendTileNdxes[mapNdx] = newBlendIndex;
+					// 	int newBlendIndex = workingMap->m_numBlendedTiles++;
+					// 	workingMap->m_blendedTiles[newBlendIndex] = rotated;
+					// 	workingMap->m_blendTileNdxes[mapNdx] = newBlendIndex;
 
-						// Copy extra blend as-is (or rotate similarly if needed)
-						workingMap->m_extraBlendTileNdxes[mapNdx] = tile.extraBlendTileNdx;
-					}
+					// 	// Copy extra blend as-is (or rotate similarly if needed)
+					// 	workingMap->m_extraBlendTileNdxes[mapNdx] = tile.extraBlendTileNdx;
+					// }
 				}
 			}
 		}

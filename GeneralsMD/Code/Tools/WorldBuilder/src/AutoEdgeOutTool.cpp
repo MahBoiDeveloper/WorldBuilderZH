@@ -73,7 +73,8 @@ void AutoEdgeOutTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, 
 }
 
 /** Execute the tool on mouse down - Create a copy of the height map
-* to edit, blend the edges, and give the undoable command to the doc. */
+* to edit, blend the edges, and give the undoable command to the doc.
+* If Shift is held, unblend the area instead (remove blend tiles). */
 void AutoEdgeOutTool::mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBuilderDoc *pDoc) 
 {
 	if (m != TRACK_L) return;
@@ -86,16 +87,25 @@ void AutoEdgeOutTool::mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, C
 		return;
 	}
 
-//	WorldHeightMapEdit *pMap = pDoc->GetHeightMap();
-	WorldHeightMapEdit *htMapEditCopy = pDoc->GetHeightMap()->duplicate();
-	htMapEditCopy->autoBlendOut(
-		ndx.x, 
-		ndx.y, 
-		BlendMaterial::getBlendTexClass(), 
-		BlendMaterial::isHorizVertGap(), 
-		BlendMaterial::isDiagGap(),
-		BlendMaterial::isRevalBlends()
-	);
+    Bool shiftKey = (0x8000 & ::GetAsyncKeyState(VK_SHIFT)) != 0;
+//    WorldHeightMapEdit *pMap = pDoc->GetHeightMap();
+    WorldHeightMapEdit *htMapEditCopy = pDoc->GetHeightMap()->duplicate();
+    
+    if (shiftKey) {
+        // Unblend mode - remove blend tiles from the clicked texture area
+        htMapEditCopy->unblendArea(ndx.x, ndx.y);
+    } else {
+        // Normal blend mode
+        htMapEditCopy->autoBlendOut(
+            ndx.x, 
+            ndx.y, 
+            BlendMaterial::getBlendTexClass(), 
+            BlendMaterial::isHorizVertGap(), 
+            BlendMaterial::isDiagGap(),
+            BlendMaterial::isRevalBlends()
+        );
+    }
+	
 	IRegion2D partialRange = {0,0,0,0};
 	pDoc->updateHeightMap(htMapEditCopy, false, partialRange);
 	WBDocUndoable *pUndo = new WBDocUndoable(pDoc, htMapEditCopy);

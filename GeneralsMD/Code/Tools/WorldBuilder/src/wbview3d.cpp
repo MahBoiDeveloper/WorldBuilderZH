@@ -3400,11 +3400,13 @@ void WbView3d::drawLabels(HDC hdc)
 			CPoint pt(rClient.left + sx, rClient.top + sy - 5);
 
 			// Skip Projection if not visible to this area
-			// CPoint center(rClient.Width() / 2, rClient.Height() / 2);
-			// int dx = pt.x - center.x;
-			// int dy = pt.y - center.y;
-			// int distSq = dx * dx + dy * dy;
-			// if (distSq > 300 * 300) continue;
+			if(m_lod == 1){
+				CPoint center(rClient.Width() / 2, rClient.Height() / 2);
+				int dx = pt.x - center.x;
+				int dy = pt.y - center.y;
+				int distSq = dx * dx + dy * dy;
+				if (distSq > 300 * 300) continue;
+			}
 
 			// Loop through all name labels: base + waypoint path labels
 			for (Int i = 0; i < 4; i++) {
@@ -3420,6 +3422,13 @@ void WbView3d::drawLabels(HDC hdc)
 				}
 
 				if (label.isEmpty()) continue;
+
+				if (!m_showNamesExtra) {
+					AsciiString lower = label;
+					lower.toLower();
+					if (lower.startsWith("waypoint"))
+						continue; // skip clutter
+				}
 
 				Int red = 255, green = 255, blue = 255;
 

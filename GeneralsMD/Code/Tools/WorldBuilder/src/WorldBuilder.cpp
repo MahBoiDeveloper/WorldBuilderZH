@@ -661,6 +661,7 @@ public:
 	protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 	BOOL m_bLaunchOnStartUpAbout;
+	BOOL m_bShrinkHKlist;
 	MapObject* m_lastSelectedObject;
 	//}}AFX_VIRTUAL
 
@@ -689,6 +690,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 };
 
+static CAboutDlg* g_pAboutDlg = NULL;
 
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
 	ON_WM_MOVE()
@@ -731,6 +733,8 @@ void CAboutDlg::OnExpand()
 	SetWindowPos(NULL, rect.left - 500, rect.top, newWidth, rect.Height(), SWP_NOZORDER | SWP_NOMOVE);
 
 	GetDlgItem(IDC_EXPAND)->EnableWindow(FALSE);
+
+	::AfxGetApp()->WriteProfileInt(ABOUT_SECTION, "ShrinkHotkeyList",  0);
 }
 
 void CAboutDlg::DoShrink(){
@@ -746,6 +750,7 @@ void CAboutDlg::DoShrink(){
 
 void CAboutDlg::OnShrink() 
 {
+	::AfxGetApp()->WriteProfileInt(ABOUT_SECTION, "ShrinkHotkeyList",  1);
 	DoShrink();
 }
 
@@ -862,7 +867,9 @@ void CAboutDlg::OnCenterOnSelectedButtonWP()
 BOOL CAboutDlg::OnInitDialog()
 {
 	CDialog::OnInitDialog();
-	DoShrink();
+	m_bShrinkHKlist=::AfxGetApp()->GetProfileInt(ABOUT_SECTION, "ShrinkHotkeyList", 0);
+	if(m_bShrinkHKlist) DoShrink();
+
 	g_aboutPageOn = true;
 
 	m_bLaunchOnStartUpAbout=::AfxGetApp()->GetProfileInt(ABOUT_SECTION, "LaunchOnStartUp", 1);
@@ -1038,7 +1045,8 @@ void CWorldBuilderApp::OnAppAbout()
 	}
 	g_aboutPageOn = true;
 
-	CAboutDlg* pAboutDlg = new CAboutDlg;
+	g_pAboutDlg = new CAboutDlg;
+	CAboutDlg* pAboutDlg = g_pAboutDlg;
 
 	if (pAboutDlg->Create(IDD_ABOUTBOX, AfxGetMainWnd()))
 	{
@@ -1235,6 +1243,18 @@ void CWorldBuilderApp::OnResetWindows()
 		CMainFrame::GetMainFrame()->ResetWindowPositions();
 	}
 	
+	int top  = 50;
+	int left = 50;
+
+	// Reset saved About position
+	::AfxGetApp()->WriteProfileInt(ABOUT_SECTION, "Top", top);
+	::AfxGetApp()->WriteProfileInt(ABOUT_SECTION, "Left", left);
+
+	// Force move About dialog if open
+	if (g_pAboutDlg && ::IsWindow(g_pAboutDlg->m_hWnd) && g_aboutPageOn) {
+		g_pAboutDlg->SetWindowPos(NULL, left, top, 0, 0,
+			SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW);
+	}
 }
 
 void CWorldBuilderApp::OnFileOpen() 

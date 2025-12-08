@@ -200,6 +200,18 @@ void LayersList::resetLayers(void)
 	}
 }
 
+void LayersList::OnMove(int x, int y) 
+{
+	CDialog::OnMove(x, y);
+	
+	if (this->IsWindowVisible() && !this->IsIconic()) {
+		CRect frameRect;
+		GetWindowRect(&frameRect);
+		::AfxGetApp()->WriteProfileInt(LAYERS_LIST_SECTION, "Top", frameRect.top);
+		::AfxGetApp()->WriteProfileInt(LAYERS_LIST_SECTION, "Left", frameRect.left);
+	}
+}
+
 void LayersList::addMapObjectToLayersList(MapObject *objToAdd, AsciiString layerToAddTo)
 {
 	if (!objToAdd || findMapObjectAndList(objToAdd)) {
@@ -1332,6 +1344,7 @@ BEGIN_MESSAGE_MAP(LayersList, CDialog)
 	ON_COMMAND_RANGE(ID_LAYERSLIST_MERGELAYERINTO_BEGIN, ID_LAYERSLIST_MERGELAYERINTO_END, OnMergeLayer)
 	ON_COMMAND_RANGE(ID_LAYERSLIST_MERGEOBJECTINTO_BEGIN, ID_LAYERSLIST_MERGEOBJECTINTO_END, OnMergeObject)
 	ON_COMMAND_RANGE(ID_LAYERSLIST_MERGEVIEWSELECTIONINTO_BEGIN, ID_LAYERSLIST_MERGEVIEWSELECTIONINTO_END, OnMergeViewSelection)
+	ON_WM_MOVE()
 END_MESSAGE_MAP()
 
 

@@ -137,6 +137,7 @@ BEGIN
     BUTTON      ID_TEAM_EDIT
     SEPARATOR
     BUTTON      ID_APP_ABOUT
+    BUTTON      ID_VIEW_LAYERS_LIST
 END
 
 IDR_TOOLBAR1 TOOLBAR DISCARDABLE  20, 80
@@ -238,8 +239,6 @@ BEGIN
                                                     ID_GROUP_ROTATE_OBJECT
         END
         MENUITEM SEPARATOR
-        MENUITEM "Scripts...",                  ID_EDIT_SCRIPTS
-        MENUITEM SEPARATOR
         MENUITEM "Change Time Of Day\tCtrl+D",  ID_VIEW_TIME_OF_DAY
         MENUITEM "Global Light Options...",     ID_EDIT_GLOBALLIGHTOPTIONS
         MENUITEM "Camera Options...",           ID_EDIT_CAMERAOPTIONS
@@ -250,7 +249,8 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "Remove all extra borders",    ID_REMOVEBOUNDARIES
         MENUITEM SEPARATOR
-        MENUITEM "Edit Teams...",               ID_EDIT_TEAMLIST
+        MENUITEM "Edit Scripts... \tF4",        ID_EDIT_SCRIPTS
+        MENUITEM "Edit Teams... \tF5",          ID_EDIT_TEAMLIST
         MENUITEM "Edit Player List...",         ID_EDIT_PLAYERLIST
         MENUITEM SEPARATOR
         MENUITEM "Toggle Disable Map Preview Generation", 
@@ -1137,7 +1137,7 @@ END
 IDD_ScriptDialog DIALOGEX 0, 0, 690, 328
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION
 CAPTION "Scripts"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Sans Serif", 0, 0, 0x1
 BEGIN
     DEFPUSHBUTTON   "OK",IDOK,633,289,50,14
     PUSHBUTTON      "New &Script...",IDC_NEW_SCRIPT,633,103,50,14
@@ -1197,17 +1197,17 @@ STYLE WS_CHILD | WS_DISABLED | WS_CAPTION
 CAPTION "Script Conditions"
 FONT 8, "MS Sans Serif"
 BEGIN
-    LISTBOX         IDC_CONDITION_LIST,7,29,389,144,LBS_NOINTEGRALHEIGHT | 
+    LTEXT           "Conditions for this script:",IDC_STATIC,7,14,150,8
+    LISTBOX         IDC_CONDITION_LIST,7,29,382,166,LBS_NOINTEGRALHEIGHT | 
                     WS_VSCROLL | WS_HSCROLL | WS_TABSTOP
-    LTEXT           "Conditions for this script:",IDC_STATIC,7,14,81,8
-    PUSHBUTTON      "New...",IDC_NEW,401,32,50,14
-    PUSHBUTTON      "Edit...",IDC_EDIT_CONDITION,401,48,50,14
-    PUSHBUTTON      "Delete",IDC_DELETE,401,80,50,14
-    PUSHBUTTON      "Move Up",IDC_MOVE_UP,13,217,50,14
-    PUSHBUTTON      "Move Down",IDC_MOVE_DOWN,67,217,50,14
-    PUSHBUTTON      "Or",IDC_OR,401,97,50,14
-    PUSHBUTTON      "Copy",IDC_COPY,401,64,50,14
-    EDITTEXT        IDC_EDIT_COMMENT,7,178,389,31,ES_MULTILINE | WS_VSCROLL
+    PUSHBUTTON      "New... [&S]",IDC_NEW,395,29,56,14
+    PUSHBUTTON      "&Edit...",IDC_EDIT_CONDITION,395,45,56,14
+    PUSHBUTTON      "&Copy",IDC_COPY,395,61,56,14
+    PUSHBUTTON      "&Delete",IDC_DELETE,395,77,56,14
+    PUSHBUTTON      "O&r",IDC_OR,395,93,56,14
+    PUSHBUTTON      "Move Up [&Z]",IDC_MOVE_UP,395,200,56,14
+    PUSHBUTTON      "Move Down [&X]",IDC_MOVE_DOWN,395,217,56,14
+    EDITTEXT        IDC_EDIT_COMMENT,7,200,382,31,ES_MULTILINE | WS_VSCROLL
 END
 
 IDD_ScriptActionsTrue DIALOG DISCARDABLE  0, 0, 457, 238
@@ -1215,18 +1215,18 @@ STYLE WS_CHILD | WS_DISABLED | WS_CAPTION
 CAPTION "Actions if true."
 FONT 8, "MS Sans Serif"
 BEGIN
-    LISTBOX         IDC_ACTION_LIST,7,29,389,144,LBS_NOINTEGRALHEIGHT | 
-                    WS_VSCROLL | WS_TABSTOP
     LTEXT           "Actions to take if conditions are true:",IDC_STATIC,7,
-                    14,139,8
-    PUSHBUTTON      "New...",IDC_NEW,401,32,50,14
-    PUSHBUTTON      "Edit...",IDC_EDIT,401,48,50,14
-    PUSHBUTTON      "Delete",IDC_DELETE,401,99,50,14
-    PUSHBUTTON      "Move Up",IDC_MOVE_UP,13,217,50,14
-    PUSHBUTTON      "Move Down",IDC_MOVE_DOWN,67,217,50,14
-    PUSHBUTTON      "Copy",IDC_COPY,401,64,50,14
-    EDITTEXT        IDC_EDIT_COMMENT,7,178,389,31,ES_MULTILINE | WS_VSCROLL
-    PUSHBUTTON      "Move to False",IDC_MOVETOFALSE,401,81,50,14
+                    14,200,8
+    LISTBOX         IDC_ACTION_LIST,7,29,382,166,LBS_NOINTEGRALHEIGHT | 
+                    WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "New...[&S]",IDC_NEW,395,29,56,14
+    PUSHBUTTON      "&Edit...",IDC_EDIT,395,45,56,14
+    PUSHBUTTON      "&Copy",IDC_COPY,395,61,56,14
+    PUSHBUTTON      "&Delete",IDC_DELETE,395,77,56,14
+    PUSHBUTTON      "Move to False",IDC_MOVETOFALSE,395,93,56,14
+    PUSHBUTTON      "Move Up [&Z]",IDC_MOVE_UP,395,200,56,14
+    PUSHBUTTON      "Move Down [&X]",IDC_MOVE_DOWN,395,217,56,14
+    EDITTEXT        IDC_EDIT_COMMENT,7,200,382,31,ES_MULTILINE | WS_VSCROLL
 END
 
 IDD_ScriptActionsFalse DIALOG DISCARDABLE  0, 0, 457, 238
@@ -1235,17 +1235,17 @@ CAPTION "Actions if false."
 FONT 8, "MS Sans Serif"
 BEGIN
     LTEXT           "Actions to take if conditions are false:",IDC_STATIC,7,
-                    14,120,8
-    LISTBOX         IDC_ACTION_LIST,7,29,389,144,LBS_NOINTEGRALHEIGHT | 
+                    14,200,8
+    LISTBOX         IDC_ACTION_LIST,7,29,382,166,LBS_NOINTEGRALHEIGHT | 
                     WS_VSCROLL | WS_TABSTOP
-    PUSHBUTTON      "New...",IDC_NEW,401,32,50,14
-    PUSHBUTTON      "Edit...",IDC_EDIT,401,48,50,14
-    PUSHBUTTON      "Delete",IDC_DELETE,401,98,50,14
-    PUSHBUTTON      "Move Up",IDC_MOVE_UP,13,217,50,14
-    PUSHBUTTON      "Move Down",IDC_MOVE_DOWN,67,217,50,14
-    PUSHBUTTON      "Copy",IDC_COPY,401,64,50,14
-    EDITTEXT        IDC_EDIT_COMMENT,7,178,389,31,ES_MULTILINE | WS_VSCROLL
-    PUSHBUTTON      "Move to True",IDC_MOVETOTRUE,401,81,50,14
+    PUSHBUTTON      "New...[&S]",IDC_NEW,395,29,56,14
+    PUSHBUTTON      "&Edit...",IDC_EDIT,395,45,56,14
+    PUSHBUTTON      "&Copy",IDC_COPY,395,61,56,14
+    PUSHBUTTON      "&Delete",IDC_DELETE,395,77,56,14
+    PUSHBUTTON      "Move to True",IDC_MOVETOTRUE,395,93,56,14
+    PUSHBUTTON      "Move Up [&Z]",IDC_MOVE_UP,395,200,56,14
+    PUSHBUTTON      "Move Down [&X]",IDC_MOVE_DOWN,395,217,56,14
+    EDITTEXT        IDC_EDIT_COMMENT,7,200,382,31,ES_MULTILINE | WS_VSCROLL
 END
 
 IDD_ScriptProperties DIALOG DISCARDABLE  0, 0, 457, 238
@@ -1289,7 +1289,7 @@ CAPTION "Edit Condition:"
 FONT 8, "MS Sans Serif"
 BEGIN
     DEFPUSHBUTTON   "OK",IDOK,513,7,61,14
-    PUSHBUTTON      "Cancel",IDCANCEL,444,7,63,14
+    PUSHBUTTON      "&Cancel",IDCANCEL,444,7,63,14
     LTEXT           "Search:",IDC_STATIC,7,7,27,11,SS_CENTERIMAGE
     EDITTEXT        IDC_SEARCH_EDIT,42,7,145,14,ES_AUTOHSCROLL
     PUSHBUTTON      "Find",IDC_FIND_BUTTON,190,7,50,14
@@ -1335,7 +1335,7 @@ CAPTION "Edit Action:"
 FONT 8, "MS Sans Serif", 0, 0, 0x1
 BEGIN
     DEFPUSHBUTTON   "OK",IDOK,513,7,61,14
-    PUSHBUTTON      "Cancel",IDCANCEL,444,7,63,14
+    PUSHBUTTON      "&Cancel",IDCANCEL,444,7,63,14
     LTEXT           "Search:",IDC_STATIC,7,7,27,11,SS_CENTERIMAGE
     EDITTEXT        IDC_SEARCH_EDIT,42,7,145,14,ES_AUTOHSCROLL
     PUSHBUTTON      "Find",IDC_FIND_BUTTON,190,7,50,14
@@ -1618,27 +1618,27 @@ BEGIN
                     CBS_SORT | WS_VSCROLL | WS_TABSTOP
     EDITTEXT        IDC_Grove_Per4,8,121,20,13,ES_AUTOHSCROLL | ES_NUMBER
     LTEXT           "Tree Type",IDC_STATIC,34,66,34,8
-    EDITTEXT        IDC_Grove_PerTotal,117,270,36,13,ES_AUTOHSCROLL | 
+    EDITTEXT        IDC_Grove_PerTotal,9,271,36,13,ES_AUTOHSCROLL | 
                     ES_READONLY | ES_NUMBER
-    LTEXT           "% Total",IDC_STATIC,172,272,24,8
+    LTEXT           "% Total",IDC_STATIC,49,273,24,8
     COMBOBOX        IDC_Grove_Type5,32,136,164,173,CBS_DROPDOWNLIST | 
                     CBS_SORT | WS_VSCROLL | WS_TABSTOP
     EDITTEXT        IDC_Grove_Per5,8,137,20,13,ES_AUTOHSCROLL | ES_NUMBER
-    EDITTEXT        IDC_Grove_NumberTrees,117,284,35,14,ES_AUTOHSCROLL
-    LTEXT           "Total Object Count",IDC_STATIC,155,287,42,8
+    EDITTEXT        IDC_Grove_NumberTrees,9,285,35,14,ES_AUTOHSCROLL
+    LTEXT           "Total Object Count",IDC_STATIC,47,287,42,8
     CONTROL         "Allow Water Placement",IDC_Grove_AllowWaterPlacement,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,3,272,101,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,95,273,101,10
     CONTROL         "Allow Impassable Placement",
                     IDC_Grove_AllowCliffPlacement,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,3,286,101,10
+                    WS_TABSTOP,95,287,101,10
     COMBOBOX        IDC_Grove_SetName,9,13,110,238,CBS_DROPDOWNLIST | 
                     WS_VSCROLL | WS_TABSTOP
-    PUSHBUTTON      "Save Set",IDC_Grove_SaveSet,157,358,39,14,NOT 
+    PUSHBUTTON      "Save Set",IDC_Grove_SaveSet,141,350,39,14,NOT 
                     WS_VISIBLE | WS_DISABLED
-    GROUPBOX        "Developer Note:",IDC_STATIC,3,342,193,30
+    GROUPBOX        "Developer Note:",IDC_STATIC,3,304,193,68
     LTEXT           "Left click to place a tree, left click and drag to place mutiple trees with randomization.",
-                    IDC_STATIC,9,354,179,18
-    GROUPBOX        "Other Props:",IDC_STATIC,3,226,193,43
+                    IDC_STATIC,9,316,179,18
+    GROUPBOX        "Other Props:",IDC_STATIC,3,225,193,43
     COMBOBOX        IDC_Grove_Type6,32,152,164,173,CBS_DROPDOWNLIST | 
                     CBS_SORT | WS_VSCROLL | WS_TABSTOP
     EDITTEXT        IDC_Grove_Per6,8,153,20,13,ES_AUTOHSCROLL | ES_NUMBER
@@ -1710,6 +1710,9 @@ BEGIN
                     IDC_REVALIDATEBLENDS,"Button",BS_AUTOCHECKBOX | 
                     WS_TABSTOP,12,57,154,8
     GROUPBOX        "Tile Gap Options",IDC_STATIC,5,5,190,36
+    GROUPBOX        "Developer Note:",IDC_STATIC,5,78,190,25
+    LTEXT           "Hold shift then click at a texture to unblend them",
+                    IDC_STATIC,12,89,176,9
 END
 
 IDD_ADDPLAYER DIALOG DISCARDABLE  0, 0, 157, 97

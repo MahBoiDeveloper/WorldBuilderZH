@@ -320,7 +320,10 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	
 	CRect optionsRect;
 	m_globalLightOptions.GetWindowRect(&optionsRect);
-	m_layersList->SetWindowPos(NULL, optionsRect.left, optionsRect.bottom + 100, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
+
+	frameRect.top = ::AfxGetApp()->GetProfileInt(LAYERS_LIST_SECTION, "Top", optionsRect.bottom + 100);
+	frameRect.left =::AfxGetApp()->GetProfileInt(LAYERS_LIST_SECTION, "Left", optionsRect.left);
+	m_layersList->SetWindowPos(NULL, frameRect.left, frameRect.top, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
   
 	Int sbf = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowBrushFeedback", 1);
 	if (sbf != 0) {
@@ -436,13 +439,36 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 
 void CMainFrame::ResetWindowPositions(void)
 {
-	if (m_curOptions == NULL) {
-		m_curOptions = &m_brushOptions;
-	}
+	int top = 50;
+	int left = 50; 
+	
+	// Main Window
 	SetWindowPos(NULL, 20, 20, 0, 0, SWP_NOSIZE|SWP_NOZORDER);
 	ShowWindow(SW_SHOW);
-	m_curOptions->SetWindowPos(NULL, 40, 40, 0, 0,  SWP_NOSIZE|SWP_NOZORDER);
-	m_curOptions->ShowWindow(SW_SHOW);
+
+	// Tool Window
+	if (m_curOptions != NULL) {
+		// m_curOptions = &m_brushOptions;
+		m_curOptions->SetWindowPos(NULL, 40, 40, 0, 0,  SWP_NOSIZE|SWP_NOZORDER);
+		m_curOptions->ShowWindow(SW_SHOW);
+	}
+	::AfxGetApp()->WriteProfileInt(OPTIONS_PANEL_SECTION, "Top", top);
+	::AfxGetApp()->WriteProfileInt(OPTIONS_PANEL_SECTION, "Left", left);
+
+	// Script Dialog
+	if (m_scriptDialog){
+		m_scriptDialog->SetWindowPos(NULL, left, top, 0, 0, SWP_NOZORDER|SWP_NOSIZE);
+	}
+	::AfxGetApp()->WriteProfileInt(SCRIPT_DIALOG_SECTION, "Top", top);
+	::AfxGetApp()->WriteProfileInt(SCRIPT_DIALOG_SECTION, "Left", left);
+
+	// Layers List
+	if (m_layersList){
+		m_layersList->SetWindowPos(NULL, left + 10, top + 10, 0, 0, SWP_NOZORDER|SWP_NOSIZE);
+	}
+	::AfxGetApp()->WriteProfileInt(LAYERS_LIST_SECTION, "Top", top);
+	::AfxGetApp()->WriteProfileInt(LAYERS_LIST_SECTION, "Left", left);
+
 	CView *pView = CWorldBuilderDoc::GetActive2DView();
 	if (pView) {
 		CWnd *pParent = pView->GetParentFrame();

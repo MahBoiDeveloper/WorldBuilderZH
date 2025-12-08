@@ -1199,6 +1199,105 @@ void WorldHeightMapEdit::blendSpecificTiles(Int xIndex, Int yIndex, Int srcXInde
 
 
 /******************************************************************
+	unblendArea
+		Removes all blend tiles from the texture region at xIndex, yIndex.
+		The region is defined by the texture at xIndex, yIndex.
+		This is the inverse of autoBlendOut - it clears blend tiles instead of creating them.
+		Blends are stored on the NEIGHBORING tiles (different texture class), not on the 
+		source texture tiles, so we need to find all border tiles and clear their blends.
+*/
+void WorldHeightMapEdit::unblendArea(Int xIndex, Int yIndex)
+{
+	Int ndx = (yIndex * m_width) + xIndex;
+	Int curTileClass = getTextureClass(xIndex, yIndex, true); // Get base texture class
+	if (curTileClass < 0) {
+		return;
+	}
+
+	Int i, j;
+	UnsignedByte *pProcessed = new UnsignedByte[m_dataSize];
+	if (pProcessed == NULL) {
+		AfxMessageBox(IDS_OUT_OF_MEMORY);
+		return;
+	}
+	for (i = 0; i < m_dataSize; i++) {
+		pProcessed[i] = false;
+	}
+
+	CProcessNode *pNodesToProcess = NULL;
+	CProcessNode *pBorderNodes = NULL;  // Tiles that border our texture area
+	
+	// Find all the nodes that are in the current tile class (flood fill from click point)
+	// and collect border tiles (tiles with different texture class that neighbor our area)
+	pNodesToProcess = new CProcessNode(xIndex, yIndex);
+	pProcessed[ndx] = true;
+	
+	while (pNodesToProcess) {
+		CProcessNode *pCurNode = pNodesToProcess;
+		pNodesToProcess = pCurNode->m_next;
+		pCurNode->m_next = NULL;
+		
+		// Check all 8 neighbors
+		for (i = pCurNode->m_x - 1; i <= pCurNode->m_x + 1; i++) {
+			if (i < 0 || i >= m_width) continue;
+			for (j = pCurNode->m_y - 1; j <= pCurNode->m_y + 1; j++) {
+				if (j < 0 || j >= m_height) continue;
+				
+				Int curNdx = (j * m_width) + i;
+				if (pProcessed[curNdx]) {
+					continue;
+				}
+				
+				// Check if this neighbor has the same base texture class
+				if (curTileClass == getTextureClass(i, j, true)) {
+					// Same texture class - add to process queue to continue flood fill
+					CProcessNode *pNewNode = new CProcessNode(i, j);
+					pNewNode->m_next = pNodesToProcess;
+					pNodesToProcess = pNewNode;
+					pProcessed[curNdx] = true;
+				} else {
+					// Different texture class - this is a border tile where blends are stored
+					// Add to border nodes list for processing
+					CProcessNode *pBorderNode = new CProcessNode(i, j);
+					pBorderNode->m_next = pBorderNodes;
+					pBorderNodes = pBorderNode;
+					pProcessed[curNdx] = true;
+				}
+			}
+		}
+		
+		delete pCurNode;
+	}
+
+	// Now process all border tiles and clear any blends that blend INTO our texture class
+	while (pBorderNodes) {
+		CProcessNode *pCurNode = pBorderNodes;
+		pBorderNodes = pCurNode->m_next;
+		
+		Int curNdx = (pCurNode->m_y * m_width) + pCurNode->m_x;
+		
+		// Clear blend if it blends into our texture class
+		if (m_blendTileNdxes[curNdx] > 0) {
+			Int blendClass = getTextureClassFromNdx(m_blendedTiles[m_blendTileNdxes[curNdx]].blendNdx);
+			if (blendClass == curTileClass) {
+				m_blendTileNdxes[curNdx] = 0;
+			}
+		}
+		if (m_extraBlendTileNdxes[curNdx] > 0) {
+			Int extraBlendClass = getTextureClassFromNdx(m_blendedTiles[m_extraBlendTileNdxes[curNdx]].blendNdx);
+			if (extraBlendClass == curTileClass) {
+				m_extraBlendTileNdxes[curNdx] = 0;
+			}
+		}
+		
+		delete pCurNode;
+	}
+
+	if (pProcessed) delete[] pProcessed;
+	pProcessed = NULL;
+}
+
+/******************************************************************
 	autoBlendOut
 		auto edges the texture region at xIndex, yIndex outwards.
 		The region is defined by the texture at xIndex, yIndex.

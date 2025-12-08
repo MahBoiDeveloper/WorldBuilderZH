@@ -34,6 +34,7 @@
 #pragma once
 #ifndef _H_LAYERSLIST_
 #define _H_LAYERSLIST_
+#define LAYERS_LIST_SECTION "LayersList"
 
 // INCLUDES ///////////////////////////////////////////////////////////////////
 #include "Common/AsciiString.h"
@@ -176,6 +177,7 @@ class LayersList : public CDialog
 		afx_msg void OnMergeViewSelection(UINT commandID);
 		afx_msg void OnSelectActiveLayer();
 
+		afx_msg void OnMove(int x, int y);
 				
 		afx_msg void OnSelectLayerObject();
 		afx_msg void OnNewLayer();
