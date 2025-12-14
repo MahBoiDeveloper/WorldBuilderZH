@@ -172,6 +172,7 @@ protected:
 	afx_msg void OnUpdateViewShowSubDraw(CCmdUI* pCmdUI);
 	afx_msg void OnViewShowBaseRadius();
 	afx_msg void OnUpdateViewShowBaseRadius(CCmdUI* pCmdUI);
+	afx_msg void OnRefreshSceneObjects();
 
   //}}AFX_MSG
 	DECLARE_MESSAGE_MAP()

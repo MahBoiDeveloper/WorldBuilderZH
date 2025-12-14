@@ -2932,6 +2932,8 @@ BEGIN_MESSAGE_MAP(WbView3d, WbView)
 	ON_UPDATE_COMMAND_UI(ID_LOD_MODE_2, OnUpdateOnWindowLODMode2)
 	ON_COMMAND(ID_LOD_MODE_3, OnWindowLODMode3)
 	ON_UPDATE_COMMAND_UI(ID_LOD_MODE_3, OnUpdateOnWindowLODMode3)
+
+	ON_COMMAND(ID_REVALIDATE_RENDER, OnRefreshSceneObjects)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -4192,6 +4194,12 @@ void WbView3d::OnEditShadows()
 	}
 	ShadowOptions dlg;
 	dlg.DoModal();
+}
+
+void WbView3d::OnRefreshSceneObjects() 
+{
+	resetRenderObjects();
+	invalObjectInView(NULL);
 }
 
 void WbView3d::OnViewShowModels() 

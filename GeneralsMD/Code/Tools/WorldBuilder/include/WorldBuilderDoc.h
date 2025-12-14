@@ -196,6 +196,8 @@ protected:
 	afx_msg void OnUpdateTsCanonical(CCmdUI* pCmdUI);
 	afx_msg void OnFileResize();
 	afx_msg void OnGenerateMapStrAndIni();
+
+	afx_msg void OnJumpToMapFolderWBData();
 	afx_msg void OnJumpToMapFolder();
 	afx_msg void OnJumpToAutoSaveFolder();
 	afx_msg void OnOpenWorldbuilderSettings();

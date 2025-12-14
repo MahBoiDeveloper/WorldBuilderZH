@@ -357,7 +357,9 @@
 #define IDC_PLAYERFACTION               1152
 #define IDC_EXPAND_SHRINK_TEAM          1152
 #define IDC_GROUP_NAME                  1153
+#define IDC_EXPORT_TEAMS                1153
 #define IDC_ANGLE_POPUP                 1154
+#define IDC_IMPORT_TEAMS                1154
 #define IDC_RAISE                       1155
 #define IDC_LOWER                       1156
 #define IDC_SCALE_EDIT                  1157
@@ -664,6 +666,7 @@
 #define ID_FILE_GAMEFOLDER              1394
 #define ID_FILE_GAMEFOLDERDATA          1395
 #define ID_VIEW_SHOWBASERADIUS          1396
+#define ID_FILE_JUMPTOFOLDERDATA        1397
 #define ID_BRUSH_TOOL                   32771
 #define IDM_ShowGrid                    32772
 #define ID_FEATHERTOOL                  32791
@@ -825,6 +828,7 @@
 #define ID_VIEW_LABELS_EXTRA            33355
 #define ID_REMOVEBOUNDARIES             33356
 #define ID_FILE_JUMPTOGAME_WM           33357
+#define ID_REVALIDATE_RENDER            33358
 #define IDS_NEW                         61446
 #define IDS_RESIZE                      61447
 #define IDS_REMOVING_INUSE_TEAM         61448

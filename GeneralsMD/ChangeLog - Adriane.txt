@@ -420,3 +420,14 @@ XXX
 
 == Waypoint Tool ==
 - Added tooltips
+
+
+12/14/2025
+======================================================
+== System ==
+- Pick Unit Dialog Now affected by the Reset Window function
+- Added a refresh scene objects on the troubleshooting section
+- Added Show models and submodels on the view section
+- Added a new jump button directly to the cnc data
+- Added Camera Options on the toolbar
+- Added Map Settings on the toolbar

@@ -51,6 +51,7 @@ protected:
 
 	ObjectPreview			m_objectPreview;
 	Bool m_objectsListModified;
+	static PickUnitDialog* m_staticThis;
 
 // Construction
 public:
@@ -86,6 +87,7 @@ protected:
 
 	afx_msg void OnMove(int x, int y);
 	afx_msg void OnIgnore(); // For the bypass feature - Adriane [Deathscythe]
+	afx_msg void OnDestroy();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 
@@ -96,6 +98,7 @@ public:
 	const ThingTemplate* getPickedThing(void);
 	void SetFactionOnly(Bool faction) {m_factionOnly = faction;}
 	void SetupAsPanel(void);
+	static void ResetWindowPosition();
 };
 
 class ReplaceUnitDialog : public PickUnitDialog

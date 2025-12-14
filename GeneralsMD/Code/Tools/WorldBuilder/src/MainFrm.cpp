@@ -32,6 +32,7 @@
 #include "WorldBuilderDoc.h"
 #include "WorldBuilderView.h"
 #include "ToastDialog.h"
+#include "PickUnitDialog.h"
 
 #include "ScriptDialog.h"
 #define ADJUST_VIEW_TIMER 6969
@@ -477,6 +478,11 @@ void CMainFrame::ResetWindowPositions(void)
 	}
 	::AfxGetApp()->WriteProfileInt(LAYERS_LIST_SECTION, "Top", top);
 	::AfxGetApp()->WriteProfileInt(LAYERS_LIST_SECTION, "Left", left);
+
+	// Build List Pick Panel
+	::AfxGetApp()->WriteProfileInt(BUILD_PICK_PANEL_SECTION, "Top", top);
+	::AfxGetApp()->WriteProfileInt(BUILD_PICK_PANEL_SECTION, "Left", left + 20);
+	PickUnitDialog::ResetWindowPosition();
 
 	CView *pView = CWorldBuilderDoc::GetActive2DView();
 	if (pView) {

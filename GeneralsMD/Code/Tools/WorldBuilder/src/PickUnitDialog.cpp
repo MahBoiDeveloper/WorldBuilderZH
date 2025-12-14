@@ -34,6 +34,9 @@
 /////////////////////////////////////////////////////////////////////////////
 // PickUnitDialog dialog
 
+// This static member's purpose is just to make the reset window position to work -- Adriane [Deathscythe]
+// if we somehow fucked up something here, just remove this and the related code in ResetWindowPosition and OnInitDialog
+PickUnitDialog* PickUnitDialog::m_staticThis = NULL;
 
 ReplaceUnitDialog::ReplaceUnitDialog(CWnd* pParent /*=NULL*/)
 	: PickUnitDialog(IDD, pParent)
@@ -98,6 +101,10 @@ PickUnitDialog::PickUnitDialog(UINT id, CWnd* pParent /*=NULL*/)
 
 PickUnitDialog::~PickUnitDialog()
 {
+	if (m_staticThis == this)
+		m_staticThis = NULL;
+
+
 	if (m_objectsList) {
 		m_objectsList->deleteInstance();
 	}
@@ -116,6 +123,7 @@ void PickUnitDialog::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(PickUnitDialog, CDialog)
 	//{{AFX_MSG_MAP(PickUnitDialog)
 	ON_WM_MOVE()
+	ON_WM_DESTROY() 
 	ON_BN_CLICKED(IDC_OBJECT_SEARCH_BUTTON_PICK, OnSearch)
 	ON_BN_CLICKED(IDC_OBJECT_SEARCH_RESET_BTN_PICK, OnReset)
 	//}}AFX_MSG_MAP
@@ -162,6 +170,8 @@ void PickUnitDialog::SetupAsPanel(void)
 BOOL PickUnitDialog::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+
+	m_staticThis = this;
 	
 //	CWorldBuilderDoc* pDoc = CWorldBuilderDoc::GetActiveDoc();
 
@@ -560,4 +570,38 @@ const ThingTemplate* PickUnitDialog::getPickedThing(void)
 		}
 	}
 	return NULL;
+}
+
+void PickUnitDialog::ResetWindowPosition()
+{
+    int top  = ::AfxGetApp()->GetProfileInt(BUILD_PICK_PANEL_SECTION, "Top", 50);
+    int left = ::AfxGetApp()->GetProfileInt(BUILD_PICK_PANEL_SECTION, "Left", 50);
+
+    if (!m_staticThis)
+        return;
+
+    HWND hWnd = m_staticThis->GetSafeHwnd();
+
+    if (!::IsWindow(hWnd))
+    {
+        m_staticThis = NULL;   // clean up zombie
+        return;
+    }
+
+    m_staticThis->SetWindowPos(
+        NULL,
+        left,
+        top,
+        0,
+        0,
+        SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
+    );
+}
+
+void PickUnitDialog::OnDestroy()
+{
+    if (m_staticThis == this)
+        m_staticThis = NULL;
+
+    CDialog::OnDestroy();
 }

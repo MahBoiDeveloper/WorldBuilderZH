@@ -118,6 +118,8 @@ BEGIN_MESSAGE_MAP(CWorldBuilderDoc, CDocument)
 	ON_COMMAND(ID_FILE_JUMPTOFOLDER, OnJumpToMapFolder)
 	ON_COMMAND(ID_FILE_GAMEFOLDERDATA, OnOpenDataFolder)
 	ON_COMMAND(ID_FILE_GAMEFOLDER, OnOpenGameFolder)
+
+	ON_COMMAND(ID_FILE_JUMPTOFOLDERDATA, OnJumpToMapFolderWBData)
 	
 	ON_COMMAND(ID_DISABLEMAPPREVGENERATE, OnViewDisableMapPrevGen)
 	// ON_UPDATE_COMMAND_UI(ID_DISABLEMAPPREVGENERATE, OnUpdateDisableMapPrevGen)
@@ -855,6 +857,30 @@ void CWorldBuilderDoc::OnJumpToMapFolder()
 
 	} catch (...) {
 	}
+}
+
+void CWorldBuilderDoc::OnJumpToMapFolderWBData()
+{
+    try {
+        char documentsPath[MAX_PATH] = {0};
+
+        if (SHGetSpecialFolderPathA(NULL, documentsPath, CSIDL_PERSONAL, FALSE))
+        {
+            char targetPath[MAX_PATH];
+            sprintf(targetPath, "%s\\Command and Conquer Generals Zero Hour Data", documentsPath);
+
+            DWORD attr = GetFileAttributes(targetPath);
+            if (attr != (DWORD)-1 && (attr & FILE_ATTRIBUTE_DIRECTORY)) {
+                ShellExecute(NULL, "open", targetPath, NULL, NULL, SW_SHOW);
+            } else {
+                AfxMessageBox("The Generals Zero Hour Data folder does not exist.", MB_ICONEXCLAMATION | MB_OK);
+            }
+        }
+        else {
+            AfxMessageBox("Unable to locate the Documents folder.", MB_ICONERROR | MB_OK);
+        }
+
+    } catch (...) {}
 }
 
 void CWorldBuilderDoc::OnJumpToAutoSaveFolder()
@@ -2582,8 +2608,13 @@ void CWorldBuilderDoc::OnViewHome()
 	MapObject *pMapObj = MapObject::getFirstMapObject();
 
 	// set pos to be the coordinates of the center of the map
-	pos.x = MAP_XY_FACTOR*m_heightMap->getXExtent()/2; 
-	pos.y = MAP_XY_FACTOR*m_heightMap->getYExtent()/2;
+	// pos.x = MAP_XY_FACTOR*m_heightMap->getXExtent()/2; 
+	// pos.y = MAP_XY_FACTOR*m_heightMap->getYExtent()/2;
+
+	// Actual center of the map -- centers to the middle of the cell not the corner
+	pos.x = MAP_XY_FACTOR * (m_heightMap->getXExtent() * 0.5f - 0.5f);
+	pos.y = MAP_XY_FACTOR * (m_heightMap->getYExtent() * 0.5f - 0.5f);
+
 	pos.x -= MAP_XY_FACTOR*m_heightMap->getBorderSize();
 	pos.y -= MAP_XY_FACTOR*m_heightMap->getBorderSize();
 	
