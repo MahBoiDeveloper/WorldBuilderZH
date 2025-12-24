@@ -452,3 +452,4 @@ XXX
 - Allow total time to increment if script dialog is open
 - Seperate Smart Copy Support for sub menus in ScriptDialog
     > Actions - TRUE, Actions - FALSE, Conditions
+- Fixed a bug where pointer options doesnt load previous settings

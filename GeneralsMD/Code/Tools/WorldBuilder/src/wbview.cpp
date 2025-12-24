@@ -79,6 +79,11 @@ WbView::WbView() :
 	m_showTerrain = (showTerrain!=0);
 	Int fixedColoredWaypoints = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "UseFixedColoredWaypoints", 0);
 	m_useFixedColoredWaypoints = (fixedColoredWaypoints!=0);
+
+	Int togglePivotFarthest = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "TogglePivotFarthest", 0);
+	m_togglePivotFarthest = (togglePivotFarthest!=0);
+	Int toggleObjectRotationWithGroup = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ToggleObjectRotationWithGroup", 0);
+	m_toggleObjectRotationWithGroup = (toggleObjectRotationWithGroup!=0);
 }
 
 WbView::~WbView()
