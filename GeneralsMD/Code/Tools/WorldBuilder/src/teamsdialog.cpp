@@ -789,7 +789,7 @@ void CTeamsDialog::doCorrectTeamOwnerDialog( TeamsInfo *ti )
 	}
 }
 
-
+// This shit is copied directly from the script dialog cpp
 class LocalMFCFileOutputStream : public OutputStream
 {
 protected:
@@ -809,7 +809,6 @@ public:
 };
 
 
-// Replace the existing OnExportTeams and OnImportTeams functions with these:
 void CTeamsDialog::OnExportTeams()
 {
     // Get the selected player
@@ -870,7 +869,7 @@ void CTeamsDialog::OnExportTeams()
         }
 
         out.closeDataChunk();
-        // f.Close();
+        // f.Close(); // Do not close explicitly, will be closed in destructor
 
         if (exportedCount == 0) {
             AfxMessageBox("No teams found for the selected player!", MB_OK | MB_ICONWARNING);
