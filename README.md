@@ -1,3 +1,8 @@
+## Prebuilt Installation
+
+You can download the latest publicly available build from the World Builder Discord server.
+Please check the appropriate channel for the most recent release and installation instructions.
+https://discord.gg/tJ6zyGb
 
 # Command & Conquer Generals (inc. Zero Hour) Source Code
 
