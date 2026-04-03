@@ -633,7 +633,7 @@ BEGIN
     CONTROL         "",ID_SLIDER,"Static",SS_BLACKFRAME,0,1,19,62
 END
 
-IDD_BRUSH_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 138
+IDD_BRUSH_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 273
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION
 CAPTION "Height Brush Options"
 FONT 8, "MS Sans Serif"
@@ -648,11 +648,22 @@ BEGIN
     PUSHBUTTON      "1",IDC_FEATHER_POPUP,93,55,8,12,BS_BITMAP
     LTEXT           "35 FT.",IDC_WIDTH_LABEL,71,24,48,8
     LTEXT           "35 FT.",IDC_HEIGHT_LABEL,71,120,36,8
-    GROUPBOX        "Brush Height:",IDC_STATIC,4,90,190,45
+    GROUPBOX        "Brush Height:",IDC_STATIC,4,87,190,45
     EDITTEXT        IDC_HEIGHT_EDIT,71,105,17,12,ES_AUTOHSCROLL
-    RTEXT           "Size in 1/8 cells:",IDC_STATIC,4,107,63,10
+    RTEXT           "Size in 1/8 cells:",IDC_STATIC,13,107,54,10
     PUSHBUTTON      "1",IDC_HEIGHT_POPUP,93,106,8,12,BS_BITMAP
     LTEXT           "35 FT.",IDC_FEATHER_LABEL,71,68,41,8
+    GROUPBOX        "Advanced Mirror Options",IDC_STATIC,4,134,190,48
+    LTEXT           "Warning: On large maps, this may result in noticeable slowdowns, especially near the edges.",
+                    IDC_STATIC,10,159,173,17
+    CONTROL         "Mirror X",IDC_TOGGLE_MIRRORX,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,67,146,37,11
+    CONTROL         "Diagonal",IDC_TOGGLE_MIRRORXY,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,107,146,43,11
+    CONTROL         "Mirror Y",IDC_TOGGLE_MIRRORY,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,151,146,37,11
+    CONTROL         "Toggle",IDC_TOGGLE_MIRROR,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,10,146,50,11
 END
 
 IDD_TERRAIN_MATERIAL DIALOG DISCARDABLE  0, 0, 200, 382
@@ -661,7 +672,7 @@ CAPTION "Terrain Material Options"
 FONT 8, "MS Sans Serif"
 BEGIN
     CONTROL         "",IDC_TERRAIN_TREEVIEW,"Static",SS_BLACKFRAME | 
-                    SS_SUNKEN,5,19,190,161
+                    SS_SUNKEN,5,20,190,135
     PUSHBUTTON      "Swap",IDC_SWAP_TEXTURES,96,265,25,16
     CONTROL         "",IDC_TERRAIN_SWATCHES,"Static",SS_BLACKFRAME | 
                     SS_SUNKEN,130,244,65,55
@@ -712,9 +723,18 @@ BEGIN
     EDITTEXT        IDC_OBJECT_SEARCH_EDIT,31,5,106,12,ES_AUTOHSCROLL
     PUSHBUTTON      "Find",IDC_OBJECT_SEARCH_BUTTON,141,5,26,12
     PUSHBUTTON      "Reset",IDC_OBJECT_SEARCH_RESET_BTN,170,5,26,12
+    GROUPBOX        "Advanced Mirror Options",IDC_STATIC,4,156,190,23
+    CONTROL         "Mirror X",IDC_TOGGLE_MIRRORX,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,68,165,37,11
+    CONTROL         "Diagonal",IDC_TOGGLE_MIRRORXY,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,108,165,43,11
+    CONTROL         "Mirror Y",IDC_TOGGLE_MIRRORY,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,152,165,37,11
+    CONTROL         "Toggle",IDC_TOGGLE_MIRROR,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,11,165,50,11
 END
 
-IDD_MOUND_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 146
+IDD_MOUND_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 182
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION
 CAPTION "Terrain Brush Options"
 FONT 8, "MS Sans Serif"
@@ -734,6 +754,17 @@ BEGIN
     EDITTEXT        IDC_HEIGHT_EDIT,82,106,17,12,ES_AUTOHSCROLL
     PUSHBUTTON      "1",IDC_HEIGHT_POPUP,104,106,8,12,BS_BITMAP
     LTEXT           "35 FT.",IDC_FEATHER_LABEL,55,68,41,8
+    GROUPBOX        "Advanced Mirror Options",IDC_STATIC,1,134,195,48
+    LTEXT           "Warning: On large maps, this may result in noticeable slowdowns, especially near the edges.",
+                    IDC_STATIC,10,159,173,17
+    CONTROL         "Mirror X",IDC_TOGGLE_MIRRORX,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,67,146,37,11
+    CONTROL         "Diagonal",IDC_TOGGLE_MIRRORXY,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,107,146,43,11
+    CONTROL         "Mirror Y",IDC_TOGGLE_MIRRORY,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,151,146,37,11
+    CONTROL         "Toggle",IDC_TOGGLE_MIRROR,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,10,146,50,11
 END
 
 IDD_OBJECT_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 382
@@ -842,7 +873,7 @@ BEGIN
                     IDC_STATIC,15,34,139,43
 END
 
-IDD_FEATHER_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 186
+IDD_FEATHER_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 230
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION
 CAPTION "Feather Brush Options"
 FONT 8, "MS Sans Serif"
@@ -852,18 +883,29 @@ BEGIN
     PUSHBUTTON      "1",IDC_SIZE_POPUP,68,11,8,12,BS_BITMAP
     GROUPBOX        "Brush width:",IDC_STATIC,1,1,195,34
     LTEXT           "35 FT.",IDC_WIDTH_LABEL,55,24,43,8
-    EDITTEXT        IDC_RADIUS_EDIT,48,56,17,12,ES_AUTOHSCROLL
-    RTEXT           "Radius:",IDC_STATIC,14,58,29,8
-    PUSHBUTTON      "1",IDC_RADIUS_POPUP,67,56,8,12,BS_BITMAP
-    GROUPBOX        "Filter Radius",IDC_STATIC,0,46,197,52
+    EDITTEXT        IDC_RADIUS_EDIT,49,48,17,12,ES_AUTOHSCROLL
+    RTEXT           "Radius:",IDC_STATIC,15,50,29,8
+    PUSHBUTTON      "1",IDC_RADIUS_POPUP,69,48,8,12,BS_BITMAP
+    GROUPBOX        "Filter Radius",IDC_STATIC,1,38,195,52
     LTEXT           "A large value tends to flatten the map. A small value retains steep sides to smoothed hills.",
-                    IDC_STATIC,8,69,183,25
-    EDITTEXT        IDC_RATE_EDIT,48,117,17,12,ES_AUTOHSCROLL
-    RTEXT           "Rate:",IDC_STATIC,24,119,18,8
-    PUSHBUTTON      "1",IDC_RATE_POPUP,67,117,8,12,BS_BITMAP
-    GROUPBOX        "Feather Rate:",IDC_STATIC,0,107,197,76
+                    IDC_STATIC,9,61,183,25
+    EDITTEXT        IDC_RATE_EDIT,49,109,17,12,ES_AUTOHSCROLL
+    RTEXT           "Rate:",IDC_STATIC,25,111,18,8
+    PUSHBUTTON      "1",IDC_RATE_POPUP,69,109,8,12,BS_BITMAP
+    GROUPBOX        "Feather Rate:",IDC_STATIC,3,95,193,61
     LTEXT           "A high value flattens terrain quickly. A low value requires you to ""scrub"" with the cursor to achieve the same effect.",
-                    IDC_WIDTH_LABEL3,5,138,187,34
+                    IDC_WIDTH_LABEL3,7,130,187,21
+    GROUPBOX        "Advanced Mirror Options",IDC_STATIC,1,159,195,48
+    LTEXT           "Warning: On large maps, this may result in noticeable slowdowns, especially near the edges.",
+                    IDC_STATIC,9,182,173,17
+    CONTROL         "Mirror X",IDC_TOGGLE_MIRRORX,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,66,169,37,11
+    CONTROL         "Diagonal",IDC_TOGGLE_MIRRORXY,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,106,169,43,11
+    CONTROL         "Mirror Y",IDC_TOGGLE_MIRRORY,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,150,169,37,11
+    CONTROL         "Toggle",IDC_TOGGLE_MIRROR,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,9,169,50,11
 END
 
 IDD_MESHMOLD_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 382
@@ -1148,26 +1190,26 @@ BEGIN
     RTEXT           "Intensity:",IDC_STATIC,22,92,29,10
 END
 
-IDD_ScriptDialog DIALOGEX 0, 0, 690, 328
-STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION
+IDD_ScriptDialog DIALOGEX 0, 0, 690, 333
+STYLE DS_MODALFRAME | WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Scripts"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Sans Serif", 0, 0, 0x1
 BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,633,289,50,14
-    PUSHBUTTON      "New &Script...",IDC_NEW_SCRIPT,633,114,50,14
-    PUSHBUTTON      "&Edit...",IDC_EDIT_SCRIPT,633,130,50,14
-    PUSHBUTTON      "&Copy",IDC_COPY_SCRIPT,633,166,50,14
-    PUSHBUTTON      "&Delete",IDC_DELETE,633,182,50,14
-    PUSHBUTTON      "Import Scripts",IDC_LOAD,632,258,51,14
-    PUSHBUTTON      "Export Scripts",IDC_SAVE,633,239,50,14
+    DEFPUSHBUTTON   "Save + Close",IDOK,633,292,50,14
+    PUSHBUTTON      "New &Script...",IDC_NEW_SCRIPT,633,106,50,14
+    PUSHBUTTON      "&Edit...",IDC_EDIT_SCRIPT,633,122,50,14
+    PUSHBUTTON      "&Copy",IDC_COPY_SCRIPT,633,167,50,14
+    PUSHBUTTON      "&Delete",IDC_DELETE,633,183,50,14
+    PUSHBUTTON      "Import Scripts",IDC_LOAD,633,247,50,14
+    PUSHBUTTON      "Export Scripts",IDC_SAVE,633,231,50,14
     CONTROL         "Tree1",IDC_SCRIPT_TREE,"SysTreeView32",TVS_HASBUTTONS | 
                     TVS_HASLINES | TVS_LINESATROOT | TVS_SHOWSELALWAYS | 
-                    WS_TABSTOP,7,25,254,297,WS_EX_CLIENTEDGE
-    PUSHBUTTON      "New &Folder...",IDC_NEW_FOLDER,633,98,50,14
+                    WS_TABSTOP,7,25,254,301,WS_EX_CLIENTEDGE
+    PUSHBUTTON      "New &Folder...",IDC_NEW_FOLDER,633,90,50,14
     EDITTEXT        IDC_SCRIPT_DESCRIPTION,263,25,363,191,ES_MULTILINE | 
                     ES_READONLY | WS_VSCROLL | WS_HSCROLL
-    PUSHBUTTON      "Cancel",IDCANCEL,633,308,50,14
-    EDITTEXT        IDC_SCRIPT_COMMENT,264,233,362,90,ES_MULTILINE | 
+    PUSHBUTTON      "Cancel",IDCANCEL,633,273,50,14
+    EDITTEXT        IDC_SCRIPT_COMMENT,263,218,363,90,ES_MULTILINE | 
                     ES_READONLY | WS_VSCROLL
     CONTROL         "Auto Verify",IDC_AUTO_VERIFY,"Button",BS_AUTOCHECKBOX | 
                     WS_TABSTOP,632,7,51,14
@@ -1184,19 +1226,20 @@ BEGIN
                     WS_TABSTOP,424,7,49,14
     PUSHBUTTON      "Re- Verify All",IDC_VERIFYALL,633,21,50,14
     CONTROL         "Smart Copy",IDC_SMART_COPY,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,635,150,48,14
+                    WS_TABSTOP,635,151,48,14
     CONTROL         "Clean Script Name",IDC_CLEANSCRIPTNAME,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,339,7,75,14
     CONTROL         "Detect References via picked Parameters",
                     IDC_REFRENCEMODE1,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,
-                    404,218,150,14
+                    403,312,150,14
     CONTROL         "Disable references (reduces input lag)",
                     IDC_DISABLEREFERENCE,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,264,218,133,14
-    PUSHBUTTON      "Add Debug",IDC_ADD_DEBUG,633,55,50,14
-    PUSHBUTTON      "Delete Debug",IDC_REMOVE_DEBUG,633,72,50,14
+                    WS_TABSTOP,263,312,133,14
+    PUSHBUTTON      "Add Debug",IDC_ADD_DEBUG,633,47,50,14
+    PUSHBUTTON      "Delete Debug",IDC_REMOVE_DEBUG,633,64,50,14
     CONTROL         "Script Merge",IDC_SCRIPT_MERGE,"Button",BS_AUTOCHECKBOX | 
                     WS_TABSTOP,481,7,55,14
+    PUSHBUTTON      "Save Now (Ctrl + S)",IDC_SAVE_ACTUAL,590,312,93,14
 END
 
 IDD_ScriptTabWindow DIALOG DISCARDABLE  0, 0, 391, 255
@@ -1715,16 +1758,16 @@ BEGIN
                     271,119,21
 END
 
-IDD_BLEND_MATERIAL DIALOG DISCARDABLE  0, 0, 200, 268
+IDD_BLEND_MATERIAL DIALOG DISCARDABLE  0, 0, 200, 331
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION
 CAPTION "Blend Material Options"
 FONT 8, "MS Sans Serif"
 BEGIN
     CONTROL         "",IDC_TERRAIN_TREEVIEW,"Static",SS_BLACKFRAME | 
-                    SS_SUNKEN | WS_DISABLED,5,203,190,60
+                    SS_SUNKEN | WS_DISABLED,5,266,190,60
     CONTROL         "",IDC_TERRAIN_SWATCHES,"Static",SS_BLACKFRAME | 
-                    SS_SUNKEN | NOT WS_VISIBLE,130,114,65,55
-    LTEXT           "Gravel",IDC_TERRAIN_NAME,5,114,121,9,NOT WS_VISIBLE
+                    SS_SUNKEN | NOT WS_VISIBLE,130,198,65,55
+    LTEXT           "Gravel",IDC_TERRAIN_NAME,5,199,121,9,NOT WS_VISIBLE
     CONTROL         "Add one tile between horizontal and vertical gaps",
                     IDC_HVGAP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,17,
                     170,8
@@ -1738,6 +1781,17 @@ BEGIN
     GROUPBOX        "Developer Note:",IDC_STATIC,5,78,190,25
     LTEXT           "Hold shift then click at a texture to unblend them",
                     IDC_STATIC,12,89,176,9
+    GROUPBOX        "Advanced Mirror Options",IDC_STATIC,5,108,190,48
+    LTEXT           "Warning: On large maps, this may result in noticeable slowdowns, especially near the edges.",
+                    IDC_STATIC,11,133,173,17
+    CONTROL         "Mirror X",IDC_TOGGLE_MIRRORX,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,69,120,37,11
+    CONTROL         "Diagonal",IDC_TOGGLE_MIRRORXY,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,109,120,43,11
+    CONTROL         "Mirror Y",IDC_TOGGLE_MIRRORY,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,153,120,37,11
+    CONTROL         "Toggle",IDC_TOGGLE_MIRROR,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,11,120,50,11
 END
 
 IDD_ADDPLAYER DIALOG DISCARDABLE  0, 0, 157, 97
@@ -1797,14 +1851,25 @@ BEGIN
                     167,216
 END
 
-IDD_RAMP_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 87
+IDD_RAMP_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 217
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Ramp Options"
 FONT 8, "MS Sans Serif"
 BEGIN
-    PUSHBUTTON      "Place Ramp",IDC_RO_APPLY,7,38,188,26
+    PUSHBUTTON      "Place Ramp",IDC_RO_APPLY,2,38,193,26
     EDITTEXT        IDC_RO_WIDTH,55,15,140,14,ES_AUTOHSCROLL
-    LTEXT           "Ramp Width:",IDC_STATIC,7,15,42,14,SS_CENTERIMAGE
+    LTEXT           "Ramp Width:",IDC_STATIC,2,15,42,14,SS_CENTERIMAGE
+    GROUPBOX        "Advanced Mirror Options",IDC_STATIC,2,71,193,48
+    LTEXT           "Warning: On large maps, this may result in noticeable slowdowns, especially near the edges.",
+                    IDC_STATIC,9,94,173,17
+    CONTROL         "Mirror X",IDC_TOGGLE_MIRRORX,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,67,81,37,11
+    CONTROL         "Diagonal",IDC_TOGGLE_MIRRORXY,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,107,81,43,11
+    CONTROL         "Mirror Y",IDC_TOGGLE_MIRRORY,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,151,81,37,11
+    CONTROL         "Toggle",IDC_TOGGLE_MIRROR,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,9,81,50,11
 END
 
 IDD_SCORCH_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 86
@@ -2340,7 +2405,7 @@ BEGIN
         LEFTMARGIN, 4
         RIGHTMARGIN, 194
         TOPMARGIN, 1
-        BOTTOMMARGIN, 135
+        BOTTOMMARGIN, 270
     END
 
     IDD_TERRAIN_MATERIAL, DIALOG
@@ -2356,7 +2421,6 @@ BEGIN
         LEFTMARGIN, 1
         RIGHTMARGIN, 196
         TOPMARGIN, 1
-        BOTTOMMARGIN, 143
     END
 
     IDD_OBJECT_OPTIONS, DIALOG
@@ -2402,7 +2466,7 @@ BEGIN
         LEFTMARGIN, 1
         RIGHTMARGIN, 196
         TOPMARGIN, 1
-        BOTTOMMARGIN, 183
+        BOTTOMMARGIN, 227
     END
 
     IDD_MESHMOLD_OPTIONS, DIALOG
@@ -2488,7 +2552,7 @@ BEGIN
         LEFTMARGIN, 7
         RIGHTMARGIN, 683
         TOPMARGIN, 7
-        BOTTOMMARGIN, 322
+        BOTTOMMARGIN, 326
     END
 
     IDD_ScriptTabWindow, DIALOG
@@ -2636,7 +2700,7 @@ BEGIN
         LEFTMARGIN, 5
         RIGHTMARGIN, 195
         TOPMARGIN, 5
-        BOTTOMMARGIN, 263
+        BOTTOMMARGIN, 326
     END
 
     IDD_ADDPLAYER, DIALOG
@@ -2665,10 +2729,10 @@ BEGIN
 
     IDD_RAMP_OPTIONS, DIALOG
     BEGIN
-        LEFTMARGIN, 7
+        LEFTMARGIN, 2
         RIGHTMARGIN, 195
         TOPMARGIN, 7
-        BOTTOMMARGIN, 80
+        BOTTOMMARGIN, 210
     END
 
     IDD_SCORCH_OPTIONS, DIALOG

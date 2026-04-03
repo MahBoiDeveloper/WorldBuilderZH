@@ -103,6 +103,9 @@ public:
 	void onEditScripts();
 	CString getPointerText(void) {return m_pointerText;};
 
+	void closeScriptDialog();
+	ScriptDialog* getScriptDialog() { return m_scriptDialog; }
+
 protected:  // control bar embedded members
 	CStatusBar					m_wndStatusBar;
 	CToolBar						m_wndToolBar;

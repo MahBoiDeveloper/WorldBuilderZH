@@ -242,6 +242,7 @@ BEGIN_MESSAGE_MAP(ScriptDialog, CDialog)
 	ON_BN_CLICKED(IDC_CLEANSCRIPTNAME, OnCleanScriptName)
 	ON_BN_CLICKED(IDC_FIND_NEXT, OnFindNext)
 	ON_BN_CLICKED(IDC_SMART_COPY, OnSmartCopy)
+	ON_BN_CLICKED(IDC_SAVE_ACTUAL, OnSaveActual)
 	ON_BN_CLICKED(IDC_SAVE, OnSave)
 	ON_BN_CLICKED(IDC_LOAD, OnLoad)
 	ON_NOTIFY(NM_DBLCLK, IDC_SCRIPT_TREE, OnDblclkScriptTree)
@@ -250,6 +251,7 @@ BEGIN_MESSAGE_MAP(ScriptDialog, CDialog)
 	ON_WM_MOUSEMOVE()
 	ON_WM_LBUTTONUP()
 	ON_WM_MOVE()
+	ON_WM_KEYDOWN()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -3434,6 +3436,63 @@ void ScriptDialog::OnDblclkScriptTree(NMHDR* pNMHDR, LRESULT* pResult)
 	*pResult = 0;
 }
 
+void ScriptDialog::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
+{
+    if (nChar == 'S' && (GetKeyState(VK_CONTROL) & 0x8000))
+    {
+        OnSaveActual();
+        return;
+    }
+    CDialog::OnKeyDown(nChar, nRepCnt, nFlags);
+}
+
+BOOL ScriptDialog::PreTranslateMessage(MSG* pMsg)
+{
+    if (pMsg->message == WM_KEYDOWN)
+    {
+        if (pMsg->wParam == 'S' && (GetKeyState(VK_CONTROL) & 0x8000))
+        {
+            OnSaveActual();
+            return TRUE; // consumed, don't pass further
+        }
+    }
+    return CDialog::PreTranslateMessage(pMsg);
+}
+
+// This will fire the save without closing the script dialog screen
+void ScriptDialog::OnSaveActual() 
+{
+	CWorldBuilderDoc* pDoc = CWorldBuilderDoc::GetActiveDoc();
+	SidesListUndoable *pUndo = new SidesListUndoable(m_sides, pDoc);
+	pDoc->AddAndDoUndoable(pUndo);
+	REF_PTR_RELEASE(pUndo); // belongs to pDoc now.
+
+	SaveScriptWarningsState();
+
+	PlaySound("data\\editor\\audio\\finished.wav", NULL, SND_FILENAME | SND_ASYNC);
+
+    // Berate the user if they haven't saved the map yet
+    if (pDoc->GetPathName().IsEmpty()) {
+        int result = AfxMessageBox(
+            "You haven't even saved this map yet, monsieur.\n\n"
+            "Save the map file first before trying to use Save Now you doodoo.\n\n"
+            "Want to save the map now?",
+            MB_YESNO | MB_ICONWARNING
+        );
+
+        if (result == IDYES) {
+            if (!pDoc->DoFileSave())
+                return; // user cancelled or save failed
+        } else {
+            return; // user said no, bail out
+        }
+    } else {
+		// Save the map now
+		if (!pDoc->DoFileSave())
+			return; // user cancelled or save failed
+	}
+}
+
 void ScriptDialog::OnOK() 
 {
     // Check if the IDC_OBJECT_SEARCH_EDIT control is focused
@@ -3443,12 +3502,7 @@ void ScriptDialog::OnOK()
     }
     else
     {
-		CWorldBuilderDoc* pDoc = CWorldBuilderDoc::GetActiveDoc();
-		SidesListUndoable *pUndo = new SidesListUndoable(m_sides, pDoc);
-		pDoc->AddAndDoUndoable(pUndo);
-		REF_PTR_RELEASE(pUndo); // belongs to pDoc now.
-
-		SaveScriptWarningsState();
+		OnSaveActual();
 
 		// Clear focus in scripting mode in main frame
 		if (CMainFrame::GetMainFrame()) {

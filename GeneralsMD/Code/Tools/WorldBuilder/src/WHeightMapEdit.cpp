@@ -2430,9 +2430,9 @@ Bool WorldHeightMapEdit::selectDuplicates(void)
 		Coord3D curLoc = *pObj->getLocation();
 
 		for (prevObj=firstObj; prevObj != pObj; prevObj=prevObj->getNext()) {
-			if (pObj->getName() != prevObj->getName()) {
-				continue; // names don't match.
-			}
+			// if (pObj->getName() != prevObj->getName()) {
+			// 	continue; // names don't match.
+			// }
 			if (pObj->isWaypoint()) {
 				// Don't delete duplicate waypoints.
 				continue;
@@ -2448,6 +2448,12 @@ Bool WorldHeightMapEdit::selectDuplicates(void)
 
 			if (fabs(curLoc.z - prevLoc.z) > Z_DELTA)   continue;
 			if (fabs(pObj->getAngle() - prevAngle) > ANGLE_DELTA) continue;
+
+			// If they occupy the same spot but have different names,
+			// this is allowed — skip it.
+			if (pObj->getName() != prevObj->getName()) {
+				continue;
+			}
 
 			if (pObj->getFlag(FLAG_ROAD_FLAGS)) {
 				if (pObj->getNext() == NULL) continue;

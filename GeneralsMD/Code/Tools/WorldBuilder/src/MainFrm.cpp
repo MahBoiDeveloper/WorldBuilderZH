@@ -582,6 +582,15 @@ void CMainFrame::OnEditGloballightoptions()
 	m_globalLightOptions.ShowWindow(SW_SHOWNA);
 }
 
+void CMainFrame::closeScriptDialog()
+{
+    if (m_scriptDialog) {
+        m_scriptDialog->DestroyWindow();
+        delete m_scriptDialog;
+        m_scriptDialog = NULL;
+    }
+}
+
 void CMainFrame::onEditScripts()
 {
 	if (m_scriptDialog) {

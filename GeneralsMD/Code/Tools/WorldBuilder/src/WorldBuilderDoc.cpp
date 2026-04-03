@@ -1191,8 +1191,9 @@ BOOL CWorldBuilderDoc::DoSave(LPCTSTR lpszPathName, BOOL bReplace)
             MessageBeep(MB_ICONWARNING);
 			int res = MessageBox(
 				AfxGetMainWnd()->GetSafeHwnd(),
-				"Duplicate / Overlapping objects were detected in the current map.\n\n"
-				"Are you sure you want to continue saving or fix this damn issue?",
+				"Duplicate / Overlapping objects were detected in the current map.\n"
+				"Are you sure you want to continue saving or fix this monsieur?\n\n"
+				"Click OK to save anyway, or Cancel to return and fix the issue.",
 				"Duplicate / Overlapping Objects Detected",
 				MB_OKCANCEL | MB_ICONERROR | MB_TOPMOST
 			);
@@ -2115,6 +2116,10 @@ BOOL CWorldBuilderDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	Create3DView();
 
 	LoadEditTime(lpszPathName);
+
+	if (CMainFrame::GetMainFrame() && CMainFrame::GetMainFrame()->getScriptDialog()) {
+		CMainFrame::GetMainFrame()->closeScriptDialog();
+	}
 
 	// WbApp()->OnRefreshAppAbout();
 	// DEBUG_LOG(("strTitle=%s strPathName=%s\n", lpszPathName, m_strPathName));

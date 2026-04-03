@@ -463,3 +463,8 @@ XXX
 - Forced renaming of non named scripts in initialization
 - Name Guards for folder and individual scripts
 - Bugged object icons toggle fixed 
+
+4/3/2026
+======================================================
+== All Tools Related to Terrain ==
+- Added Support for mirroring terrain details

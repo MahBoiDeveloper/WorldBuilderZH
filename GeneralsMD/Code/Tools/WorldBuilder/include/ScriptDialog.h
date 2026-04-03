@@ -165,6 +165,8 @@ protected:
 	AsciiString ScriptDialog::incrementStringNumber(const AsciiString& input);
 	void ScriptDialog::applySmartCopyIncrement(Script* pScr);
 
+	virtual BOOL PreTranslateMessage(MSG* pMsg);
+
 protected:
 
 	// Generated message map functions
@@ -192,6 +194,10 @@ protected:
 	afx_msg void OnCleanScriptName();
 	afx_msg void OnNewIcons();
 	afx_msg void OnSave();
+	afx_msg void OnSaveActual();
+
+	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
+	
 	afx_msg void OnLoad();
 	afx_msg void OnDblclkScriptTree(NMHDR* pNMHDR, LRESULT* pResult);
 	virtual void OnOK();
