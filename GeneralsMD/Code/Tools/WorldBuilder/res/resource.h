@@ -845,6 +845,7 @@
 #define ID_MSAA_2X                      33360
 #define ID_MSAA_4X                      33361
 #define ID_MSAA_8X                      33362
+#define ID_TEXT_SHADOW                  33363
 #define IDS_NEW                         61446
 #define IDS_RESIZE                      61447
 #define IDS_REMOVING_INUSE_TEAM         61448

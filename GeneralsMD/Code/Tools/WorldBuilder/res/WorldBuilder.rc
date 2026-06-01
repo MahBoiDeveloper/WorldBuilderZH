@@ -325,6 +325,7 @@ BEGIN
             MENUITEM "4x",                      ID_MSAA_4X
             MENUITEM "8x",                      ID_MSAA_8X
         END
+        MENUITEM "Text Shadow",             ID_TEXT_SHADOW
         MENUITEM SEPARATOR
         MENUITEM "Show All of 3d Map\tCtrl+A",  ID_VIEW_SHOWENTIRE3DMAP
         POPUP "Partial Map Size"

@@ -176,6 +176,8 @@ protected:
 	afx_msg void OnUpdateMSAA2X(CCmdUI* pCmdUI);
 	afx_msg void OnUpdateMSAA4X(CCmdUI* pCmdUI);
 	afx_msg void OnUpdateMSAA8X(CCmdUI* pCmdUI);
+	afx_msg void OnTextShadow();
+	afx_msg void OnUpdateTextShadow(CCmdUI* pCmdUI);
 	afx_msg void OnViewShowSubDraw();
 	afx_msg void OnUpdateViewShowSubDraw(CCmdUI* pCmdUI);
 	afx_msg void OnViewShowBaseRadius();
@@ -253,6 +255,7 @@ private:
 
 	Bool m_showBuildZoneFeedback;
 	Int m_lod;
+	Bool m_textShadow;
 	void setMSAA(D3DMULTISAMPLE_TYPE type);
 
 
