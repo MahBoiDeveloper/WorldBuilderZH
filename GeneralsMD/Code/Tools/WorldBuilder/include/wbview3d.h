@@ -176,6 +176,10 @@ protected:
 	afx_msg void OnUpdateMSAA2X(CCmdUI* pCmdUI);
 	afx_msg void OnUpdateMSAA4X(CCmdUI* pCmdUI);
 	afx_msg void OnUpdateMSAA8X(CCmdUI* pCmdUI);
+	afx_msg void OnTexFilterDefault();
+	afx_msg void OnTexFilterAniso16X();
+	afx_msg void OnUpdateTexFilterDefault(CCmdUI* pCmdUI);
+	afx_msg void OnUpdateTexFilterAniso16X(CCmdUI* pCmdUI);
 	afx_msg void OnTextShadow();
 	afx_msg void OnUpdateTextShadow(CCmdUI* pCmdUI);
 	afx_msg void OnViewShowSubDraw();
@@ -257,6 +261,7 @@ private:
 	Int m_lod;
 	Bool m_textShadow;
 	void setMSAA(D3DMULTISAMPLE_TYPE type);
+	void setTextureFilter(int mode);
 
 
 	ID3DXFont*							m3DFont;

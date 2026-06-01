@@ -24,6 +24,7 @@
 #include "resource.h"
 #include "wwmath.h"
 #include "ww3d.h"
+#include "texturefilter.h"
 #include "scene.h"
 #include "rendobj.h"
 #include "camera.h"
@@ -643,6 +644,12 @@ WbView3d::WbView3d() :
 
 	int msaaMode = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "MSAAMode", 0);
 	DX8Wrapper::Set_Multi_Sample_Type((D3DMULTISAMPLE_TYPE)msaaMode);
+
+	int texFilterMode = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "TexFilterMode", 0);
+	if (texFilterMode == 1) {
+		TextureFilterClass::Set_Max_Anisotropy(16);
+		WW3D::Set_Texture_Filter(TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC);
+	}
 
 	m_cameraOffset.x = m_cameraOffset.y = m_cameraOffset.z = 1;
 
@@ -2950,6 +2957,10 @@ BEGIN_MESSAGE_MAP(WbView3d, WbView)
 	ON_UPDATE_COMMAND_UI(ID_MSAA_4X, OnUpdateMSAA4X)
 	ON_COMMAND(ID_MSAA_8X, OnMSAA8X)
 	ON_UPDATE_COMMAND_UI(ID_MSAA_8X, OnUpdateMSAA8X)
+	ON_COMMAND(ID_TEXFILTER_DEFAULT, OnTexFilterDefault)
+	ON_UPDATE_COMMAND_UI(ID_TEXFILTER_DEFAULT, OnUpdateTexFilterDefault)
+	ON_COMMAND(ID_TEXFILTER_ANISO16X, OnTexFilterAniso16X)
+	ON_UPDATE_COMMAND_UI(ID_TEXFILTER_ANISO16X, OnUpdateTexFilterAniso16X)
 	ON_COMMAND(ID_TEXT_SHADOW, OnTextShadow)
 	ON_UPDATE_COMMAND_UI(ID_TEXT_SHADOW, OnUpdateTextShadow)
 
@@ -4787,6 +4798,24 @@ void WbView3d::OnUpdateMSAANone(CCmdUI* pCmdUI) { pCmdUI->SetCheck(DX8Wrapper::G
 void WbView3d::OnUpdateMSAA2X(CCmdUI* pCmdUI)   { pCmdUI->SetCheck(DX8Wrapper::Get_Multi_Sample_Type() == D3DMULTISAMPLE_2_SAMPLES); }
 void WbView3d::OnUpdateMSAA4X(CCmdUI* pCmdUI)   { pCmdUI->SetCheck(DX8Wrapper::Get_Multi_Sample_Type() == D3DMULTISAMPLE_4_SAMPLES); }
 void WbView3d::OnUpdateMSAA8X(CCmdUI* pCmdUI)   { pCmdUI->SetCheck(DX8Wrapper::Get_Multi_Sample_Type() == D3DMULTISAMPLE_8_SAMPLES); }
+
+void WbView3d::setTextureFilter(int mode)
+{
+	if (mode == 1) {
+		TextureFilterClass::Set_Max_Anisotropy(16);
+		WW3D::Set_Texture_Filter(TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC);
+	} else {
+		TextureFilterClass::Set_Max_Anisotropy(2);
+		WW3D::Set_Texture_Filter(TextureFilterClass::TEXTURE_FILTER_BILINEAR);
+	}
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "TexFilterMode", mode);
+}
+
+void WbView3d::OnTexFilterDefault()  { setTextureFilter(0); }
+void WbView3d::OnTexFilterAniso16X() { setTextureFilter(1); }
+
+void WbView3d::OnUpdateTexFilterDefault(CCmdUI* pCmdUI)  { pCmdUI->SetCheck(WW3D::Get_Texture_Filter() != TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC); }
+void WbView3d::OnUpdateTexFilterAniso16X(CCmdUI* pCmdUI) { pCmdUI->SetCheck(WW3D::Get_Texture_Filter() == TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC); }
 
 void WbView3d::OnTextShadow()
 {

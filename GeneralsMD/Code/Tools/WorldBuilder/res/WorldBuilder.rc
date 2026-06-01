@@ -325,6 +325,11 @@ BEGIN
             MENUITEM "4x",                      ID_MSAA_4X
             MENUITEM "8x",                      ID_MSAA_8X
         END
+        POPUP "Texture Filtering"
+        BEGIN
+            MENUITEM "Default",                 ID_TEXFILTER_DEFAULT
+            MENUITEM "Anisotropic 16x",         ID_TEXFILTER_ANISO16X
+        END
         MENUITEM "Text Shadow",             ID_TEXT_SHADOW
         MENUITEM SEPARATOR
         MENUITEM "Show All of 3d Map\tCtrl+A",  ID_VIEW_SHOWENTIRE3DMAP
