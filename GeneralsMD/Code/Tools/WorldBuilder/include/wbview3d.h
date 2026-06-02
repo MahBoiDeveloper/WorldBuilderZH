@@ -213,6 +213,10 @@ protected:
 	afx_msg void OnUpdateTextShadow(CCmdUI* pCmdUI);
 	afx_msg void OnTextAntialias();
 	afx_msg void OnUpdateTextAntialias(CCmdUI* pCmdUI);
+	afx_msg void OnTextAnchorDefault();
+	afx_msg void OnUpdateTextAnchorDefault(CCmdUI* pCmdUI);
+	afx_msg void OnTextAnchorNew();
+	afx_msg void OnUpdateTextAnchorNew(CCmdUI* pCmdUI);
 	afx_msg void OnViewShowSubDraw();
 	afx_msg void OnUpdateViewShowSubDraw(CCmdUI* pCmdUI);
 	afx_msg void OnViewShowBaseRadius();
@@ -292,6 +296,7 @@ private:
 	Int m_lod;
 	Bool m_textShadow;
 	Bool m_textAntialias;					///< grayscale antialiasing for viewport labels
+	Int  m_labelAnchorMode;					///< 0 = Default (ground), 1 = New (object center-height)
 	void setMSAA(D3DMULTISAMPLE_TYPE type);
 	void setTextureFilter(int mode);
 	void createLabelFont();					///< (re)create m3DFont honoring m_textAntialias
@@ -314,6 +319,7 @@ private:
 		Bool showNames, showModels, showWaypoints, showNamesExtra, showPolygonTriggers;
 		Bool lightFeedback;
 		Int  timeOfDay;
+		Int  labelAnchorMode;	// 0 = ground, 1 = center-height
 		UnsignedInt epoch;		// bumped on object/property edits
 
 		Bool operator==(const LabelCacheKey &o) const;

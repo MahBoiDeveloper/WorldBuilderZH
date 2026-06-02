@@ -101,9 +101,13 @@ void W3DLogicalScreenToPixelScreenHackedForWBLabels( Real logX, Real logY,
 	Int *screenX, Int *screenY,
 	Int screenWidth, Int screenHeight )
 {
+	// Map logical [-1,+1] to pixel [0,screenHeight]. Both axes must divide by 2.0;
+	// a previous hand-tuned 1.85f on Y was an ~8% vertical scaling error that left
+	// labels correct near the top of the screen but drifting downward elsewhere, so
+	// labels appeared to slide off their objects as the camera panned.
 	*screenX = REAL_TO_INT((screenWidth  * (logX + 1.0f)) / 2.0f);
-	*screenY = REAL_TO_INT((screenHeight * (-logY + 1.0f)) /1.85f);
-}  
+	*screenY = REAL_TO_INT((screenHeight * (-logY + 1.0f)) / 2.0f);
+}
 //=============================================================================
 // PixelScreenToW3DLogicalScreen
 //=============================================================================

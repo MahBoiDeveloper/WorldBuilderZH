@@ -610,6 +610,7 @@ WbView3d::WbView3d() :
 	m_updateCount(0),
 	m_haveLabelCache(false),
 	m_labelEpoch(0),
+	m_labelAnchorMode(0),
 	m_needToLoadRoads(0),
 	m_timer(NULL),
 	m_drawObject(NULL),
@@ -647,6 +648,7 @@ WbView3d::WbView3d() :
 	m_lod = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "LODMode", 2);
 	m_textShadow = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "TextShadow", 1) != 0;
 	m_textAntialias = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "TextAntialias", 1) != 0;
+	m_labelAnchorMode = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "LabelAnchorMode", 0);
 
 	int msaaMode = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "MSAAMode", 0);
 	DX8Wrapper::Set_Multi_Sample_Type((D3DMULTISAMPLE_TYPE)msaaMode);
@@ -3068,6 +3070,10 @@ BEGIN_MESSAGE_MAP(WbView3d, WbView)
 	ON_UPDATE_COMMAND_UI(ID_TEXT_SHADOW, OnUpdateTextShadow)
 	ON_COMMAND(ID_TEXT_ANTIALIAS, OnTextAntialias)
 	ON_UPDATE_COMMAND_UI(ID_TEXT_ANTIALIAS, OnUpdateTextAntialias)
+	ON_COMMAND(ID_TEXT_ANCHOR_DEFAULT, OnTextAnchorDefault)
+	ON_UPDATE_COMMAND_UI(ID_TEXT_ANCHOR_DEFAULT, OnUpdateTextAnchorDefault)
+	ON_COMMAND(ID_TEXT_ANCHOR_NEW, OnTextAnchorNew)
+	ON_UPDATE_COMMAND_UI(ID_TEXT_ANCHOR_NEW, OnUpdateTextAnchorNew)
 
 	ON_COMMAND(ID_REVALIDATE_RENDER, OnRefreshSceneObjects)
 	//}}AFX_MSG_MAP
@@ -3415,7 +3421,7 @@ Bool WbView3d::LabelCacheKey::operator==(const LabelCacheKey &o) const
 		showWaypoints == o.showWaypoints && showNamesExtra == o.showNamesExtra &&
 		showPolygonTriggers == o.showPolygonTriggers &&
 		lightFeedback == o.lightFeedback && timeOfDay == o.timeOfDay &&
-		epoch == o.epoch;
+		labelAnchorMode == o.labelAnchorMode && epoch == o.epoch;
 }
 
 // Snapshot everything drawLabels() reads to decide label geometry / positions /
@@ -3442,6 +3448,7 @@ WbView3d::LabelCacheKey WbView3d::buildLabelKey()
 	k.showPolygonTriggers = m_showPolygonTriggers;
 	k.lightFeedback = m_doLightFeedback;
 	k.timeOfDay = (Int)TheGlobalData->m_timeOfDay;
+	k.labelAnchorMode = m_labelAnchorMode;
 	k.epoch = m_labelEpoch;
 	return k;
 }
@@ -3596,6 +3603,29 @@ void WbView3d::drawLabels(HDC hdc)
 			Coord3D pos = *pMapObj->getLocation();
 			float terrainZ = m_heightMapRenderObj->getHeightMapHeight(pos.x, pos.y, NULL);
 			pos.z += terrainZ;
+
+			// Label anchor mode. Default (0): anchor at the object's ground point (legacy;
+			// the label then drifts relative to a tall marker as the camera orbits).
+			// New (1): anchor ON the object -- at the vertical center of its visible
+			// representation -- so the label sits on the model and tracks it as the camera
+			// orbits. Covers all viewport-label kinds:
+			//   - objects with a loaded render model -> bounding-sphere center (mid-height);
+			//   - flag-style markers with no model (ambient sounds = ES_AUDIO, and waypoints)
+			//     -> mid-height of the pole drawn by DrawObject (poleHeight 20 -> ~10);
+			//   - anything else flat (e.g. scorches) -> ground anchor.
+			// Reads static geometry/template data only -> thread-safe in this parallel pass.
+			if (m_labelAnchorMode == 1) {
+				if (RenderObjClass *ro = pMapObj->getRenderObj()) {
+					SphereClass s;
+					ro->Get_Obj_Space_Bounding_Sphere(s);
+					pos.z += s.Center.Z;		// center of the model, not its top
+				} else {
+					const ThingTemplate *att = pMapObj->getThingTemplate();
+					Bool isAudioFlag = att && att->getEditorSorting() == ES_AUDIO;
+					if (isAudioFlag || pMapObj->isWaypoint())
+						pos.z += 15.0f;		// mid-pole (poleHeight 20 / 2 + slack), per DrawObject.cpp
+				}
+			}
 
 			// Light feedback logic
 			if (m_doLightFeedback && pMapObj->isSelected()) {
@@ -5059,6 +5089,34 @@ void WbView3d::OnTextAntialias()
 void WbView3d::OnUpdateTextAntialias(CCmdUI* pCmdUI)
 {
 	pCmdUI->SetCheck(m_textAntialias);
+}
+
+// Label anchor mode: Default (ground) vs New (object center-height). Presented as a
+// radio pair under Text Rendering. Clearing m_haveLabelCache forces an immediate rebuild.
+void WbView3d::OnTextAnchorDefault()
+{
+	m_labelAnchorMode = 0;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "LabelAnchorMode", 0);
+	m_haveLabelCache = false;
+	Invalidate();
+}
+
+void WbView3d::OnUpdateTextAnchorDefault(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_labelAnchorMode == 0);
+}
+
+void WbView3d::OnTextAnchorNew()
+{
+	m_labelAnchorMode = 1;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "LabelAnchorMode", 1);
+	m_haveLabelCache = false;
+	Invalidate();
+}
+
+void WbView3d::OnUpdateTextAnchorNew(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_labelAnchorMode == 1);
 }
 
 void WbView3d::OnKillFocus(CWnd* pNewWnd)

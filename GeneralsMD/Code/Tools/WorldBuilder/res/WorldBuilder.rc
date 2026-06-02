@@ -371,6 +371,9 @@ BEGIN
     BEGIN
         MENUITEM "Shadow",                      ID_TEXT_SHADOW
         MENUITEM "Antialiasing",                ID_TEXT_ANTIALIAS
+        MENUITEM SEPARATOR
+        MENUITEM "Label Anchor: Default",       ID_TEXT_ANCHOR_DEFAULT
+        MENUITEM "Label Anchor: New",           ID_TEXT_ANCHOR_NEW
     END
     POPUP "&Window"
     BEGIN
