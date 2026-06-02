@@ -806,8 +806,9 @@ void CMainFrame::handleCameraChange(void)
 {
 	m_cameraOptions.update();
 
-	// Camera moved/zoomed -> redraw the minimap view box (object-only, cheap path).
+	// Camera moved/zoomed -> only the view box moves; cheap repaint, no recomposite
+	// (this is the per-mouse-move path while dragging the minimap, so it must be light).
 	if (TheMinimapDialog && TheMinimapDialog->IsWindowVisible())
-		TheMinimapDialog->requestRebuild(false);
+		TheMinimapDialog->requestViewBoxRefresh();
 }
 

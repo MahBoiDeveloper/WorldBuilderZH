@@ -254,10 +254,8 @@ void MinimapDialog::requestRebuild(Bool terrainChanged)
 	if (!::IsWindow(m_hWnd) || !IsWindowVisible())
 		return;
 
-	// Object-only / camera changes are cheap (recomposite cached terrain, no resample),
-	// just like the in-game radar. Refresh them immediately so units/buildings and the
-	// view box track instantly, with no throttle delay. Only when the cached terrain is
-	// stale (a terrain edit is pending) do we fall through to the debounced resample.
+	// Object change (no terrain resample needed): recomposite the cached terrain +
+	// objects. Cheap relative to a resample.
 	if (!terrainChanged && m_terrainValid)
 	{
 		refreshObjects();
@@ -278,6 +276,33 @@ void MinimapDialog::requestRebuild(Bool terrainChanged)
 	// edits stop arriving for m_refreshDelayMs.
 	m_rebuildPending = true;
 	SetTimer(MINIMAP_REBUILD_TIMER, (UINT)m_refreshDelayMs, NULL);
+}
+
+// A pure CAMERA move (panning, zoom, and especially dragging the minimap itself).
+// The composited buffer -- terrain, roads, object blips -- is all world space and
+// does NOT move; only the yellow view box (a cheap GDI overlay in OnPaint) follows.
+// So just invalidate to repaint the box; do NOT recomposite. Recompositing roads +
+// objects on every WM_MOUSEMOVE was what made the minimap drag clunky in the 3D view
+// (a full overlay rebuild ran on the UI thread ahead of the 3D paint, per event).
+//
+// EXCEPTION: with "Cull Objects To View" on, the visible blip set depends on the
+// camera, so the buffer must be recomposited -- coalesce it through the throttle
+// timer so a drag doesn't rebuild on every event.
+void MinimapDialog::requestViewBoxRefresh()
+{
+	if (s_loading)
+		return;
+	if (!::IsWindow(m_hWnd) || !IsWindowVisible())
+		return;
+
+	if (m_cullObjects && m_terrainValid)
+	{
+		m_rebuildPending = true;
+		SetTimer(MINIMAP_REBUILD_TIMER, (UINT)(m_refreshDelayMs > 0 ? m_refreshDelayMs : 16), NULL);
+		return;
+	}
+
+	Invalidate(FALSE);		// repaint cached buffer + view-box overlay; no recomposite
 }
 
 void MinimapDialog::OnTimer(UINT_PTR nIDEvent)
