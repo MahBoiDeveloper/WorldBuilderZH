@@ -755,13 +755,16 @@ Bool MinimapDialog::worldToMinimap(Real worldX, Real worldY, Int *mx, Int *my)
 	Real ySpan = INT_TO_REAL(pMap->getYExtent() - 2 * border);
 	if (xSpan <= 0.0f || ySpan <= 0.0f) return FALSE;
 
-	// Exact inverse of minimapToWorld: that maps cell mx -> (mx*span/res + border)
-	// in heightmap CELL units. getViewFrustumGroundCorners returns WORLD units
-	// (already * MAP_XY_FACTOR), so convert to cells, subtract the border, then
-	// scale to minimap resolution. Omitting the border shifts the view box away
-	// from where a click lands (the two transforms must be inverses).
-	Real cellX = worldX / MAP_XY_FACTOR - border;
-	Real cellY = worldY / MAP_XY_FACTOR - border;
+	// MapObject::getLocation() (and the road points) are in BORDER-RELATIVE world
+	// units: getCoordFromCellIndex defines worldX = (cell - border) * MAP_XY_FACTOR,
+	// so worldX / MAP_XY_FACTOR already equals (cell - border) -- the border is
+	// removed. This must match the terrain resample mapping, which places minimap
+	// pixel i at world coord MAP_XY_FACTOR * (i * span/res), i.e. NO extra border
+	// term. (Do NOT subtract border again here -- that double-counts it and shifts
+	// every object/road by one border width. The view box uses a different,
+	// absolute-world transform because the camera/frustum coords include the border.)
+	Real cellX = worldX / MAP_XY_FACTOR;
+	Real cellY = worldY / MAP_XY_FACTOR;
 	Int x = REAL_TO_INT((cellX / xSpan) * m_resolution);
 	Int y = REAL_TO_INT((cellY / ySpan) * m_resolution);
 	Bool inRange = (x >= 0 && x < m_resolution && y >= 0 && y < m_resolution);
@@ -869,6 +872,10 @@ struct RoadTex
 {
 	UnsignedByte *rgba;		// w*h*4, RGBA, top-down. NULL = load failed.
 	Int           w, h;
+	UnsignedInt   avg;		// average color of the whole texture, packed 0x00RRGGBB
+							// (DIB byte order: B | G<<8 | R<<16). Used to draw roads as a
+							// single flat color so per-pixel asphalt detail doesn't read
+							// as noise at minimap scale.
 };
 
 struct RoadTexEntry
@@ -891,7 +898,7 @@ static Int          s_roadTexCount = 0;
 // failure (caller falls back to a flat color).
 static Bool loadRoadTexture(const AsciiString &texName, RoadTex *out)
 {
-	out->rgba = NULL; out->w = out->h = 0;
+	out->rgba = NULL; out->w = out->h = 0; out->avg = 0;
 	if (texName.isEmpty())
 		return FALSE;
 
@@ -907,16 +914,24 @@ static Bool loadRoadTexture(const AsciiString &texName, RoadTex *out)
 		return FALSE;
 
 	UnsignedByte *rgba = new UnsignedByte[w * h * 4];
+	UnsignedInt sumR = 0, sumG = 0, sumB = 0;
 	for (Int y = 0; y < h; ++y) {
 		for (Int x = 0; x < w; ++x) {
 			unsigned argb = dds.Get_Pixel(0, x, y);	// 0xAARRGGBB
+			UnsignedByte r = (UnsignedByte)((argb >> 16) & 0xff);
+			UnsignedByte g = (UnsignedByte)((argb >>  8) & 0xff);
+			UnsignedByte b = (UnsignedByte)((argb      ) & 0xff);
 			UnsignedByte *d = rgba + (y * w + x) * 4;
-			d[0] = (UnsignedByte)((argb >> 16) & 0xff);	// R
-			d[1] = (UnsignedByte)((argb >>  8) & 0xff);	// G
-			d[2] = (UnsignedByte)((argb      ) & 0xff);	// B
+			d[0] = r; d[1] = g; d[2] = b;
 			d[3] = (UnsignedByte)((argb >> 24) & 0xff);	// A
+			sumR += r; sumG += g; sumB += b;
 		}
 	}
+
+	// Average color of the texture (flat road fill). Packed DIB order: B | G<<8 | R<<16.
+	UnsignedInt n = (UnsignedInt)(w * h);
+	UnsignedInt aR = sumR / n, aG = sumG / n, aB = sumB / n;
+	out->avg = aB | (aG << 8) | (aR << 16);
 
 	out->rgba = rgba; out->w = w; out->h = h;
 	return TRUE;
@@ -951,42 +966,6 @@ static void clearRoadTexCache()
 			s_roadTexCache[i].tex.rgba = NULL;
 		}
 	s_roadTexCount = 0;
-}
-
-// Sample a native-size RGBA road texture at normalized (u, v) in [0,1], tiling,
-// with bilinear filtering. Returns packed 0xAARRGGBB -- the alpha is the texture's
-// own alpha (interpolated), used to blend the road edge into the terrain.
-static UnsignedInt sampleRoadTex(const RoadTex *t, Real u, Real v)
-{
-	u = u - (Real)floor(u);	// wrap into [0,1)
-	v = v - (Real)floor(v);
-
-	Real fx = u * t->w - 0.5f;
-	Real fy = v * t->h - 0.5f;
-	Int x0 = (Int)floor(fx), y0 = (Int)floor(fy);
-	Real du = fx - x0, dv = fy - y0;
-	Int x1 = x0 + 1, y1 = y0 + 1;
-	// Wrap (tile) the integer coords.
-	x0 = ((x0 % t->w) + t->w) % t->w;  x1 = ((x1 % t->w) + t->w) % t->w;
-	y0 = ((y0 % t->h) + t->h) % t->h;  y1 = ((y1 % t->h) + t->h) % t->h;
-
-	const UnsignedByte *p = t->rgba;
-	const UnsignedByte *c00 = p + (y0 * t->w + x0) * 4;
-	const UnsignedByte *c10 = p + (y0 * t->w + x1) * 4;
-	const UnsignedByte *c01 = p + (y1 * t->w + x0) * 4;
-	const UnsignedByte *c11 = p + (y1 * t->w + x1) * 4;
-
-	Real w00 = (1-du)*(1-dv), w10 = du*(1-dv), w01 = (1-du)*dv, w11 = du*dv;
-	Real r = c00[0]*w00 + c10[0]*w10 + c01[0]*w01 + c11[0]*w11;
-	Real g = c00[1]*w00 + c10[1]*w10 + c01[1]*w01 + c11[1]*w11;
-	Real b = c00[2]*w00 + c10[2]*w10 + c01[2]*w01 + c11[2]*w11;
-	Real a = c00[3]*w00 + c10[3]*w10 + c01[3]*w01 + c11[3]*w11;
-
-	UnsignedInt ri = (UnsignedInt)(r + 0.5f); if (ri > 255) ri = 255;
-	UnsignedInt gi = (UnsignedInt)(g + 0.5f); if (gi > 255) gi = 255;
-	UnsignedInt bi = (UnsignedInt)(b + 0.5f); if (bi > 255) bi = 255;
-	UnsignedInt ai = (UnsignedInt)(a + 0.5f); if (ai > 255) ai = 255;
-	return (bi) | (gi << 8) | (ri << 16) | (ai << 24);
 }
 
 // Alpha-blend src (0x__RRGGBB, in DIB byte order B|G<<8|R<<16) over dst by coverage
@@ -1053,7 +1032,12 @@ void MinimapDialog::drawThickLine(Int x0, Int y0, Int x1, Int y1, Int halfW, Uns
 
 	Real fHalf = (Real)halfW + 0.5f;			// half-width including the AA edge pixel
 	const Real aaWidth = 1.0f;					// width (px) of the feathered edge band
-	const Real tileEveryPx = 32.0f;				// texture wraps roughly every 32 px
+
+	// Roads are drawn as a single FLAT color (the texture's average) rather than
+	// per-pixel sampling: the asphalt cracks/detail just read as noise at minimap
+	// scale. tex->avg is the precomputed average of the loaded road texture; fall
+	// back to the flat fallback color if no texture loaded. Day/night tint applied.
+	UnsignedInt roadC = applyTint(tex ? tex->avg : color, tintR, tintG, tintB);
 
 	if (len < 0.5f) {
 		// Degenerate (single point): draw a small filled disc so dots/joints still show.
@@ -1063,10 +1047,8 @@ void MinimapDialog::drawThickLine(Int x0, Int y0, Int x1, Int y1, Int halfW, Uns
 				Int px = x0 + ox, py = y0 + oy;
 				if (px < 0 || px >= m_resolution || py < 0 || py >= m_resolution) continue;
 				if (ox*ox + oy*oy > r*r) continue;
-				UnsignedInt c = tex ? sampleRoadTex(tex, 0.0f, 0.5f) : color;
-				c = applyTint(c, tintR, tintG, tintB);
 				m_pixelBuffer[py * m_resolution + px] =
-					blendOver(m_pixelBuffer[py * m_resolution + px], c, 255);
+					blendOver(m_pixelBuffer[py * m_resolution + px], roadC, 255);
 			}
 		return;
 	}
@@ -1108,24 +1090,13 @@ void MinimapDialog::drawThickLine(Int x0, Int y0, Int x1, Int y1, Int halfW, Uns
 			if (cov <= 0.0f) continue;
 			if (cov > 1.0f) cov = 1.0f;
 
-			UnsignedInt c;
-			if (tex) {
-				Real u = along / tileEveryPx;					// along the road
-				Real v = (perp + fHalf) / (2.0f * fHalf);		// 0..1 across the width
-				c = sampleRoadTex(tex, u, v);
-			} else {
-				c = color;
-			}
-			c = applyTint(c, tintR, tintG, tintB);				// day/night, like terrain
-
-			// The road INTERIOR is fully opaque -- we deliberately ignore the texture's
-			// own alpha for the body (road DDS alpha is partial across the asphalt and
-			// would make the whole road translucent / faint). The only feathering is the
-			// geometric edge AA (cov), which blends the road's outline into the terrain.
+			// Flat averaged road color (precomputed above). The INTERIOR is fully
+			// opaque; the only feathering is the geometric edge AA (cov), which blends
+			// the road's outline into the terrain.
 			UnsignedInt a = (UnsignedInt)(cov * 255.0f + 0.5f);
 			if (a == 0) continue;
 			Int idx = py * m_resolution + px;
-			m_pixelBuffer[idx] = blendOver(m_pixelBuffer[idx], c, a);
+			m_pixelBuffer[idx] = blendOver(m_pixelBuffer[idx], roadC, a);
 		}
 	}
 }
