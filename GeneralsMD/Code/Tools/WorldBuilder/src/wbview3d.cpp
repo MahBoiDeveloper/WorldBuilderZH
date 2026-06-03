@@ -640,7 +640,12 @@ WbView3d::WbView3d() :
     m_totalEditTime(0),
     m_isTimerRunning(false)
 {
-	TheTacticalView = &bogusTacticalView;  
+	TheTacticalView = &bogusTacticalView;
+	// Legacy D3DX font handle: unused (labels use m_fontAtlas), but the
+	// release-guards in createLabelFont()/shutdownWW3D() test it, so it MUST start
+	// NULL. Without this, a _DEBUG build leaves it as 0xcdcdcdcd and the first
+	// createLabelFont() call dereferences that bogus pointer -> access violation.
+	m3DFont = NULL;
 	m_actualWinSize.x = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "Width", THREE_D_VIEW_WIDTH);
 	m_actualWinSize.y = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "Height", THREE_D_VIEW_HEIGHT);
 
