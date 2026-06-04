@@ -3285,6 +3285,13 @@ void WbView3d::OnPaint()
 		// thus the strobe-inducing buffer flip) until something actually changes.
 		m_lastGdiPaintKey = buildLabelKey();
 		m_haveGdiPaintKey = true;
+	} else if (m_doRectFeedback) {
+		// Old (D3DX) mode draws labels inside the D3D frame and never passes an HDC to
+		// drawLabels, so the drag-select box (a GDI ::FrameRect) would never appear. Draw
+		// it here on the window HDC instead -- same GDI box as GDI mode, for both modes.
+		CBrush brush;
+		brush.CreateSolidBrush(RGB(255, 165, 0));
+		::FrameRect(hdc, &m_feedbackBox, (HBRUSH)brush.GetSafeHandle());
 	}
 	::EndPaint(m_hWnd, &ps);
 	if (m_firstPaint) {
