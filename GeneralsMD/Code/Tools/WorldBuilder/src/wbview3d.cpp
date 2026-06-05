@@ -3030,6 +3030,8 @@ BEGIN_MESSAGE_MAP(WbView3d, WbView)
 	ON_UPDATE_COMMAND_UI(ID_MINIMAP_SHOWOBJECTS, OnUpdateMinimapShowObjects)
 	ON_COMMAND(ID_MINIMAP_SHOWROADS, OnMinimapShowRoads)
 	ON_UPDATE_COMMAND_UI(ID_MINIMAP_SHOWROADS, OnUpdateMinimapShowRoads)
+	ON_COMMAND(ID_MINIMAP_SHOWBORDER, OnMinimapShowBorder)
+	ON_UPDATE_COMMAND_UI(ID_MINIMAP_SHOWBORDER, OnUpdateMinimapShowBorder)
 	ON_COMMAND(ID_MINIMAP_CULLOBJECTS, OnMinimapCullObjects)
 	ON_UPDATE_COMMAND_UI(ID_MINIMAP_CULLOBJECTS, OnUpdateMinimapCullObjects)
 	ON_COMMAND(ID_MINIMAP_SNAP45, OnMinimapSnap45)
@@ -4968,6 +4970,16 @@ void WbView3d::OnUpdateMinimapShowRoads(CCmdUI* pCmdUI)
 {
 	pCmdUI->Enable(TheMinimapDialog != NULL);
 	pCmdUI->SetCheck(TheMinimapDialog && TheMinimapDialog->getShowRoads() ? 1 : 0);
+}
+void WbView3d::OnMinimapShowBorder()
+{
+	if (TheMinimapDialog)
+		TheMinimapDialog->setShowBorder(!TheMinimapDialog->getShowBorder());
+}
+void WbView3d::OnUpdateMinimapShowBorder(CCmdUI* pCmdUI)
+{
+	pCmdUI->Enable(TheMinimapDialog != NULL);
+	pCmdUI->SetCheck(TheMinimapDialog && TheMinimapDialog->getShowBorder() ? 1 : 0);
 }
 void WbView3d::OnMinimapCullObjects()
 {

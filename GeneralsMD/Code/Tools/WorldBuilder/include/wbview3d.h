@@ -157,6 +157,8 @@ protected:
 	afx_msg void OnUpdateMinimapShowObjects(CCmdUI* pCmdUI);
 	afx_msg void OnMinimapShowRoads();
 	afx_msg void OnUpdateMinimapShowRoads(CCmdUI* pCmdUI);
+	afx_msg void OnMinimapShowBorder();
+	afx_msg void OnUpdateMinimapShowBorder(CCmdUI* pCmdUI);
 	afx_msg void OnMinimapCullObjects();
 	afx_msg void OnUpdateMinimapCullObjects(CCmdUI* pCmdUI);
 	afx_msg void OnMinimapSnap45();

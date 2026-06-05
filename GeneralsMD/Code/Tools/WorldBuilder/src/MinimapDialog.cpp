@@ -88,12 +88,14 @@ MinimapDialog::MinimapDialog(CWnd *pParent)
 	  m_inRebuild(false),
 	  m_showObjects(true),
 	  m_showRoads(true),
+	  m_showBorder(true),
 	  m_refreshDelayMs(250)
 {
 	// Load persisted config (clamp to valid ranges).
 	m_resolution     = ::AfxGetApp()->GetProfileInt(MINIMAP_SECTION, "Resolution", MINIMAP_RES_DEFAULT);
 	m_showObjects    = ::AfxGetApp()->GetProfileInt(MINIMAP_SECTION, "ShowObjects", 1) ? true : false;
 	m_showRoads      = ::AfxGetApp()->GetProfileInt(MINIMAP_SECTION, "ShowRoads", 1) ? true : false;
+	m_showBorder     = ::AfxGetApp()->GetProfileInt(MINIMAP_SECTION, "ShowBorder", 1) ? true : false;
 	m_cullObjects    = ::AfxGetApp()->GetProfileInt(MINIMAP_SECTION, "CullObjects", 0) ? true : false;
 	m_refreshDelayMs = ::AfxGetApp()->GetProfileInt(MINIMAP_SECTION, "RefreshDelayMs", 250);
 	if (m_resolution < MINIMAP_RES_MIN) m_resolution = MINIMAP_RES_MIN;
@@ -179,6 +181,16 @@ void MinimapDialog::setShowRoads(Bool show)
 		else
 			rebuildTerrain();
 	}
+}
+
+void MinimapDialog::setShowBorder(Bool show)
+{
+	m_showBorder = show;
+	::AfxGetApp()->WriteProfileInt(MINIMAP_SECTION, "ShowBorder", show ? 1 : 0);
+	// The border is a GDI overlay drawn in OnPaint (not baked into the buffer), so a
+	// repaint is all that's needed -- no terrain resample or object recomposite.
+	if (::IsWindow(m_hWnd) && IsWindowVisible())
+		Invalidate(FALSE);
 }
 
 void MinimapDialog::setCullObjects(Bool cull)
@@ -372,6 +384,12 @@ void MinimapDialog::OnPaint()
 		0, 0, clientRect.Width(), clientRect.Height(),
 		0, 0, m_resolution, m_resolution,
 		m_pixelBuffer, &bmi, DIB_RGB_COLORS, SRCCOPY);
+
+	// Orange playable-area boundary, drawn first so the yellow camera view box sits on
+	// top of it. Both are GDI overlays at full client resolution (not baked into the
+	// low-res buffer), so the lines stay smooth and crisp at any sampling resolution.
+	if (m_showBorder)
+		drawBorderOverlay(dc.m_hDC, clientRect.Width(), clientRect.Height());
 
 	// Draw the camera view box as a GDI overlay at full client resolution (not baked
 	// into the low-res buffer), so the lines are smooth and the thickness is crisp
@@ -991,6 +1009,46 @@ void MinimapDialog::drawViewBoxOverlay(HDC hdc, Int clientW, Int clientH)
 	HGDIOBJ oldPen = SelectObject(hdc, pen);
 	HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
 	Polyline(hdc, pts, 5);
+	SelectObject(hdc, oldPen);
+	SelectObject(hdc, oldBrush);
+	DeleteObject(pen);
+}
+
+// Draw the playable-area boundary as an orange rectangle, separating the playable
+// region from the non-playable border margin (the minimap now covers the full
+// heightmap extent, so the playable area is an inset rect). A GDI overlay in client
+// space (full display resolution) like the view box, so the line stays crisp at any
+// sampling resolution. The playable area spans heightmap cells [border, extent-border];
+// as a fraction of the full extent that is border/extent .. (extent-border)/extent.
+void MinimapDialog::drawBorderOverlay(HDC hdc, Int clientW, Int clientH)
+{
+	CWorldBuilderDoc* pDoc = CWorldBuilderDoc::GetActiveDoc();
+	if (!pDoc) return;
+	WorldHeightMapEdit *pMap = pDoc->GetHeightMap();
+	if (!pMap) return;
+
+	Real border = INT_TO_REAL(pMap->getBorderSize());
+	Real xExtent = INT_TO_REAL(pMap->getXExtent());
+	Real yExtent = INT_TO_REAL(pMap->getYExtent());
+	if (xExtent <= 0.0f || yExtent <= 0.0f || border <= 0.0f) return;
+
+	// Playable rect as a fraction of the full extent.
+	Real fxL = border / xExtent;
+	Real fxR = (xExtent - border) / xExtent;
+	Real fyB = border / yExtent;					// world-space bottom edge
+	Real fyT = (yExtent - border) / yExtent;		// world-space top edge
+
+	// Map to client pixels. Y is flipped (world +y is up, client +y is down), so the
+	// world TOP edge becomes the client TOP (smaller y).
+	Int left   = (Int)(fxL * clientW);
+	Int right  = (Int)(fxR * clientW);
+	Int top    = (Int)((1.0f - fyT) * clientH);
+	Int bottom = (Int)((1.0f - fyB) * clientH);
+
+	HPEN pen = CreatePen(PS_SOLID, 1, RGB(255, 140, 0));	// orange, fixed 1px hairline
+	HGDIOBJ oldPen = SelectObject(hdc, pen);
+	HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+	Rectangle(hdc, left, top, right, bottom);
 	SelectObject(hdc, oldPen);
 	SelectObject(hdc, oldBrush);
 	DeleteObject(pen);

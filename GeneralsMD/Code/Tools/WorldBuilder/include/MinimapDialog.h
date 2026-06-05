@@ -63,6 +63,9 @@ public:
 	void setShowRoads(Bool show);
 	Bool getShowRoads() const { return m_showRoads; }
 
+	void setShowBorder(Bool show);		///< Draw an orange outline at the playable-area boundary.
+	Bool getShowBorder() const { return m_showBorder; }
+
 	void setCullObjects(Bool cull);		///< Only draw object blips inside the 3D view frustum.
 	Bool getCullObjects() const { return m_cullObjects; }
 
@@ -98,6 +101,7 @@ private:
 		struct RoadTex *tex = NULL, Real segLenPx = 0.0f,
 		Real tintR = 1.0f, Real tintG = 1.0f, Real tintB = 1.0f);	///< Textured (or flat) thick line into the buffer.
 	void drawViewBoxOverlay(HDC hdc, Int clientW, Int clientH);	///< GDI camera-frustum box (display res).
+	void drawBorderOverlay(HDC hdc, Int clientW, Int clientH);	///< GDI orange playable-area boundary (display res).
 	void fillRect(Int cx, Int cy, Int w, Int h, UnsignedInt color);	///< centered, clipped buffer fill.
 	void fillCheckerRect(Int cx, Int cy, Int w, Int h, UnsignedInt colorA, UnsignedInt colorB, Int cell);	///< centered checkerboard fill (cashbox); cell = block size in buffer px.
 	void fillDiamond(Int cx, Int cy, Int size, UnsignedInt color);	///< centered, clipped diamond fill (units).
@@ -121,6 +125,7 @@ private:
 
 	Bool m_showObjects;				///< draw unit/structure dots over the terrain.
 	Bool m_showRoads;				///< draw road/bridge segments over the terrain.
+	Bool m_showBorder;				///< draw an orange outline at the playable-area boundary.
 	Bool m_cullObjects;				///< only draw object blips inside the 3D view frustum.
 	Int  m_refreshDelayMs;			///< throttle delay; 0 = manual.
 };
