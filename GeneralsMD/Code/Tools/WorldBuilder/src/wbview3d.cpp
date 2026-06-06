@@ -628,6 +628,7 @@ WbView3d::WbView3d() :
 	m_showEntireMap(false),
 	m_partialMapSize(129),
 	m_showWireframe(false),
+	m_showFullWireframe(false),
 	m_projection(false),
 	m_showShadows(false),
 	m_firstPaint(true),
@@ -677,6 +678,7 @@ WbView3d::WbView3d() :
 	}
 
 	m_showWireframe = (::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowWireframe", 0) != 0);
+	m_showFullWireframe = (::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowFullWireframe", 0) != 0);
 	m_showEntireMap = (::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowEntireMap", 1) != 0);
 	m_projection = (::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowTopDownView", 0) != 0);
 	m_showShadows = (::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowShadows", 1) != 0);
@@ -2838,7 +2840,15 @@ void WbView3d::render()
 			m_heightMapRenderObj->Set_Hidden((m_showTerrain ? 0 : 1));
 			m_heightMapRenderObj->doTextures(true);
 		}
-		m_scene->Set_Polygon_Mode(SceneClass::FILL);
+		// Full wireframe mode renders the entire scene (terrain, objects, roads, bridges)
+		// in LINE mode with textures off, replacing the solid pass.  The legacy
+		// m_showWireframe path (below) is an additive POINT overlay on top of the solid
+		// render and is left unchanged.
+		m_scene->Set_Polygon_Mode(m_showFullWireframe ? SceneClass::LINE : SceneClass::FILL);
+		m_baseBuildScene->Set_Polygon_Mode(m_showFullWireframe ? SceneClass::LINE : SceneClass::FILL);
+		if (m_showFullWireframe && m_heightMapRenderObj) {
+			m_heightMapRenderObj->doTextures(false);
+		}
 		// Render 3D scene
 
 		try {
@@ -2935,8 +2945,17 @@ void WbView3d::render()
 		newAmb.Y *= gMul;
 		if (newAmb.X>1) newAmb.X = 1;
 		m_baseBuildScene->Set_Ambient_Light(newAmb); 
-		WW3D::Render(m_baseBuildScene,m_camera);	
-		m_baseBuildScene->Set_Ambient_Light(amb); 
+		WW3D::Render(m_baseBuildScene,m_camera);
+		m_baseBuildScene->Set_Ambient_Light(amb);
+
+		if (m_showFullWireframe) {
+			// Restore solid fill / textures so subsequent passes (overlays, labels) draw normally.
+			m_scene->Set_Polygon_Mode(SceneClass::FILL);
+			m_baseBuildScene->Set_Polygon_Mode(SceneClass::FILL);
+			if (m_heightMapRenderObj) {
+				m_heightMapRenderObj->doTextures(true);
+			}
+		}
 
 		if (m_showWireframe) {
 			if (m_heightMapRenderObj) {
@@ -3000,6 +3019,8 @@ BEGIN_MESSAGE_MAP(WbView3d, WbView)
 	ON_WM_SHOWWINDOW()
 	ON_COMMAND(ID_VIEW_SHOWWIREFRAME, OnViewShowwireframe)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWWIREFRAME, OnUpdateViewShowwireframe)
+	ON_COMMAND(ID_VIEW_SHOWFULLWIREFRAME, OnViewShowfullwireframe)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWFULLWIREFRAME, OnUpdateViewShowfullwireframe)
 	ON_WM_ERASEBKGND()
 	ON_COMMAND(ID_VIEW_SHOWENTIRE3DMAP, OnViewShowentire3dmap)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWENTIRE3DMAP, OnUpdateViewShowentire3dmap)
@@ -4565,10 +4586,21 @@ void WbView3d::OnViewShowwireframe()
 	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "ShowWireframe", m_showWireframe?1:0);
 }
 
-void WbView3d::OnUpdateViewShowwireframe(CCmdUI* pCmdUI) 
+void WbView3d::OnUpdateViewShowwireframe(CCmdUI* pCmdUI)
 {
 	pCmdUI->SetCheck(m_showWireframe?1:0);
-	
+
+}
+
+void WbView3d::OnViewShowfullwireframe()
+{
+	m_showFullWireframe = !m_showFullWireframe;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "ShowFullWireframe", m_showFullWireframe?1:0);
+}
+
+void WbView3d::OnUpdateViewShowfullwireframe(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_showFullWireframe?1:0);
 }
 
 BOOL WbView3d::OnEraseBkgnd(CDC* pDC) 

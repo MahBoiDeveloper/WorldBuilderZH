@@ -107,6 +107,8 @@ protected:
 	afx_msg void OnShowWindow(BOOL bShow, UINT nStatus);
 	afx_msg void OnViewShowwireframe();
 	afx_msg void OnUpdateViewShowwireframe(CCmdUI* pCmdUI);
+	afx_msg void OnViewShowfullwireframe();
+	afx_msg void OnUpdateViewShowfullwireframe(CCmdUI* pCmdUI);
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 	afx_msg void OnViewShowentire3dmap();
 	afx_msg void OnUpdateViewShowentire3dmap(CCmdUI* pCmdUI);
@@ -280,6 +282,7 @@ private:
 	LayerClass							*m_buildLayer;
 	IntersectionClass				*m_intersector;
 	Bool										m_showWireframe;
+	Bool										m_showFullWireframe;	///< true => render whole scene in LINE mode (no solid pass)
 	Bool										m_ww3dInited;
 	Bool										m_needToLoadRoads;
 	LightClass							*m_globalLight[MAX_GLOBAL_LIGHTS];
