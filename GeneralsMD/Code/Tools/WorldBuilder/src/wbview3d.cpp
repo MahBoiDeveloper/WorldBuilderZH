@@ -80,6 +80,7 @@
 #include "W3DDevice/Common/W3DConvert.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
 #include "DrawObject.h"
+#include "RulerTool.h"
 #include "TracingOverlayOptions.h"
 #include "GameLogic/PolygonTrigger.h"
 #include "Common/MapObject.h"
@@ -3072,6 +3073,37 @@ void WbView3d::render()
 			drawLabels(NULL);
 		}
 
+		// Ruler length/diameter readout, drawn next to the ruler. Done here (inside the
+		// D3D frame, via m3DFont) so it doesn't strobe -- the ruler line itself is drawn
+		// in DrawObject::drawRulerFeedback(). Independent of the label-renderer mode.
+		if (m3DFont && m_doRulerFeedback != RULER_NONE) {
+			CString rulerText;
+			Coord3D labelWorld;
+			const TCHAR *rulerUnits = RulerTool::getUseMeters() ? _T("m") : _T("ft");
+			if (m_doRulerFeedback == RULER_CIRCLE) {
+				rulerText.Format(_T("Diameter: %.1f %s"), RulerTool::toDisplayUnits(m_rulerLength * 2.0f), rulerUnits);
+				labelWorld = m_rulerPoints[0];
+			} else {
+				rulerText.Format(_T("Length: %.1f %s"), RulerTool::toDisplayUnits(m_rulerLength), rulerUnits);
+				// Midpoint of the line segment.
+				labelWorld.x = 0.5f * (m_rulerPoints[0].x + m_rulerPoints[1].x);
+				labelWorld.y = 0.5f * (m_rulerPoints[0].y + m_rulerPoints[1].y);
+				labelWorld.z = 0.5f * (m_rulerPoints[0].z + m_rulerPoints[1].z);
+			}
+
+			CPoint labelPt;
+			docToViewCoords(labelWorld, &labelPt);
+			// Nudge up a little so the text sits above the line, not on it.
+			RECT rct = { labelPt.x + 6, labelPt.y - 22, labelPt.x + 306, labelPt.y + 8 };
+			m3DFont->DrawText(
+				rulerText,
+				rulerText.GetLength(),
+				&rct,
+				DT_LEFT | DT_TOP | DT_NOCLIP | DT_SINGLELINE,
+				0xFF00FF00 // Green, matching the ruler line
+			);
+		}
+
 		WW3D::End_Render();
 	}
 	--m_updateCount;
@@ -3524,7 +3556,7 @@ void WbView3d::drawCircle(HDC hdc, const Coord3D& centerPoint, Real radius, COLO
 
         // Optional: Adjust for water if needed
         if (m_showWater) {
-            Real waterHeight = getWaterHeightIfUnderwaterx(pnt.x, pnt.y) - 30.0f;
+            Real waterHeight = getWaterHeightIfUnderwaterx(pnt.x, pnt.y);
             if (waterHeight != -FLT_MAX) {
                 pnt.z = waterHeight + 4.5f;
             }
@@ -4303,59 +4335,9 @@ void WbView3d::drawLabels(HDC hdc)
 		}
 	}
 
-	if (hdc && m_doRulerFeedback) {
-		if (m_doRulerFeedback == RULER_LINE) {
-			// Create and select a green pen. Remember the old one so that it can be restored.
-			HPEN pen = CreatePen(PS_SOLID, 2, RGB(0,255,0));
-			HPEN penOld = (HPEN)SelectObject(hdc, pen); 
-
-			const Coord3D& p0 = m_rulerPoints[0];
-			const Coord3D& p1 = m_rulerPoints[1];
-
-			const int numSteps = 64; // Controls resolution of the curve
-			CPoint lastPt;
-			bool hasLast = false;
-
-			for (int i = 0; i <= numSteps; ++i) {
-				float t = (float)i / numSteps;
-
-				Coord3D wp;
-				wp.x = p0.x + t * (p1.x - p0.x);
-				wp.y = p0.y + t * (p1.y - p0.y);
-
-				// Get terrain height at this position
-				wp.z = TheTerrainRenderObject->getHeightMapHeight(wp.x, wp.y, NULL);
-				wp.z -= 30.0f;  // tune this value
-
-				// Optional: lift above water if needed
-				if (m_showWater) {
-					Real waterHeight = getWaterHeightIfUnderwaterx(wp.x, wp.y);
-					waterHeight -= 30.0f;  // tune this value
-					if (waterHeight != -FLT_MAX) {
-						wp.z = waterHeight;
-					}
-				}
-
-				CPoint screenPt;
-				docToViewCoords(wp, &screenPt);
-
-				if (hasLast) {
-				// Draw line segment manually
-				::MoveToEx(hdc, lastPt.x, lastPt.y, NULL);
-				::LineTo(hdc, screenPt.x, screenPt.y);
-				}
-
-				lastPt = screenPt;
-				hasLast = true;
-			}
-
-			// Restore previous pen.
-			SelectObject(hdc, penOld);
-			DeleteObject(pen);
-		} else if (m_doRulerFeedback == RULER_CIRCLE) {
-      		drawCircle( hdc, m_rulerPoints[0], m_rulerLength, RGB( 0, 255, 0 ) );
-		}
-	}
+	// Ruler feedback is now drawn inside the D3D frame by DrawObject (via the line
+	// renderer) instead of with GDI here -- GDI-on-a-flipping-back-buffer made it
+	// strobe and barely show. See DrawObject::drawRulerFeedback().
 
 	if (hdc && m_doLightFeedback)
 	{	//Draw Lines to indicate the direction of each light source

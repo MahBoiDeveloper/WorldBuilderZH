@@ -243,6 +243,7 @@ protected: // static state vars.
 
 protected:
   void addCircleToLineRenderer( const Coord3D & center, Real radius, Real width, unsigned long color, CameraClass* camera );
+	Bool drawRulerFeedback(CameraClass* camera);
 	Int updateVB(DX8VertexBufferClass	*vertexBufferTile, Int color, Bool doArrow, Bool doDiamond, Bool disableColoring = true);
 	void updatePolygonVB(PolygonTrigger *pTrig, Bool selected, Bool isOpen);
 	void updateFeedbackVB(void);

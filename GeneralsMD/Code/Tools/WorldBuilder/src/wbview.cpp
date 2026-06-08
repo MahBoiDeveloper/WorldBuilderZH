@@ -28,6 +28,7 @@
 #include "wbview.h"
 #include "WHeightMapEdit.h"
 #include "MainFrm.h"
+#include "RulerTool.h"
 #include "Common/Debug.h"
 #include "Common/ThingTemplate.h"
 #include "W3DDevice/GameClient/HeightMap.h"
@@ -253,10 +254,11 @@ void WbView::mouseMove(TTrackingMode m, CPoint viewPt)
 	if (m_doRulerFeedback != RULER_NONE) {
 		// If the user is measuring stuff, no need to do the rest of the text.
 		CString str;
+		const char *units = RulerTool::getUseMeters() ? "meters" : "feet";
 		if (m_doRulerFeedback == RULER_CIRCLE) {
-			str.Format("Diameter (in feet): %f", m_rulerLength * 2.0f);
+			str.Format("Diameter (in %s): %f", units, RulerTool::toDisplayUnits(m_rulerLength * 2.0f));
 		} else {
-			str.Format("Length (in feet): %f", m_rulerLength);
+			str.Format("Length (in %s): %f", units, RulerTool::toDisplayUnits(m_rulerLength));
 		}
 		CMainFrame::GetMainFrame()->SetMessageText(str);
 		return;

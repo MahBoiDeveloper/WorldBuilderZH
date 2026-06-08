@@ -2526,6 +2526,77 @@ void DrawObject::addCircleToLineRenderer( const Coord3D & center, Real radius, R
     }
 }
 
+#define RULER_LINE_WIDTH 2.0f
+/** Draw the ruler feedback (line or circle) into m_lineRenderer, terrain-following
+ ** and inside the D3D frame so it doesn't strobe like the old GDI overlay did. The
+ ** ruler state (type, endpoints, length) lives on the active WbView; we read it here.
+ ** Returns true if anything was added to the line renderer. */
+Bool DrawObject::drawRulerFeedback(CameraClass* camera)
+{
+	if (!m_lineRenderer || !camera) {
+		return false;
+	}
+
+	CWorldBuilderDoc *pDoc = CWorldBuilderDoc::GetActiveDoc();
+	if (!pDoc) {
+		return false;
+	}
+	WbView3d *pView = pDoc->Get3DView();
+	if (!pView) {
+		return false;
+	}
+
+	const int rulerType = pView->getRulerFeedback();
+	if (rulerType == RULER_NONE) {
+		return false;
+	}
+
+	const unsigned long color = 0xFF00FF00; // opaque green
+
+	if (rulerType == RULER_CIRCLE) {
+		addCircleToLineRenderer(pView->getRulerPoint(0), pView->getRulerLength(),
+														RULER_LINE_WIDTH, color, camera);
+		return true;
+	}
+
+	// RULER_LINE: walk the segment, snapping each sample to terrain/water height so
+	// the line drapes over the ground instead of cutting straight through it.
+	const Coord3D& p0 = pView->getRulerPoint(0);
+	const Coord3D& p1 = pView->getRulerPoint(1);
+
+	const int numSteps = 64;
+	ICoord2D screenPrev, screenCur;
+	bool havePrev = false;
+	bool added = false;
+
+	for (int i = 0; i <= numSteps; ++i) {
+		Real t = (Real)i / numSteps;
+		Coord3D wp;
+		wp.x = p0.x + t * (p1.x - p0.x);
+		wp.y = p0.y + t * (p1.y - p0.y);
+		wp.z = TheTerrainRenderObject->getHeightMapHeight(wp.x, wp.y, NULL) + 4.5f;
+
+		if (m_showWater) {
+			Real waterZ = getWaterHeightIfUnderwater(wp.x, wp.y);
+			if (waterZ != -FLT_MAX) {
+				wp.z = waterZ + 4.5f;
+			}
+		}
+
+		bool ok = worldToScreen(&wp, &screenCur, camera);
+		if (havePrev && ok) {
+			m_lineRenderer->Add_Line(Vector2(screenPrev.x, screenPrev.y),
+															 Vector2(screenCur.x, screenCur.y),
+															 RULER_LINE_WIDTH, color);
+			added = true;
+		}
+		screenPrev = screenCur;
+		havePrev = ok;
+	}
+
+	return added;
+}
+
 #define SIGHT_RANGE_LINE_WIDTH 2.0f
 /** Draw an object's sight range into the vertex buffer. **/
 // MLL C&C3
@@ -3392,13 +3463,16 @@ if (_skip_drawobject_render) {
 	if (m_rulerGridFeedback) {
 		updateGridVB();
 		if (m_feedbackIndexCount > 0) {
-			DX8Wrapper::Set_DX8_Render_State(D3DRS_ZENABLE, TRUE);
-			DX8Wrapper::Set_DX8_Render_State(D3DRS_ZWRITEENABLE, TRUE);
 			DX8Wrapper::Set_DX8_Render_State(D3DRS_ALPHABLENDENABLE, FALSE);
 
 			DX8Wrapper::Set_Vertex_Buffer(m_vertexFeedback);
 			DX8Wrapper::Set_Index_Buffer(m_indexFeedback, 0);
-			DX8Wrapper::Set_Shader(SC_OPAQUE_Z); // or any shader that fits
+			// Use SC_OPAQUE (PASS_ALWAYS) rather than SC_OPAQUE_Z (PASS_LEQUAL) so the
+			// grid always draws on top -- over water and terrain alike -- matching how
+			// the ruler line behaves. The two shaders are identical apart from the depth
+			// test; with the Z test on, the water surface was occluding the grid even
+			// though its verts already sit at water height.
+			DX8Wrapper::Set_Shader(SC_OPAQUE);
 			DX8Wrapper::Set_DX8_Render_State(D3DRS_CULLMODE, D3DCULL_NONE);
 			DX8Wrapper::Set_DX8_Render_State(D3DRS_FILLMODE, D3DFILL_SOLID); // or D3DFILL_WIREFRAME if you prefer
 			DX8Wrapper::Set_DX8_Render_State(D3DRS_LIGHTING, FALSE);
@@ -3636,6 +3710,12 @@ if (_skip_drawobject_render) {
 		m_lineRenderer->Add_Quad(rect, 0xFF000000);
 		rect.Set(0, h - size, w, h);
 		m_lineRenderer->Add_Quad(rect, 0xFF000000);
+		linesToRender = true;
+	}
+
+	// Ruler feedback: drawn here (inside the D3D frame, via the line renderer) so it
+	// no longer strobes the way the old GDI HDC overlay did on a flipping back buffer.
+	if (drawRulerFeedback(&rinfo.Camera)) {
 		linesToRender = true;
 	}
 
