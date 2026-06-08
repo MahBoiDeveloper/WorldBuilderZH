@@ -38,13 +38,15 @@ public:
 		DRAG_NONE,
 		DRAG_CREATE,	///< empty water: dragging out a new wave's direction
 		DRAG_MOVE,		///< on a wave body: sliding it around
-		DRAG_ROTATE		///< on a wave arrow: re-aiming its travel direction
+		DRAG_ROTATE,	///< on a wave arrow: re-aiming its travel direction
+		DRAG_PAINT		///< hold + drag: drop waves along the stroke as the cursor moves
 	};
 
 	/// Toggle that gates what a press does: place new waves vs. edit existing ones.
 	enum EditorMode {
 		MODE_CREATE,		///< every press drags out a new wave
-		MODE_MANIPULATE		///< presses only select/move/rotate existing waves
+		MODE_MANIPULATE,	///< presses only select/move/rotate existing waves
+		MODE_PAINT			///< hold left button + drag to lay a trail of waves
 	};
 
 protected:
@@ -69,12 +71,22 @@ protected:
 	float		m_rotStartDirY;
 	float		m_rotStartCursorAng;	///< atan2 of (cursor - center) at grab, radians
 
+	// Paint-stroke state (MODE_PAINT): the last point where we dropped a wave, so the
+	// next wave only drops once the cursor has travelled m_paintSpacing world units. The
+	// travel direction of each painted wave follows the stroke (last-drop -> cursor).
+	Bool		m_paintHasLast;		///< true once the first wave of the stroke is down
+	float		m_paintLastX;		///< world X of the last painted wave's center
+	float		m_paintLastY;		///< world Y of the last painted wave's center
+	Int			m_paintCount;		///< waves laid this stroke (for the status read-out)
+
 	static WaveEditorTool*	m_staticThis;
 
 	/// Ensure TheWaterTracksRenderSystem exists and the editor globals are set.
 	static void ensureSystem(void);
 	/// Push the current ghost transform into the engine's live animated preview wave.
 	static void updatePreviewWave(void);
+	/// Drop one wave (paint stroke), aimed along dir, and record it for Undo.
+	void paintWaveAt(float cx, float cy, float dirX, float dirY);
 	/// Remove the live animated preview wave.
 	static void clearPreviewWave(void);
 	/// Derive the map's .wak path into buffer; returns false if the map is unsaved.
@@ -118,16 +130,53 @@ public:
 												 float &endX, float &endY, const char *&typeName);	///< per-wave row data
 	static void selectWave(Int index);			///< highlight a wave + center the camera on it (list use); -1 clears
 	static void selectWaveNoCenter(Int index);	///< highlight a wave WITHOUT moving the camera (in-view grab)
-	static Int  getSelectedWave(void);			///< currently highlighted wave index, or -1
-	static void deleteSelectedWave(void);		///< remove the selected wave from the system
+	static Int  getSelectedWave(void);			///< the anchor (last-clicked) wave index, or -1
+
+	// Multi-selection (Manipulate mode).  The selection is a set of wave indices; the
+	// "anchor" (m_selectedWave) is the most-recently clicked one, used for camera centering
+	// and list focus.  A plain click selects just one wave; Ctrl-click toggles a wave in/out.
+	static Bool isWaveSelected(Int index);		///< true if 'index' is in the current selection
+	static Int  getSelectionCount(void);		///< number of waves currently selected
+	static void toggleWaveSelection(Int index);	///< add/remove a wave from the selection (Ctrl-click in the 3D view), keeping the camera
+
+	// Batch selection sync from the wave-list control: begin, add each selected row, then
+	// end with the anchor row.  Lets the native list own Ctrl/Shift selection and just
+	// mirrors the result into the tool (end() centers the camera on the anchor).
+	static void beginListSelection(void);
+	static void addListSelection(Int index);
+	static void endListSelection(Int anchorIndex);
+
+	static void deleteSelectedWave(void);		///< remove ALL selected waves from the system
 
 	// Ghost preview (read by DrawObject while the user drags out a new wave).
 	static Bool getGhostWave(float &centerX, float &centerY,
 													 float &dirX, float &dirY, Int &typeIndex);	///< true + ghost params while dragging
 
 protected:
-	static Int	m_selectedWave;	///< index of the wave highlighted in the list/overlay, or -1
+	static Int	m_selectedWave;	///< ANCHOR wave (last clicked) - drives camera + list focus, or -1
 	static EditorMode	m_editorMode;	///< create vs. manipulate (panel toggle)
+
+	// Multi-selection set (Manipulate mode).  Stored as a flat index list to avoid pulling
+	// STL into this MFC tool; the wave count per map is small so linear scans are fine.
+	enum { WAVE_SEL_MAX = 256 };
+	static Int	m_selSet[WAVE_SEL_MAX];	///< selected wave indices
+	static Int	m_selCount;				///< number of entries in m_selSet
+	static void addToSelectionInternal(Int index);	///< append if not already present (no refresh)
+	static void clearSelectionInternal(void);		///< empty the set (no refresh)
+
+	// Group-drag snapshot: each selected wave's center + travel dir captured at mouseDown,
+	// so a move/rotate applies the same delta to the whole group and Undo can restore them.
+	struct GrabWave {
+		Int		wave;		///< editor index
+		float	centerX;	///< pre-edit center
+		float	centerY;
+		float	dirX;		///< pre-edit travel direction
+		float	dirY;
+	};
+	static GrabWave	m_grabSet[WAVE_SEL_MAX];	///< snapshot of the selection at grab time
+	static Int		m_grabCount;			///< number of waves in the active group drag
+	static float	m_grabPivotX;			///< group centroid at grab (rotate pivot)
+	static float	m_grabPivotY;
 
 	// Live ghost-preview state, set during a drag so the overlay can draw it.
 	static Bool		m_ghostActive;	///< true while a wave is being dragged out
@@ -146,10 +195,12 @@ protected:
 		float		centerY;
 		float		dirX;		///< pre-edit travel direction (UNDO_TRANSFORM)
 		float		dirY;
+		Int			groupId;	///< records sharing a groupId undo together (group move/rotate); 0 = standalone
 	};
-	enum { WAVE_UNDO_MAX = 64 };
+	enum { WAVE_UNDO_MAX = 512 };
 	static WaveUndo	m_undoStack[WAVE_UNDO_MAX];
 	static Int		m_undoTop;	///< number of records on the stack
+	static Int		m_undoNextGroup;	///< next group id to hand out (monotonic, never 0)
 
 	// Pre-edit transform captured at mouseDown (pushed onto the stack at commit time).
 	static float	m_pendCenterX;
@@ -158,7 +209,8 @@ protected:
 	static float	m_pendDirY;
 
 	static void pushUndo(UndoKind kind, Int wave,
-											 float cx, float cy, float dx, float dy);	///< record an undoable action
+											 float cx, float cy, float dx, float dy,
+											 Int groupId = 0);	///< record an undoable action (groupId!=0 ties a group together)
 };
 
 #endif //WAVE_EDITOR_TOOL_H

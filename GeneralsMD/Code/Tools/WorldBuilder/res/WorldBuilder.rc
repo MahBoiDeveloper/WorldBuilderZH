@@ -1900,7 +1900,7 @@ BEGIN
     CONTROL         "Show Ruler Grid:",IDC_RULER_SHOW_GRID,"Button",BS_AUTOCHECKBOX | BS_LEFTTEXT | WS_TABSTOP,40,85,95,14
 END
 
-IDD_WAVE_EDITOR_OPTIONS DIALOG 0, 0, 268, 270
+IDD_WAVE_EDITOR_OPTIONS DIALOG 0, 0, 268, 284
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION
 CAPTION "Wave Editor Options"
 FONT 8, "Tahoma"
@@ -1913,10 +1913,12 @@ BEGIN
     LTEXT           "Mode:",IDC_STATIC,8,66,40,9
     CONTROL         "Create",IDC_WAVE_MODE_CREATE,"Button",BS_AUTORADIOBUTTON | BS_PUSHLIKE | WS_GROUP | WS_TABSTOP,8,78,80,16
     CONTROL         "Manipulate",IDC_WAVE_MODE_MANIPULATE,"Button",BS_AUTORADIOBUTTON | BS_PUSHLIKE,92,78,80,16
-    LTEXT           "Create: drag on water to place a wave. Manipulate: drag a wave to move it, Ctrl+drag to rotate it.",IDC_STATIC,8,98,252,18
-    CONTROL         "",IDC_WAVE_LIST,"SysListView32",LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | WS_BORDER | WS_TABSTOP,8,120,252,124
+    CONTROL         "Paint",IDC_WAVE_MODE_PAINT,"Button",BS_AUTORADIOBUTTON | BS_PUSHLIKE,176,78,84,16
+    LTEXT           "Create: drag on water to place a wave. Manipulate: drag a wave to move it, Ctrl+drag to rotate it, Shift+click to multi-select. Paint: hold and drag to lay a trail of waves toward shore.",IDC_STATIC,8,98,252,18
+    CONTROL         "",IDC_WAVE_LIST,"SysListView32",LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER | WS_TABSTOP,8,120,252,124
     PUSHBUTTON      "Delete Selected",IDC_WAVE_DELETE,8,248,80,16
-    CONTROL         "Show wave lines",IDC_WAVE_SHOW_LINES,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,100,250,120,12
+    CONTROL         "Show wave lines",IDC_WAVE_SHOW_LINES,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,100,250,110,12
+    CONTROL         "Show shoreline",IDC_WAVE_SHOW_SHORELINE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,100,266,110,12
 END
 
 IDD_EULA_AGREEMENT DIALOG 0, 0, 267, 289

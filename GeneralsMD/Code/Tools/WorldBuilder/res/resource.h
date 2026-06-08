@@ -614,6 +614,8 @@
 #define IDC_RULER_WIDTH                 1330
 #define IDC_RULER_USE_METERS            1388
 #define IDC_RULER_SHOW_GRID             1389
+#define IDC_WAVE_MODE_PAINT             1390
+#define IDC_WAVE_SHOW_SHORELINE         1391
 #define IDC_UPDATE_TEAM_MEMBERS         1331
 #define IDC_USE_TEAM_DEFAULTS           1332
 #define IDC_LOOPING_CHECKBOX            1333
@@ -952,7 +954,7 @@
 #define _APS_3D_CONTROLS                     1
 #define _APS_NEXT_RESOURCE_VALUE        247
 #define _APS_NEXT_COMMAND_VALUE         33393
-#define _APS_NEXT_CONTROL_VALUE         1390
+#define _APS_NEXT_CONTROL_VALUE         1392
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

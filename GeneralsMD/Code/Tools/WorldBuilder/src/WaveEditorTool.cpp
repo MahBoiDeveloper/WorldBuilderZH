@@ -36,6 +36,7 @@
 
 #include "Common/GlobalData.h"
 #include "W3DDevice/GameClient/W3DWaterTracks.h"
+#include "W3DDevice/GameClient/BaseHeightMap.h"	// TheTerrainRenderObject for shore-aware paint
 #include "Lib/BaseType.h"
 #include "vector2.h"
 
@@ -52,6 +53,14 @@ float	WaveEditorTool::m_ghostDirY    = 1.0f;
 
 WaveEditorTool::WaveUndo	WaveEditorTool::m_undoStack[WaveEditorTool::WAVE_UNDO_MAX];
 Int		WaveEditorTool::m_undoTop = 0;
+Int		WaveEditorTool::m_undoNextGroup = 1;
+
+Int		WaveEditorTool::m_selSet[WaveEditorTool::WAVE_SEL_MAX];
+Int		WaveEditorTool::m_selCount = 0;
+WaveEditorTool::GrabWave	WaveEditorTool::m_grabSet[WaveEditorTool::WAVE_SEL_MAX];
+Int		WaveEditorTool::m_grabCount = 0;
+float	WaveEditorTool::m_grabPivotX = 0.0f;
+float	WaveEditorTool::m_grabPivotY = 0.0f;
 float	WaveEditorTool::m_pendCenterX = 0.0f;
 float	WaveEditorTool::m_pendCenterY = 0.0f;
 float	WaveEditorTool::m_pendDirX    = 0.0f;
@@ -73,6 +82,10 @@ Tool(ID_WAVE_EDITOR_TOOL, IDC_POINTER)
 	m_rotStartDirX = 0.0f;
 	m_rotStartDirY = 1.0f;
 	m_rotStartCursorAng = 0.0f;
+	m_paintHasLast = false;
+	m_paintLastX = 0.0f;
+	m_paintLastY = 0.0f;
+	m_paintCount = 0;
 	m_staticThis = this;
 }
 
@@ -145,6 +158,7 @@ void WaveEditorTool::deactivate()
 
 	m_dragMode  = DRAG_NONE;
 	m_dragArmed = false;
+	m_paintHasLast = false;
 	clearPreviewWave();	// also clears m_ghostActive
 	if (m_View != NULL) {
 		m_View->doRulerFeedback(RULER_NONE);
@@ -173,6 +187,27 @@ void WaveEditorTool::mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CW
 
 	ensureSystem();
 
+	// Paint mode: a press starts a stroke and drops the first wave right away. The
+	// rest are laid in mouseMoved as the cursor travels, spaced out so a drag doesn't
+	// spawn thousands of overlapping waves. There's no direction yet on the first
+	// drop, so aim it "up" (+Y); subsequent waves follow the stroke direction.
+	if (m_editorMode == MODE_PAINT)
+	{
+		m_dragMode    = DRAG_PAINT;
+		m_dragArmed   = false;	// paint applies immediately, no dead-zone
+		m_ghostActive = false;
+		m_paintHasLast = false;
+		m_paintCount   = 0;
+		clearPreviewWave();
+
+		paintWaveAt(cpt.x, cpt.y, 0.0f, 1.0f);
+
+		pView->Invalidate();
+		pDoc->updateAllViews();
+		WaveEditorOptions::refresh();
+		return;
+	}
+
 	// In Manipulate mode, presses only ever grab existing waves (never create).
 	// In Create mode, presses always drag out a new wave (skip hit-testing).
 	Int hitWave = -1;
@@ -180,13 +215,19 @@ void WaveEditorTool::mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CW
 	if (m_editorMode == MODE_MANIPULATE && TheWaterTracksRenderSystem)
 		hitWave = TheWaterTracksRenderSystem->pickWave(Vector2(cpt.x, cpt.y), hitArrow);
 
+	Bool ctrlDown  = (0x8000 & ::GetAsyncKeyState(VK_CONTROL)) != 0;
+	Bool shiftDown = (0x8000 & ::GetAsyncKeyState(VK_SHIFT))   != 0;
+
 	if (m_editorMode == MODE_MANIPULATE && hitWave < 0)
 	{
-		// Clicked empty water while manipulating: clear the selection, do nothing else.
+		// Clicked empty water while manipulating.  Shift-click on empty water keeps the
+		// current multi-selection (so a mis-aimed Shift-click doesn't wipe it); a plain
+		// click clears the selection.
 		m_dragMode  = DRAG_NONE;
 		m_dragArmed = false;
-		selectWaveNoCenter(-1);
-		CMainFrame::GetMainFrame()->SetMessageText("Manipulate mode: click a wave to grab it (switch to Create to add waves).");
+		if (!shiftDown)
+			selectWaveNoCenter(-1);
+		CMainFrame::GetMainFrame()->SetMessageText("Manipulate mode: click a wave to grab it. Shift+click to multi-select, Ctrl+drag to rotate.");
 		pView->Invalidate();
 		pDoc->updateAllViews();
 		return;
@@ -194,50 +235,85 @@ void WaveEditorTool::mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CW
 
 	if (hitWave >= 0)
 	{
-		// --- Editing an existing wave ---
+		// --- Shift-click: toggle this wave in/out of the multi-selection, no drag. ---
+		if (shiftDown)
+		{
+			m_dragMode  = DRAG_NONE;
+			m_dragArmed = false;
+			m_editWave  = -1;
+			toggleWaveSelection(hitWave);
+			CMainFrame::GetMainFrame()->SetMessageText("Toggled wave selection (Shift+click). Drag a selected wave to move the group.");
+			pView->Invalidate();
+			pDoc->updateAllViews();
+			return;
+		}
+
+		// --- Grabbing a wave to move/rotate it (and the rest of the group with it). ---
+		// If the grabbed wave isn't already part of the selection, a plain grab replaces
+		// the selection with just it; grabbing a wave that's already selected keeps the
+		// whole group so the drag moves them together.
+		if (!isWaveSelected(hitWave))
+			selectWaveNoCenter(hitWave);	// replace selection with just this wave (keeps camera)
+		else
+			m_selectedWave = hitWave;		// keep the group; make the grabbed wave the anchor
+
 		m_editWave = hitWave;
-		selectWaveNoCenter(hitWave);	// highlight + sync list, but DON'T jump the camera (we're grabbing it in view)
 
 		Vector2 s, e;
 		TheWaterTracksRenderSystem->getWaveSegment(hitWave, s, e);	// s = center, e = center+dir
 		m_centerPt3d.set(s.X, s.Y, 0.0f);
 
-		// Remember this wave's transform BEFORE the edit so Undo can restore it.
-		m_pendCenterX = s.X;
-		m_pendCenterY = s.Y;
-		m_pendDirX    = e.X - s.X;
-		m_pendDirY    = e.Y - s.Y;
+		// Snapshot every selected wave's transform BEFORE the edit, so the drag applies
+		// one shared delta to all of them and Undo can restore the whole group.
+		m_grabCount   = 0;
+		m_grabPivotX  = 0.0f;
+		m_grabPivotY  = 0.0f;
+		for (Int i = 0; i < m_selCount && m_grabCount < WAVE_SEL_MAX; ++i)
+		{
+			Vector2 gs, ge;
+			if (!TheWaterTracksRenderSystem->getWaveSegment(m_selSet[i], gs, ge))
+				continue;
+			GrabWave &g = m_grabSet[m_grabCount++];
+			g.wave    = m_selSet[i];
+			g.centerX = gs.X;       g.centerY = gs.Y;
+			g.dirX    = ge.X - gs.X; g.dirY   = ge.Y - gs.Y;
+			m_grabPivotX += gs.X;   m_grabPivotY += gs.Y;
+		}
+		if (m_grabCount > 0)
+		{
+			m_grabPivotX /= m_grabCount;	// group centroid = rotate pivot
+			m_grabPivotY /= m_grabCount;
+		}
 
-		// Hold Ctrl to ROTATE (re-aim around center), otherwise MOVE (slide).  The old
-		// "grab the arrow" hit zone was too small to land on reliably.
-		Bool ctrlDown = (0x8000 & ::GetAsyncKeyState(VK_CONTROL)) != 0;
+		// Ctrl to ROTATE the group around its centroid; otherwise MOVE (slide).
 		m_dragMode = ctrlDown ? DRAG_ROTATE : DRAG_MOVE;
 
-		// Offset between where we grabbed and the wave center, so a move slides the
-		// wave WITH the cursor (keeps the grab point under the mouse) rather than
-		// snapping the center onto the cursor.
+		// Offset between where we grabbed and the grabbed wave's center, so a move slides
+		// the group WITH the cursor (keeps the grab point under the mouse).
 		m_grabOffsetX = s.X - cpt.x;
 		m_grabOffsetY = s.Y - cpt.y;
 
-		// Rotate anchors: remember the wave's direction and the cursor's angle around
-		// the center at grab time.  Rotation then applies the cursor's angle DELTA to
-		// the wave's starting direction, so it turns smoothly from its current angle
-		// instead of snapping to face the cursor.
+		// Rotate anchors: cursor angle around the pivot at grab time; rotation applies
+		// the cursor's angle DELTA to every wave's stored transform.
 		m_rotStartDirX = e.X - s.X;
 		m_rotStartDirY = e.Y - s.Y;
-		m_rotStartCursorAng = atan2f(cpt.y - s.Y, cpt.x - s.X);
+		m_rotStartCursorAng = atan2f(cpt.y - m_grabPivotY, cpt.x - m_grabPivotX);
 
-		// Seed the ghost from the wave's CURRENT transform so the preview starts
-		// exactly on top of it.  It stays put until the drag passes the dead-zone.
+		// Seed the ghost from the grabbed wave's CURRENT transform so the preview starts
+		// exactly on top of it (the ghost shows the anchor wave; the rest move with it).
 		m_ghostActive  = true;
 		m_ghostCenterX = s.X;
 		m_ghostCenterY = s.Y;
 		m_ghostDirX    = e.X - s.X;
 		m_ghostDirY    = e.Y - s.Y;
 
-		CMainFrame::GetMainFrame()->SetMessageText(ctrlDown
-			? "Drag to rotate this wave; release to apply."
-			: "Drag to move this wave (hold Ctrl to rotate); release to apply.");
+		CString msg;
+		if (m_grabCount > 1)
+			msg.Format("Drag to %s %d waves; release to apply.", ctrlDown ? "rotate" : "move", m_grabCount);
+		else
+			msg = ctrlDown ? "Drag to rotate this wave; release to apply."
+										 : "Drag to move this wave (Ctrl to rotate, Shift+click to multi-select); release to apply.";
+		CMainFrame::GetMainFrame()->SetMessageText(msg);
 	}
 	else
 	{
@@ -305,6 +381,36 @@ void WaveEditorTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, C
 		return;
 	}
 
+	// Paint stroke: drop a new wave every time the cursor has travelled at least
+	// m_paintSpacing world units from the last drop, aimed along the stroke. Done
+	// before the dead-zone check (paint has no dead-zone; it starts on mouseDown).
+	if (m_dragMode == DRAG_PAINT)
+	{
+		Coord3D pp;
+		pView->viewToDocCoords(viewPt, &pp, false);
+		pView->snapPoint(&pp);
+
+		// Spacing between painted waves, in world units. Big enough that a normal drag
+		// lays a readable trail instead of a solid wall of overlapping crests.
+		const float PAINT_SPACING = 30.0f;
+
+		if (m_paintHasLast)
+		{
+			float dx = pp.x - m_paintLastX;
+			float dy = pp.y - m_paintLastY;
+			float distSq = dx*dx + dy*dy;
+			if (distSq >= (PAINT_SPACING * PAINT_SPACING))
+			{
+				// Aim each painted wave along the direction the stroke is moving.
+				paintWaveAt(pp.x, pp.y, dx, dy);
+				pView->Invalidate();
+				pDoc->updateAllViews();
+				WaveEditorOptions::refresh();
+			}
+		}
+		return;
+	}
+
 	// Dead-zone: ignore tiny movements so a plain click doesn't nudge the wave.
 	// Stay "armed" (no change applied) until the cursor leaves a small pixel radius.
 	if (m_dragArmed)
@@ -323,21 +429,61 @@ void WaveEditorTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, C
 
 	if (m_dragMode == DRAG_MOVE)
 	{
-		// Slide the wave by the cursor, preserving where on the wave we grabbed it
-		// (center = cursor + grab offset), so it doesn't jump to the cursor.
+		// Slide the grabbed wave by the cursor, preserving where on the wave we grabbed
+		// it (center = cursor + grab offset).  The translation delta (new center minus
+		// the grabbed wave's original center) is applied to every selected wave live, so
+		// the whole group slides together.
 		m_ghostCenterX = cpt.x + m_grabOffsetX;
 		m_ghostCenterY = cpt.y + m_grabOffsetY;
+
+		// The grabbed wave is m_grabSet[*] whose .wave == m_editWave; find its snapshot
+		// to derive the translation delta.
+		float baseX = m_ghostCenterX, baseY = m_ghostCenterY;
+		for (Int i = 0; i < m_grabCount; ++i)
+			if (m_grabSet[i].wave == m_editWave)
+				{ baseX = m_grabSet[i].centerX; baseY = m_grabSet[i].centerY; break; }
+		float dX = m_ghostCenterX - baseX;
+		float dY = m_ghostCenterY - baseY;
+
+		if (TheWaterTracksRenderSystem)
+			for (Int i = 0; i < m_grabCount; ++i)
+			{
+				const GrabWave &g = m_grabSet[i];
+				TheWaterTracksRenderSystem->setWaveTransform(g.wave,
+					Vector2(g.centerX + dX, g.centerY + dY),
+					Vector2(g.dirX, g.dirY));
+			}
 	}
 	else if (m_dragMode == DRAG_ROTATE)
 	{
-		// Turn the wave by how far the cursor has swept around the center since grab,
-		// applied to the wave's ORIGINAL direction.  This starts from the wave's
-		// current angle and rotates smoothly - no snap to face the cursor.
-		Real curAng = atan2f(cpt.y - m_ghostCenterY, cpt.x - m_ghostCenterX);
+		// Turn the group by how far the cursor has swept around the group PIVOT (the
+		// centroid) since grab.  Each wave's center orbits the pivot and its travel
+		// direction rotates by the same angle, so the whole group turns as one.
+		Real curAng = atan2f(cpt.y - m_grabPivotY, cpt.x - m_grabPivotX);
 		Real delta  = curAng - m_rotStartCursorAng;
 		Real cs = cosf(delta), sn = sinf(delta);
-		m_ghostDirX = m_rotStartDirX * cs - m_rotStartDirY * sn;
-		m_ghostDirY = m_rotStartDirX * sn + m_rotStartDirY * cs;
+
+		if (TheWaterTracksRenderSystem)
+			for (Int i = 0; i < m_grabCount; ++i)
+			{
+				const GrabWave &g = m_grabSet[i];
+				// Rotate this wave's center around the pivot.
+				float ox = g.centerX - m_grabPivotX;
+				float oy = g.centerY - m_grabPivotY;
+				float ncx = m_grabPivotX + (ox * cs - oy * sn);
+				float ncy = m_grabPivotY + (ox * sn + oy * cs);
+				// Rotate its travel direction by the same angle.
+				float ndx = g.dirX * cs - g.dirY * sn;
+				float ndy = g.dirX * sn + g.dirY * cs;
+				TheWaterTracksRenderSystem->setWaveTransform(g.wave,
+					Vector2(ncx, ncy), Vector2(ndx, ndy));
+				if (g.wave == m_editWave)
+				{
+					// Keep the ghost on the anchor wave so the overlay highlight tracks it.
+					m_ghostCenterX = ncx; m_ghostCenterY = ncy;
+					m_ghostDirX = ndx;    m_ghostDirY = ndy;
+				}
+			}
 	}
 	else	// DRAG_CREATE: aim direction = center -> cursor (placing a new wave).
 	{
@@ -368,6 +514,77 @@ void WaveEditorTool::updatePreviewWave(void)
 		type);
 }
 
+/** Find the "toward land" direction at a world point by sampling the terrain height
+	gradient: real shore waves roll perpendicular to the shoreline, toward the beach.
+	We sample terrain height a wave-width out along +/-X and +/-Y and point up the
+	steepest rise (= toward shallower water / land).  Returns false on flat ground (open
+	water or flat land) where there's no meaningful shore direction, so the caller can
+	fall back to the stroke direction. */
+static Bool computeShoreDirection(float cx, float cy, float &outDirX, float &outDirY)
+{
+	if (!TheTerrainRenderObject)
+		return false;
+
+	// Sample radius: about one heightmap cell-and-a-half out, big enough to span the
+	// water->land slope without reaching across a whole bay.
+	const float R = 1.5f * MAP_XY_FACTOR;
+
+	Real hL = TheTerrainRenderObject->getHeightMapHeight(cx - R, cy, NULL);
+	Real hR = TheTerrainRenderObject->getHeightMapHeight(cx + R, cy, NULL);
+	Real hD = TheTerrainRenderObject->getHeightMapHeight(cx, cy - R, NULL);
+	Real hU = TheTerrainRenderObject->getHeightMapHeight(cx, cy + R, NULL);
+
+	// Gradient of terrain height; it points toward RISING terrain, i.e. toward land.
+	float gx = (Real)(hR - hL);
+	float gy = (Real)(hU - hD);
+
+	float len = sqrtf(gx * gx + gy * gy);
+	const float FLAT_EPS = 0.25f;	// world-unit height delta below which we treat it as flat
+	if (len < FLAT_EPS)
+		return false;	// no discernible slope - let the stroke direction stand
+
+	outDirX = gx / len;
+	outDirY = gy / len;
+	return true;
+}
+
+/** Drop one wave at (cx,cy) aimed along (dirX,dirY) as part of a paint stroke, using
+	the current Cycle-Type selection.  Records it on the undo stack (UNDO_CREATE) so
+	each painted wave can be undone individually, just like a single placement, and
+	advances the stroke's "last drop" anchor + count.
+
+	If the drop point sits near a water/land slope, the wave is re-aimed to roll toward
+	land (perpendicular to the shoreline) instead of following the raw stroke direction,
+	so painted waves look like real shore waves.  On flat ground the stroke direction is
+	kept. */
+void WaveEditorTool::paintWaveAt(float cx, float cy, float dirX, float dirY)
+{
+	ensureSystem();
+	if (!TheWaterTracksRenderSystem)
+		return;
+
+	// Prefer the shore-facing direction (toward land); fall back to the stroke direction.
+	float shoreX, shoreY;
+	if (computeShoreDirection(cx, cy, shoreX, shoreY))
+	{
+		dirX = shoreX;
+		dirY = shoreY;
+	}
+
+	Vector2 center(cx, cy);
+	Vector2 dir(dirX, dirY);
+
+	// New wave appends to the bottom of the list, so its index = the old count.
+	Int newIndex = TheWaterTracksRenderSystem->getWaveCount();
+	TheWaterTracksRenderSystem->addWaveByDirection(center, dir, m_currentType);
+	pushUndo(UNDO_CREATE, newIndex, 0.0f, 0.0f, 0.0f, 0.0f);
+
+	m_paintLastX   = cx;
+	m_paintLastY   = cy;
+	m_paintHasLast = true;
+	m_paintCount++;
+}
+
 /** Remove the live preview wave (when leaving Create mode, deactivating, or after a
 	wave is actually placed). */
 void WaveEditorTool::clearPreviewWave(void)
@@ -383,6 +600,21 @@ void WaveEditorTool::mouseUp(TTrackingMode m, CPoint viewPt, WbView* pView, CWor
 {
 	if (m != TRACK_L || m_dragMode == DRAG_NONE) return;
 
+	// Paint stroke: the waves were already committed as the cursor moved. Just end the
+	// stroke and report how many were laid.
+	if (m_dragMode == DRAG_PAINT)
+	{
+		m_dragMode     = DRAG_NONE;
+		m_paintHasLast = false;
+		CString msg;
+		msg.Format("Painted %d wave%s.", m_paintCount, (m_paintCount == 1 ? "" : "s"));
+		CMainFrame::GetMainFrame()->SetMessageText(msg);
+		pView->Invalidate();
+		pDoc->updateAllViews();
+		WaveEditorOptions::refresh();
+		return;
+	}
+
 	DragMode mode = m_dragMode;
 	Bool wasClickOnly = m_dragArmed;	// never crossed the dead-zone = a plain click
 	m_dragMode  = DRAG_NONE;
@@ -393,6 +625,7 @@ void WaveEditorTool::mouseUp(TTrackingMode m, CPoint viewPt, WbView* pView, CWor
 	// the wave selected (already done at mouseDown); for a create it places nothing.
 	if (wasClickOnly)
 	{
+		m_grabCount = 0;	// no drag happened; nothing to commit
 		pView->Invalidate();
 		pDoc->updateAllViews();
 		return;
@@ -416,16 +649,21 @@ void WaveEditorTool::mouseUp(TTrackingMode m, CPoint viewPt, WbView* pView, CWor
 			// Undo for a create = remove that wave (no transform to restore).
 			pushUndo(UNDO_CREATE, newIndex, 0.0f, 0.0f, 0.0f, 0.0f);
 		}
-		else if (m_editWave >= 0)	// DRAG_MOVE or DRAG_ROTATE
+		else if (m_grabCount > 0)	// DRAG_MOVE or DRAG_ROTATE (group already moved live)
 		{
-			TheWaterTracksRenderSystem->setWaveTransform(m_editWave, center, dir);
-
-			// Undo for a move/rotate = restore the pre-edit transform captured at
-			// mouseDown (m_pend* hold the OLD values).
-			pushUndo(UNDO_TRANSFORM, m_editWave,
-							 m_pendCenterX, m_pendCenterY, m_pendDirX, m_pendDirY);
+			// The group's new transforms were applied live during the drag.  Record one
+			// undo per wave, all sharing a groupId so a single Undo restores the whole
+			// group to its pre-drag transform (m_grabSet holds the OLD values).
+			Int groupId = (m_grabCount > 1) ? m_undoNextGroup++ : 0;
+			for (Int i = 0; i < m_grabCount; ++i)
+			{
+				const GrabWave &g = m_grabSet[i];
+				pushUndo(UNDO_TRANSFORM, g.wave,
+								 g.centerX, g.centerY, g.dirX, g.dirY, groupId);
+			}
 		}
 	}
+	m_grabCount = 0;	// end the group drag
 
 	pView->Invalidate();
 	pDoc->updateAllViews();
@@ -448,9 +686,19 @@ void WaveEditorTool::setEditorMode(EditorMode mode)
 	// (it resumes on the next hover if we're back in Create).
 	clearPreviewWave();
 
-	CMainFrame::GetMainFrame()->SetMessageText(mode == MODE_CREATE
-		? "Create mode: hover to preview, drag to place a wave."
-		: "Manipulate mode: drag a wave to move it, Ctrl+drag to rotate it.");
+	const char *msg;
+	switch (mode) {
+		case MODE_CREATE:
+			msg = "Create mode: hover to preview, drag to place a wave.";
+			break;
+		case MODE_PAINT:
+			msg = "Paint mode: hold the left button and drag to lay a trail of waves.";
+			break;
+		default:
+			msg = "Manipulate mode: drag a wave to move it, Ctrl+drag to rotate, Shift+click to multi-select.";
+			break;
+	}
+	CMainFrame::GetMainFrame()->SetMessageText(msg);
 }
 
 WaveEditorTool::EditorMode WaveEditorTool::getEditorMode(void)
@@ -482,7 +730,8 @@ const char *WaveEditorTool::getWaveTypeName(void)
 }
 
 void WaveEditorTool::pushUndo(UndoKind kind, Int wave,
-														 float cx, float cy, float dx, float dy)
+														 float cx, float cy, float dx, float dy,
+														 Int groupId)
 {
 	if (m_undoTop >= WAVE_UNDO_MAX)
 	{
@@ -495,6 +744,7 @@ void WaveEditorTool::pushUndo(UndoKind kind, Int wave,
 	WaveUndo &u = m_undoStack[m_undoTop++];
 	u.kind = kind; u.wave = wave;
 	u.centerX = cx; u.centerY = cy; u.dirX = dx; u.dirY = dy;
+	u.groupId = groupId;
 }
 
 Bool WaveEditorTool::hasUndo(void)
@@ -516,26 +766,33 @@ void WaveEditorTool::undoLast(void)
 	}
 	else
 	{
-		WaveUndo u = m_undoStack[--m_undoTop];	// pop newest
-		switch (u.kind)
+		// A group move/rotate pushes one record per wave sharing a groupId; undo the
+		// whole group at once so the gesture reverses as a unit.  groupId 0 = standalone.
+		Int topGroup = m_undoStack[m_undoTop - 1].groupId;
+		do
 		{
-			case UNDO_CREATE:
-				// Reverse a placement by removing the wave that was added.
-				TheWaterTracksRenderSystem->removeWaveAt(u.wave);
-				if (m_selectedWave == u.wave)
-					m_selectedWave = -1;
-				break;
+			WaveUndo u = m_undoStack[--m_undoTop];	// pop newest
+			switch (u.kind)
+			{
+				case UNDO_CREATE:
+					// Reverse a placement by removing the wave that was added.
+					TheWaterTracksRenderSystem->removeWaveAt(u.wave);
+					if (m_selectedWave == u.wave)
+						m_selectedWave = -1;
+					break;
 
-			case UNDO_TRANSFORM:
-				// Reverse a move/rotate by restoring the pre-edit center + direction.
-				TheWaterTracksRenderSystem->setWaveTransform(u.wave,
-					Vector2(u.centerX, u.centerY),
-					Vector2(u.dirX, u.dirY));
-				break;
+				case UNDO_TRANSFORM:
+					// Reverse a move/rotate by restoring the pre-edit center + direction.
+					TheWaterTracksRenderSystem->setWaveTransform(u.wave,
+						Vector2(u.centerX, u.centerY),
+						Vector2(u.dirX, u.dirY));
+					break;
 
-			default:
-				break;
+				default:
+					break;
+			}
 		}
+		while (topGroup != 0 && m_undoTop > 0 && m_undoStack[m_undoTop - 1].groupId == topGroup);
 	}
 
 	WaveEditorOptions::refresh();	// keep the list in sync after the undo
@@ -573,6 +830,8 @@ void WaveEditorTool::loadTracks(CWorldBuilderDoc *pDoc, Bool announce)
 	ensureSystem();
 
 	m_selectedWave = -1;	// indices change on reload
+	clearSelectionInternal();
+	m_grabCount = 0;
 	m_undoTop = 0;			// stored undo indices are stale after a reload
 
 	Int count = -1;
@@ -636,42 +895,143 @@ Bool WaveEditorTool::getWaveRow(Int index, float &startX, float &startY,
 
 Int WaveEditorTool::getSelectedWave(void)
 {
-	return m_selectedWave;
+	return m_selectedWave;	// the anchor (last clicked)
+}
+
+//-----------------------------------------------------------------------------
+// Multi-selection set
+//-----------------------------------------------------------------------------
+
+void WaveEditorTool::clearSelectionInternal(void)
+{
+	m_selCount = 0;
+}
+
+void WaveEditorTool::addToSelectionInternal(Int index)
+{
+	if (index < 0)
+		return;
+	for (Int i = 0; i < m_selCount; ++i)
+		if (m_selSet[i] == index)
+			return;	// already selected
+	if (m_selCount < WAVE_SEL_MAX)
+		m_selSet[m_selCount++] = index;
+}
+
+Bool WaveEditorTool::isWaveSelected(Int index)
+{
+	for (Int i = 0; i < m_selCount; ++i)
+		if (m_selSet[i] == index)
+			return true;
+	return false;
+}
+
+Int WaveEditorTool::getSelectionCount(void)
+{
+	return m_selCount;
+}
+
+/// Center the camera on a wave's midpoint (used when a list click selects an off-screen
+/// wave).  No-op if the index or view is unavailable.
+static void centerCameraOnWave(Int index)
+{
+	WbView3d *p3View = CWorldBuilderDoc::GetActive3DView();
+	if (index < 0 || !TheWaterTracksRenderSystem || !p3View)
+		return;
+	Vector2 s, e;
+	if (TheWaterTracksRenderSystem->getWaveSegment(index, s, e))
+	{
+		// Waves are stored in raw world units; setCenterInView() wants heightmap CELL
+		// units (it multiplies by MAP_XY_FACTOR internally), so convert.
+		Real cx = ((s.X + e.X) * 0.5f) / MAP_XY_FACTOR;
+		Real cy = ((s.Y + e.Y) * 0.5f) / MAP_XY_FACTOR;
+		p3View->setCenterInView(cx, cy);
+	}
 }
 
 void WaveEditorTool::selectWave(Int index)
 {
+	// List single-click (no Ctrl): replace the selection with just this wave and center
+	// the camera on it.
+	clearSelectionInternal();
+	addToSelectionInternal(index);
 	m_selectedWave = index;
 
+	centerCameraOnWave(index);
+
 	WbView3d *p3View = CWorldBuilderDoc::GetActive3DView();
-
-	// Center the camera on the selected wave's midpoint (used by the list, where the
-	// wave may be off-screen).
-	if (index >= 0 && TheWaterTracksRenderSystem && p3View)
-	{
-		Vector2 s, e;
-		if (TheWaterTracksRenderSystem->getWaveSegment(index, s, e))
-		{
-			// Waves are stored in raw world units; setCenterInView() wants heightmap
-			// CELL units (it multiplies by MAP_XY_FACTOR internally), so convert -
-			// the same /MAP_XY_FACTOR the "go to object" handlers use.
-			Real cx = ((s.X + e.X) * 0.5f) / MAP_XY_FACTOR;
-			Real cy = ((s.Y + e.Y) * 0.5f) / MAP_XY_FACTOR;
-			p3View->setCenterInView(cx, cy);
-		}
-	}
-
 	if (p3View)
 		p3View->Invalidate();
 }
 
 void WaveEditorTool::selectWaveNoCenter(Int index)
 {
-	// Highlight only - the user grabbed the wave in the view, so keep the camera put.
+	// Replace the selection with just this wave (or clear when index < 0), keeping the
+	// camera put.  Used by the in-view single grab and by panel-hide cleanup.
+	clearSelectionInternal();
+	addToSelectionInternal(index);
 	m_selectedWave = index;
 
-	// Keep the options-panel list row in sync with the in-view selection.
+	WaveEditorOptions::refresh();	// keep the list row in sync
+
+	WbView3d *p3View = CWorldBuilderDoc::GetActive3DView();
+	if (p3View)
+		p3View->Invalidate();
+}
+
+void WaveEditorTool::toggleWaveSelection(Int index)
+{
+	// Ctrl-click in the 3D view: add the wave if it's not selected, remove it if it is.
+	if (index < 0)
+		return;
+
+	if (isWaveSelected(index))
+	{
+		// Remove it (compact the set).
+		Int w = 0;
+		for (Int i = 0; i < m_selCount; ++i)
+			if (m_selSet[i] != index)
+				m_selSet[w++] = m_selSet[i];
+		m_selCount = w;
+		// Move the anchor to another remaining member, or clear it.
+		if (m_selectedWave == index)
+			m_selectedWave = (m_selCount > 0) ? m_selSet[m_selCount - 1] : -1;
+	}
+	else
+	{
+		addToSelectionInternal(index);
+		m_selectedWave = index;	// newly added wave becomes the anchor
+	}
+
 	WaveEditorOptions::refresh();
+
+	WbView3d *p3View = CWorldBuilderDoc::GetActive3DView();
+	if (p3View)
+		p3View->Invalidate();
+}
+
+void WaveEditorTool::beginListSelection(void)
+{
+	// The wave list is the source of truth for this update; start from an empty set and
+	// let the panel re-add every selected row.
+	clearSelectionInternal();
+}
+
+void WaveEditorTool::addListSelection(Int index)
+{
+	addToSelectionInternal(index);
+}
+
+void WaveEditorTool::endListSelection(Int anchorIndex)
+{
+	// Finish a list-driven selection update: set the anchor and center the camera on it
+	// (the wave may be off-screen).  Does NOT call WaveEditorOptions::refresh() - the list
+	// already holds the correct highlights, and refreshing mid-notification would recurse.
+	m_selectedWave = (anchorIndex >= 0 && isWaveSelected(anchorIndex))
+		? anchorIndex
+		: ((m_selCount > 0) ? m_selSet[m_selCount - 1] : -1);
+
+	centerCameraOnWave(m_selectedWave);
 
 	WbView3d *p3View = CWorldBuilderDoc::GetActive3DView();
 	if (p3View)
@@ -680,11 +1040,28 @@ void WaveEditorTool::selectWaveNoCenter(Int index)
 
 void WaveEditorTool::deleteSelectedWave(void)
 {
-	if (m_selectedWave < 0 || !TheWaterTracksRenderSystem)
+	if (!TheWaterTracksRenderSystem || m_selCount <= 0)
 		return;
 
-	TheWaterTracksRenderSystem->removeWaveAt(m_selectedWave);
+	// Removing a wave shifts the indices of every wave after it, so delete from the
+	// highest index down to keep the remaining selection indices valid as we go.
+	// Sort a local copy of the selection descending (simple insertion sort; small set).
+	Int idx[WAVE_SEL_MAX];
+	Int n = m_selCount;
+	for (Int i = 0; i < n; ++i)
+		idx[i] = m_selSet[i];
+	for (Int i = 1; i < n; ++i)
+	{
+		Int key = idx[i], j = i - 1;
+		while (j >= 0 && idx[j] < key) { idx[j + 1] = idx[j]; --j; }
+		idx[j + 1] = key;
+	}
+	for (Int i = 0; i < n; ++i)
+		TheWaterTracksRenderSystem->removeWaveAt(idx[i]);
+
+	clearSelectionInternal();
 	m_selectedWave = -1;
+	m_undoTop = 0;	// stored undo indices are stale once waves are removed/reindexed
 
 	WbView3d *p3View = CWorldBuilderDoc::GetActive3DView();
 	if (p3View)

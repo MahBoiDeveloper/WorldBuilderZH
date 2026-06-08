@@ -105,6 +105,8 @@ public:
 	static void setDoBoundaryFeedback(Bool val) { m_boundaryFeedback = val; }
 	static void setDoWaveFeedback(Bool val) { m_waveFeedback = val; }
 	static Bool getDoWaveFeedback(void) { return m_waveFeedback; }
+	static void setShowShoreline(Bool val) { m_showShoreline = val; }
+	static Bool getShowShoreline(void) { return m_showShoreline; }
 	static void setDoGridFeedback(Bool val) { m_rulerGridFeedback = val; }
 	static void setDoTracingOverlayFeedback(Bool val) { m_showTracingOverlay = val; }
 	// Tracing overlay appearance (set from the TracingOverlayOptions dialog).
@@ -219,6 +221,7 @@ protected: // static state vars.
 	static Bool								m_rampFeedback;	///< should we be showing feedback for the ramp tool?
 	static Bool								m_boundaryFeedback;
 	static Bool								m_waveFeedback;		///< draw wave start->end overlay lines
+	static Bool								m_showShoreline;	///< draw the red water/land boundary line (wave editor aid)
 	static Bool								m_rulerGridFeedback;
 	static Bool								m_showTracingOverlay; ///< True to show tracing overlay.
 	static Int								m_tracingOverlayOpacity;	///< 0..255 alpha for the overlay.
@@ -253,6 +256,7 @@ protected:
 	void updateForWater(void);
 	void updateBoundaryVB(void);
 	void updateWaveVB(void);
+	void updateShorelineVB(void);	///< build red boundary lines where water meets land
 	void updateTerrainPasteVB(void);
 	void updateGridVB(void);
 	void updateAmbientSoundVB(void);

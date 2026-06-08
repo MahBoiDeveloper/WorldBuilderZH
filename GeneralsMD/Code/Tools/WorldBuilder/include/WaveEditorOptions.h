@@ -26,6 +26,7 @@
 #endif // _MSC_VER > 1000
 
 #include "OptionsPanel.h"
+#include "WaveEditorTool.h"		// for WaveEditorTool::EditorMode in syncModeButtons
 
 /////////////////////////////////////////////////////////////////////////////
 // WaveEditorOptions dialog
@@ -60,7 +61,9 @@ protected:
 	afx_msg void OnDeleteSelected();
 	afx_msg void OnModeCreate();
 	afx_msg void OnModeManipulate();
+	afx_msg void OnModePaint();
 	afx_msg void OnShowWaveLines();
+	afx_msg void OnShowShoreline();
 	afx_msg void OnWaveListItemChanged(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnShowWindow(BOOL bShow, UINT nStatus);
 	//}}AFX_MSG
@@ -73,6 +76,8 @@ protected:
 	void updateTypeLabel(void);
 	void setupColumns(void);
 	void populateList(void);
+	void syncModeButtons(WaveEditorTool::EditorMode mode);	///< set the three mode radios so exactly one is pressed
+	void syncToolSelectionFromList(void);	///< mirror the list's selected rows into the wave tool's selection set
 
 public:
 	/// Refresh the "Type:" label and the wave list from the current wave system.

@@ -100,11 +100,17 @@ void WaveEditorOptions::populateList(void)
 		pList->SetItemText(row, 5, typeName);
 	}
 
-	// Restore the highlight to match the tool's selected wave, if any.
-	Int sel = WaveEditorTool::getSelectedWave();
-	if (sel >= 0 && sel < pList->GetItemCount()) {
-		pList->SetItemState(sel, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
-		pList->EnsureVisible(sel, FALSE);
+	// Restore the highlight to match the tool's selection set (multi-select), clearing
+	// any rows that are no longer selected.
+	Int rows = pList->GetItemCount();
+	for (Int i = 0; i < rows; ++i) {
+		Bool on = WaveEditorTool::isWaveSelected(i);
+		pList->SetItemState(i, on ? LVIS_SELECTED : 0, LVIS_SELECTED);
+	}
+	Int anchor = WaveEditorTool::getSelectedWave();
+	if (anchor >= 0 && anchor < rows) {
+		pList->SetItemState(anchor, LVIS_FOCUSED, LVIS_FOCUSED);
+		pList->EnsureVisible(anchor, FALSE);
 	}
 
 	m_updatingList = false;
@@ -126,15 +132,18 @@ BOOL WaveEditorOptions::OnInitDialog()
 	updateTypeLabel();
 	populateList();
 
-	// Reflect the tool's current Create/Manipulate mode in the toggle buttons.
-	Bool create = (WaveEditorTool::getEditorMode() == WaveEditorTool::MODE_CREATE);
-	CheckRadioButton(IDC_WAVE_MODE_CREATE, IDC_WAVE_MODE_MANIPULATE,
-									 create ? IDC_WAVE_MODE_CREATE : IDC_WAVE_MODE_MANIPULATE);
+	// Reflect the tool's current Create/Manipulate/Paint mode in the toggle buttons.
+	syncModeButtons(WaveEditorTool::getEditorMode());
 
 	// Reflect the current wave-line overlay state in the checkbox.
 	CButton *pChk = (CButton*)GetDlgItem(IDC_WAVE_SHOW_LINES);
 	if (pChk)
 		pChk->SetCheck(DrawObject::getDoWaveFeedback() ? BST_CHECKED : BST_UNCHECKED);
+
+	// Reflect the red shoreline-guide state in its checkbox.
+	CButton *pShore = (CButton*)GetDlgItem(IDC_WAVE_SHOW_SHORELINE);
+	if (pShore)
+		pShore->SetCheck(DrawObject::getShowShoreline() ? BST_CHECKED : BST_UNCHECKED);
 
 	return TRUE;
 }
@@ -168,14 +177,35 @@ void WaveEditorOptions::OnDeleteSelected()
 	populateList();
 }
 
+/// Push-like radio buttons only auto-toggle within a contiguous group; the Paint
+/// button sits outside that group (non-adjacent control ID), so set all three checks
+/// by hand whenever the mode changes to keep exactly one pressed.
+void WaveEditorOptions::syncModeButtons(WaveEditorTool::EditorMode mode)
+{
+	if (CButton *p = (CButton*)GetDlgItem(IDC_WAVE_MODE_CREATE))
+		p->SetCheck(mode == WaveEditorTool::MODE_CREATE ? BST_CHECKED : BST_UNCHECKED);
+	if (CButton *p = (CButton*)GetDlgItem(IDC_WAVE_MODE_MANIPULATE))
+		p->SetCheck(mode == WaveEditorTool::MODE_MANIPULATE ? BST_CHECKED : BST_UNCHECKED);
+	if (CButton *p = (CButton*)GetDlgItem(IDC_WAVE_MODE_PAINT))
+		p->SetCheck(mode == WaveEditorTool::MODE_PAINT ? BST_CHECKED : BST_UNCHECKED);
+}
+
 void WaveEditorOptions::OnModeCreate()
 {
 	WaveEditorTool::setEditorMode(WaveEditorTool::MODE_CREATE);
+	syncModeButtons(WaveEditorTool::MODE_CREATE);
 }
 
 void WaveEditorOptions::OnModeManipulate()
 {
 	WaveEditorTool::setEditorMode(WaveEditorTool::MODE_MANIPULATE);
+	syncModeButtons(WaveEditorTool::MODE_MANIPULATE);
+}
+
+void WaveEditorOptions::OnModePaint()
+{
+	WaveEditorTool::setEditorMode(WaveEditorTool::MODE_PAINT);
+	syncModeButtons(WaveEditorTool::MODE_PAINT);
 }
 
 void WaveEditorOptions::OnShowWaveLines()
@@ -190,6 +220,18 @@ void WaveEditorOptions::OnShowWaveLines()
 		p3View->setShowWaveLines(show);
 	else
 		DrawObject::setDoWaveFeedback(show);	// fallback: at least toggle the overlay
+}
+
+/// Toggle the red water/land shoreline guide drawn while the wave editor is open.
+void WaveEditorOptions::OnShowShoreline()
+{
+	CButton *pChk = (CButton*)GetDlgItem(IDC_WAVE_SHOW_SHORELINE);
+	Bool show = (pChk && pChk->GetCheck() == BST_CHECKED);
+	DrawObject::setShowShoreline(show);
+
+	WbView3d *p3View = CWorldBuilderDoc::GetActive3DView();
+	if (p3View)
+		p3View->Invalidate();
 }
 
 /// When the panel is hidden (e.g. right-click closes the options dialog), drop the
@@ -208,7 +250,9 @@ void WaveEditorOptions::OnShowWindow(BOOL bShow, UINT nStatus)
 	}
 }
 
-/// List selection changed -> tell the tool to highlight + center on that wave.
+/// List selection changed -> rebuild the tool's multi-selection from the list's selected
+/// rows.  Letting the native list control own selection means Ctrl-click (toggle) and
+/// Shift-click (range) work for free; we just mirror the result into the wave tool.
 void WaveEditorOptions::OnWaveListItemChanged(NMHDR* pNMHDR, LRESULT* pResult)
 {
 	NM_LISTVIEW* pNMListView = (NM_LISTVIEW*)pNMHDR;
@@ -217,13 +261,41 @@ void WaveEditorOptions::OnWaveListItemChanged(NMHDR* pNMHDR, LRESULT* pResult)
 	if (m_updatingList)
 		return;	// programmatic change, not a user click
 
-	// Only react when an item gains selection.
-	if ((pNMListView->uChanged & LVIF_STATE) &&
-			(pNMListView->uNewState & LVIS_SELECTED) &&
-			!(pNMListView->uOldState & LVIS_SELECTED))
+	// React once per selection-state change (it fires per row).
+	if (!(pNMListView->uChanged & LVIF_STATE))
+		return;
+	if (!((pNMListView->uNewState ^ pNMListView->uOldState) & LVIS_SELECTED))
+		return;	// this change wasn't about the selection bit
+
+	syncToolSelectionFromList();
+}
+
+/// Gather every selected row in the list and push that set into the wave tool, using
+/// the row the user just acted on (the focused row) as the camera/anchor target.
+void WaveEditorOptions::syncToolSelectionFromList(void)
+{
+	CListCtrl *pList = (CListCtrl*)GetDlgItem(IDC_WAVE_LIST);
+	if (!pList)
+		return;
+
+	WaveEditorTool::beginListSelection();
+
+	Int anchor = -1;
+	POSITION pos = pList->GetFirstSelectedItemPosition();
+	while (pos)
 	{
-		WaveEditorTool::selectWave(pNMListView->iItem);
+		Int row = pList->GetNextSelectedItem(pos);
+		WaveEditorTool::addListSelection(row);
+		if (anchor < 0)
+			anchor = row;
 	}
+
+	// Prefer the focused row as the anchor (the one the user just clicked).
+	Int focus = pList->GetNextItem(-1, LVNI_FOCUSED);
+	if (focus >= 0 && pList->GetItemState(focus, LVIS_SELECTED))
+		anchor = focus;
+
+	WaveEditorTool::endListSelection(anchor);
 }
 
 BEGIN_MESSAGE_MAP(WaveEditorOptions, COptionsPanel)
@@ -235,7 +307,9 @@ BEGIN_MESSAGE_MAP(WaveEditorOptions, COptionsPanel)
 	ON_BN_CLICKED(IDC_WAVE_DELETE, OnDeleteSelected)
 	ON_BN_CLICKED(IDC_WAVE_MODE_CREATE, OnModeCreate)
 	ON_BN_CLICKED(IDC_WAVE_MODE_MANIPULATE, OnModeManipulate)
+	ON_BN_CLICKED(IDC_WAVE_MODE_PAINT, OnModePaint)
 	ON_BN_CLICKED(IDC_WAVE_SHOW_LINES, OnShowWaveLines)
+	ON_BN_CLICKED(IDC_WAVE_SHOW_SHORELINE, OnShowShoreline)
 	ON_NOTIFY(LVN_ITEMCHANGED, IDC_WAVE_LIST, OnWaveListItemChanged)
 	ON_WM_SHOWWINDOW()
 	//}}AFX_MSG_MAP

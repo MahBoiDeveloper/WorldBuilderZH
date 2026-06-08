@@ -119,6 +119,7 @@ Bool	DrawObject::m_meshFeedback = false;
 Bool	DrawObject::m_rampFeedback = false;
 Bool	DrawObject::m_boundaryFeedback = false;
 Bool	DrawObject::m_waveFeedback = true;	///< wave overlay lines on by default
+Bool	DrawObject::m_showShoreline = true;	///< red water/land boundary on by default (wave editor aid)
 Bool	DrawObject::m_rulerGridFeedback = true;
 Bool	DrawObject::m_showTracingOverlay = false;
 Int		DrawObject::m_tracingOverlayOpacity = 255;	///< fully opaque by default
@@ -835,7 +836,6 @@ void DrawObject::updateWaveVB(void)
 	const DWORD WAVE_COLOR     = 0xFF00C8FF;	// ARGB cyan (normal)
 	const DWORD WAVE_COLOR_SEL = 0xFFFFFF00;	// ARGB yellow (selected)
 	const DWORD WAVE_COLOR_GHOST = 0xFFA0F0FF;	// ARGB light cyan (drag preview)
-	const Int selectedWave = WaveEditorTool::getSelectedWave();
 	const float stepSize = 10.0f * MAP_XY_FACTOR;
 
 	// Append a ghost-preview wave (the one being dragged out) after the committed
@@ -878,7 +878,7 @@ void DrawObject::updateWaveVB(void)
 			continue;
 
 		waveColor = isGhost ? WAVE_COLOR_GHOST
-											: ((w == selectedWave) ? WAVE_COLOR_SEL : WAVE_COLOR);
+											: (WaveEditorTool::isWaveSelected(w) ? WAVE_COLOR_SEL : WAVE_COLOR);
 
 		Vector2 center((p0.X + p1.X) * 0.5f, (p0.Y + p1.Y) * 0.5f);
 
@@ -953,6 +953,121 @@ void DrawObject::updateWaveVB(void)
 
 	#undef WAVE_SAMPLE_Z
 	#undef WAVE_ADD_VERT
+}
+
+//-----------------------------------------------------------------------------
+// DrawObject::updateShorelineVB
+//-----------------------------------------------------------------------------
+/** Build a red overlay line tracing the water/land boundary, as an aid for the wave
+	editor (waves are painted along the shore).  We sample the heightmap on a regular
+	grid, classify each sample as underwater or not, and for every grid cell that
+	straddles the boundary we emit a short red segment where water meets land (a light
+	"marching squares": a segment per crossed pair of cell edges).  The verts sit at the
+	water surface height so the line hugs the shoreline. */
+//-----------------------------------------------------------------------------
+void DrawObject::updateShorelineVB(void)
+{
+	m_feedbackVertexCount = 0;
+	m_feedbackIndexCount = 0;
+
+	if (!TheTerrainRenderObject)
+		return;
+
+	CWorldBuilderDoc *pDoc = CWorldBuilderDoc::GetActiveDoc();
+	if (!pDoc)
+		return;
+	WorldHeightMapEdit *pMap = pDoc->GetHeightMap();
+	if (!pMap)
+		return;
+
+	DX8IndexBufferClass::WriteLockClass lockIdxBuffer(m_indexFeedback, D3DLOCK_DISCARD);
+	UnsignedShort *curIb = lockIdxBuffer.Get_Index_Array();
+
+	DX8VertexBufferClass::WriteLockClass lockVtxBuffer(m_vertexFeedback, D3DLOCK_DISCARD);
+	VertexFormatXYZDUV1 *curVb = (VertexFormatXYZDUV1*)lockVtxBuffer.Get_Vertex_Array();
+
+	const DWORD SHORE_COLOR = 0xFFFF0000;	// ARGB red
+	const float Z_LIFT      = 4.5f;			// sit just above the water surface
+	const float HALF_W      = 1.0f;			// half line thickness (total 2 world units)
+
+	// One sample per heightmap cell.  MAP_XY_FACTOR world units per cell.
+	const float worldX0 = ADJUST_FROM_INDEX_TO_REAL(1);
+	const float worldY0 = ADJUST_FROM_INDEX_TO_REAL(1);
+	const float worldX1 = ADJUST_FROM_INDEX_TO_REAL(pMap->getXExtent() - 2);
+	const float worldY1 = ADJUST_FROM_INDEX_TO_REAL(pMap->getYExtent() - 2);
+	const float step    = MAP_XY_FACTOR;
+
+	// underwater test at a world point: true if the cell is under a water area.
+	#define SHORE_WET(X, Y) (getWaterHeightIfUnderwater((X), (Y)) != -FLT_MAX)
+
+	// Emit one red quad (thick segment) from a->b at water height, clipped to capacity.
+	#define SHORE_ADD_SEG(ax, ay, bx, by, wz) \
+	{ \
+		Vector3 _d((bx) - (ax), (by) - (ay), 0.0f); \
+		_d.Normalize(); _d *= HALF_W; _d.Rotate_Z(PI / 2); \
+		if (m_feedbackVertexCount + 4 <= NUM_FEEDBACK_VERTEX && m_feedbackIndexCount + 6 <= NUM_FEEDBACK_INDEX) { \
+			curVb->x=(ax)+_d.X; curVb->y=(ay)+_d.Y; curVb->z=(wz); curVb->u1=0; curVb->v1=0; curVb->diffuse=SHORE_COLOR; ++curVb; \
+			curVb->x=(ax)-_d.X; curVb->y=(ay)-_d.Y; curVb->z=(wz); curVb->u1=0; curVb->v1=0; curVb->diffuse=SHORE_COLOR; ++curVb; \
+			curVb->x=(bx)+_d.X; curVb->y=(by)+_d.Y; curVb->z=(wz); curVb->u1=0; curVb->v1=0; curVb->diffuse=SHORE_COLOR; ++curVb; \
+			curVb->x=(bx)-_d.X; curVb->y=(by)-_d.Y; curVb->z=(wz); curVb->u1=0; curVb->v1=0; curVb->diffuse=SHORE_COLOR; ++curVb; \
+			*curIb++ = m_feedbackVertexCount + 0; *curIb++ = m_feedbackVertexCount + 1; *curIb++ = m_feedbackVertexCount + 2; \
+			*curIb++ = m_feedbackVertexCount + 2; *curIb++ = m_feedbackVertexCount + 1; *curIb++ = m_feedbackVertexCount + 3; \
+			m_feedbackVertexCount += 4; m_feedbackIndexCount += 6; \
+		} \
+	}
+
+	for (float y = worldY0; y < worldY1; y += step)
+	{
+		float yn = y + step;
+		for (float x = worldX0; x < worldX1; x += step)
+		{
+			float xn = x + step;
+
+			// Classify the cell's four corners (water = 1, land = 0).
+			Bool w00 = SHORE_WET(x,  y );	// bottom-left
+			Bool w10 = SHORE_WET(xn, y );	// bottom-right
+			Bool w01 = SHORE_WET(x,  yn);	// top-left
+			Bool w11 = SHORE_WET(xn, yn);	// top-right
+
+			// Fully wet or fully dry -> no boundary in this cell.
+			Int wet = (w00?1:0) + (w10?1:0) + (w01?1:0) + (w11?1:0);
+			if (wet == 0 || wet == 4)
+				continue;
+
+			// Boundary crosses an edge wherever its two endpoints differ.  Take the
+			// midpoint of each crossed edge and connect them; for a single corner in/out
+			// that's one segment, for a split (two corners) it's two.  Keeping it to edge
+			// midpoints (no sub-cell interpolation) is plenty for an editor guide.
+			float mx = (x + xn) * 0.5f, my = (y + yn) * 0.5f;
+			float cpx[4]; float cpy[4]; Int nC = 0;
+			if (w00 != w10) { cpx[nC]=mx; cpy[nC]=y;  ++nC; }	// bottom edge
+			if (w01 != w11) { cpx[nC]=mx; cpy[nC]=yn; ++nC; }	// top edge
+			if (w00 != w01) { cpx[nC]=x;  cpy[nC]=my; ++nC; }	// left edge
+			if (w10 != w11) { cpx[nC]=xn; cpy[nC]=my; ++nC; }	// right edge
+
+			// Water surface height for the lift (use the cell center's water level).
+			float wz = getWaterHeightIfUnderwater(mx, my);
+			if (wz == -FLT_MAX)
+			{
+				// Center happens to be dry; borrow a wet corner's water level.
+				if      (w00) wz = getWaterHeightIfUnderwater(x,  y );
+				else if (w10) wz = getWaterHeightIfUnderwater(xn, y );
+				else if (w01) wz = getWaterHeightIfUnderwater(x,  yn);
+				else          wz = getWaterHeightIfUnderwater(xn, yn);
+			}
+			if (wz == -FLT_MAX)
+				continue;	// shouldn't happen given wet>0, but be safe
+			wz += Z_LIFT;
+
+			if (nC >= 2)
+				SHORE_ADD_SEG(cpx[0], cpy[0], cpx[1], cpy[1], wz);
+			if (nC >= 4)	// saddle: two separate crossings
+				SHORE_ADD_SEG(cpx[2], cpy[2], cpx[3], cpy[3], wz);
+		}
+	}
+
+	#undef SHORE_WET
+	#undef SHORE_ADD_SEG
 }
 
 void DrawObject::updateGridVB(void)
@@ -3444,6 +3559,29 @@ if (_skip_drawobject_render) {
 			DX8Wrapper::Set_DX8_Render_State(D3DRS_ZWRITEENABLE, TRUE);
 		}
 	}
+	}
+
+	// Red shoreline guide: trace the water/land boundary while the wave editor is the
+	// active tool and the "Show shoreline" toggle is on, so users can see where to paint.
+	// Drawn depth-disabled (like the wave overlay) so it's always visible on top.
+	if (WaveEditorTool::isEditorActive() && m_showShoreline) {
+		updateShorelineVB();
+		if (m_feedbackIndexCount > 0) {
+			DX8Wrapper::Set_DX8_Render_State(D3DRS_ZENABLE, FALSE);
+			DX8Wrapper::Set_DX8_Render_State(D3DRS_ZWRITEENABLE, FALSE);
+			DX8Wrapper::Set_DX8_Render_State(D3DRS_ALPHABLENDENABLE, FALSE);
+
+			DX8Wrapper::Set_Vertex_Buffer(m_vertexFeedback);
+			DX8Wrapper::Set_Index_Buffer(m_indexFeedback, 0);
+			DX8Wrapper::Set_Shader(m_shaderClass);
+			DX8Wrapper::Set_DX8_Render_State(D3DRS_CULLMODE, D3DCULL_NONE);
+			DX8Wrapper::Set_DX8_Render_State(D3DRS_FILLMODE, D3DFILL_SOLID);
+			DX8Wrapper::Set_DX8_Render_State(D3DRS_LIGHTING, FALSE);
+			DX8Wrapper::Draw_Triangles(0, m_feedbackIndexCount / 3, 0, m_feedbackVertexCount);
+
+			DX8Wrapper::Set_DX8_Render_State(D3DRS_ZENABLE, TRUE);
+			DX8Wrapper::Set_DX8_Render_State(D3DRS_ZWRITEENABLE, TRUE);
+		}
 	}
 
 #if 1
