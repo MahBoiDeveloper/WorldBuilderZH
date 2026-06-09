@@ -3588,13 +3588,12 @@ if (_skip_drawobject_render) {
 
 	// Draw the wave overlay only while the wave editor is the active tool -- this gate
 	// takes priority over the View toggle, so the cyan/yellow glyphs don't linger over
-	// the map when you're working with another tool. Within an active editor, the View
-	// toggle (m_waveFeedback) still hides/shows them, and a drag-out always shows the
-	// ghost preview. When the editor isn't active we also skip the updateWaveVB() cost.
-	{
-		float gx, gy, gdx, gdy; Int gt;
-		Bool ghostNow = WaveEditorTool::getGhostWave(gx, gy, gdx, gdy, gt);
-	if (WaveEditorTool::isEditorActive() && (m_waveFeedback || ghostNow)) {
+	// the map when you're working with another tool. Within an active editor the "Show
+	// wave lines" toggle (m_waveFeedback) fully controls the cyan overlay, INCLUDING the
+	// hover/drag ghost glyph: unchecking it hides every overlay line. The live animated
+	// preview wave is drawn separately by the water-track system, so you still see what
+	// you're placing. When the editor isn't active we also skip the updateWaveVB() cost.
+	if (WaveEditorTool::isEditorActive() && m_waveFeedback) {
 		updateWaveVB();
 		if (m_feedbackIndexCount > 0) {
 			// Wave overlay should always be visible, so disable depth test/write -
@@ -3615,7 +3614,6 @@ if (_skip_drawobject_render) {
 			DX8Wrapper::Set_DX8_Render_State(D3DRS_ZENABLE, TRUE);
 			DX8Wrapper::Set_DX8_Render_State(D3DRS_ZWRITEENABLE, TRUE);
 		}
-	}
 	}
 
 	// Red shoreline guide: trace the water/land boundary while the wave editor is the
