@@ -65,6 +65,7 @@ protected:
 	afx_msg void OnShowWaveLines();
 	afx_msg void OnShowShoreline();
 	afx_msg void OnWaveListItemChanged(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnWaveListRClick(NMHDR* pNMHDR, LRESULT* pResult);	///< right-click: popup to change selected waves' type
 	afx_msg void OnShowWindow(BOOL bShow, UINT nStatus);
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()

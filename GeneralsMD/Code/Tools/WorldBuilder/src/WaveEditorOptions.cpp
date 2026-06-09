@@ -270,6 +270,57 @@ void WaveEditorOptions::OnWaveListItemChanged(NMHDR* pNMHDR, LRESULT* pResult)
 	syncToolSelectionFromList();
 }
 
+/// Right-click on the wave list: pop up a menu of wave types and retype every selected
+/// wave to the chosen one.  Operates on the current multi-selection; if nothing is
+/// selected we first select the right-clicked row so a single right-click still works.
+void WaveEditorOptions::OnWaveListRClick(NMHDR* pNMHDR, LRESULT* pResult)
+{
+	NM_LISTVIEW* pNMListView = (NM_LISTVIEW*)pNMHDR;
+	*pResult = 0;
+
+	CListCtrl *pList = (CListCtrl*)GetDlgItem(IDC_WAVE_LIST);
+	if (!pList)
+		return;
+
+	// If the user right-clicked a row that isn't part of the selection (or nothing is
+	// selected), select just that row first so the menu has something to act on.
+	Int clicked = pNMListView->iItem;
+	if (WaveEditorTool::getSelectionCount() <= 0 ||
+			(clicked >= 0 && !WaveEditorTool::isWaveSelected(clicked)))
+	{
+		if (clicked < 0)
+			return;	// right-clicked empty space with no selection - nothing to do
+		Int rows = pList->GetItemCount();
+		for (Int i = 0; i < rows; ++i)
+			pList->SetItemState(i, (i == clicked) ? LVIS_SELECTED : 0, LVIS_SELECTED);
+		pList->SetItemState(clicked, LVIS_FOCUSED, LVIS_FOCUSED);
+		syncToolSelectionFromList();
+	}
+
+	Int typeCount = WaveEditorTool::getWaveTypeCount();
+	if (typeCount <= 0 || WaveEditorTool::getSelectionCount() <= 0)
+		return;
+
+	// Build the type menu.  TPM_RETURNCMD hands us the chosen id directly, so we don't
+	// need command-map entries for these throwaway ids.
+	CMenu menu;
+	if (!menu.CreatePopupMenu())
+		return;
+	const UINT ID_TYPE_BASE = 0x9100;
+	for (Int i = 0; i < typeCount; ++i)
+		menu.AppendMenu(MF_STRING, ID_TYPE_BASE + i, WaveEditorTool::getWaveTypeNameAt(i));
+
+	CPoint pt;
+	::GetCursorPos(&pt);
+	UINT cmd = menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RETURNCMD | TPM_RIGHTBUTTON,
+																 pt.x, pt.y, this);
+	if (cmd >= ID_TYPE_BASE && cmd < ID_TYPE_BASE + (UINT)typeCount)
+	{
+		WaveEditorTool::setSelectedWavesType((Int)(cmd - ID_TYPE_BASE));
+		populateList();	// reflect the new type names (and keep the selection highlit)
+	}
+}
+
 /// Gather every selected row in the list and push that set into the wave tool, using
 /// the row the user just acted on (the focused row) as the camera/anchor target.
 void WaveEditorOptions::syncToolSelectionFromList(void)
@@ -311,6 +362,7 @@ BEGIN_MESSAGE_MAP(WaveEditorOptions, COptionsPanel)
 	ON_BN_CLICKED(IDC_WAVE_SHOW_LINES, OnShowWaveLines)
 	ON_BN_CLICKED(IDC_WAVE_SHOW_SHORELINE, OnShowShoreline)
 	ON_NOTIFY(LVN_ITEMCHANGED, IDC_WAVE_LIST, OnWaveListItemChanged)
+	ON_NOTIFY(NM_RCLICK, IDC_WAVE_LIST, OnWaveListRClick)
 	ON_WM_SHOWWINDOW()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()

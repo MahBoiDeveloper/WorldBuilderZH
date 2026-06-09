@@ -144,6 +144,7 @@ public:
 	void removeWaveAt(Int index);						///<remove the Nth primary wave (and its trailing second wave)
 	Int  pickWave(const Vector2 &worldPt, Bool &hitArrow) const;	///<editor index of the wave under worldPt (-1 = none); hitArrow=true if the arrow/tip was hit (rotate) vs body (move)
 	Bool setWaveTransform(Int index, const Vector2 &center, const Vector2 &travelDir);	///<move/re-aim an existing wave (re-inits primary + trailing wave); false if out of range
+	Bool setWaveType(Int index, Int typeIndex);	///<change an existing wave's type in place (keeps its slot/index); adds or drops the trailing wave to match; false if out of range
 
 	// Live animated PREVIEW wave (editor hover/drag).  A single throwaway track that
 	// animates like a real wave but is excluded from the editor count, list, save and

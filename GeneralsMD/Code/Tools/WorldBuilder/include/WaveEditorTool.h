@@ -115,6 +115,12 @@ public:
 	static Int  getWaveType(void);
 	static const char *getWaveTypeName(void);
 
+	// Placeable wave types (for the list's right-click "change type" menu).  Plain-typed
+	// so the panel never includes the W3D water header.
+	static Int  getWaveTypeCount(void);					///< number of placeable wave types
+	static const char *getWaveTypeNameAt(Int typeIndex);	///< display name of the Nth placeable type
+	static void setSelectedWavesType(Int typeIndex);		///< change the type of every selected wave
+
 	// Create/Manipulate mode (driven by the options-panel toggle buttons).
 	static void setEditorMode(EditorMode mode);	///< choose place-new vs. edit-existing
 	static EditorMode getEditorMode(void);			///< current mode (default MODE_CREATE)

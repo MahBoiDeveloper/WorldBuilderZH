@@ -787,6 +787,40 @@ const char *WaveEditorTool::getWaveTypeName(void)
 	return TheWaterTracksRenderSystem->getWaveTypeName(type);
 }
 
+Int WaveEditorTool::getWaveTypeCount(void)
+{
+	return TheWaterTracksRenderSystem ? TheWaterTracksRenderSystem->getEditableWaveTypeCount() : 0;
+}
+
+const char *WaveEditorTool::getWaveTypeNameAt(Int typeIndex)
+{
+	return TheWaterTracksRenderSystem ? TheWaterTracksRenderSystem->getWaveTypeName(typeIndex) : "";
+}
+
+/** Change the type of every wave in the current selection (the list's right-click
+	"change type" menu).  Re-typing keeps each wave's slot/index, so the selection set
+	stays valid.  The stored undo stack is cleared because a wave's trailing second wave
+	may have been added or removed by the re-type. */
+void WaveEditorTool::setSelectedWavesType(Int typeIndex)
+{
+	if (!TheWaterTracksRenderSystem || m_selCount <= 0)
+		return;
+
+	for (Int i = 0; i < m_selCount; ++i)
+		TheWaterTracksRenderSystem->setWaveType(m_selSet[i], typeIndex);
+
+	m_undoTop = 0;	// stored undo transforms reference pre-retype tracks; drop them
+
+	CString msg;
+	msg.Format("Changed %d wave%s to type '%s'.", m_selCount, (m_selCount == 1 ? "" : "s"),
+						 getWaveTypeNameAt(typeIndex));
+	CMainFrame::GetMainFrame()->SetMessageText(msg);
+
+	WbView3d *p3View = CWorldBuilderDoc::GetActive3DView();
+	if (p3View)
+		p3View->Invalidate();
+}
+
 void WaveEditorTool::pushUndo(UndoKind kind, Int wave,
 														 float cx, float cy, float dx, float dy,
 														 Int groupId)

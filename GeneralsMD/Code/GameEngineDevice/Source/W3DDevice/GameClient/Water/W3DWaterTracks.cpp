@@ -1679,6 +1679,60 @@ Bool WaterTracksRenderSystem::setWaveTransform(Int index, const Vector2 &center,
 	return true;
 }
 
+//=============================================================================
+// WaterTracksRenderSystem::setWaveType
+//=============================================================================
+/** Change an existing wave's type in place, keeping its placement (init segment)
+	and its slot in the editor list (so the editor index is stable).  The primary
+	track is re-init'd with the new type's size/texture; the trailing "second wave"
+	is dropped or (re)created so it matches the new type (types differ in whether
+	they spawn a trailer).  Returns false if the index is out of range. */
+//=============================================================================
+Bool WaterTracksRenderSystem::setWaveType(Int index, Int typeIndex)
+{
+	WaterTracksObj *primary = getPrimaryByEditorIndex(index);
+	if (!primary)
+		return false;
+
+	waveType newType = clampEditableType(typeIndex);
+	if (primary->m_type == newType)
+		return true;	// already this type; nothing to change
+
+	// Keep the wave exactly where it is; only the type (size/texture/timing) changes.
+	Vector2 start = primary->m_initStartPos;
+	Vector2 end   = primary->m_initEndPos;
+	Int primaryFlip = primary->m_flipU;
+
+	// Drop the OLD trailing wave (matched by the old segment+type) before re-typing the
+	// primary; the new type may want a different trailer, or none.
+	WaterTracksObj *oldSecond = findSecondWaveFor(primary);
+	if (oldSecond)
+		unbindTrack(oldSecond);
+
+	// Re-init the primary IN PLACE so it keeps its linked-list slot (and editor index).
+	primary->m_type = newType;
+	primary->init(waveTypeInfo[newType].m_finalHeight, waveTypeInfo[newType].m_finalWidth,
+								start, end, waveTypeInfo[newType].m_textureName, 0);
+	primary->m_flipU = primaryFlip;
+
+	// Add a fresh trailing wave if the new type uses one (matches the loader/editor).
+	if (waveTypeInfo[newType].m_secondWaveTimeOffset)
+	{
+		WaterTracksObj *second = bindTrack(newType);
+		if (second)
+		{
+			second->init(waveTypeInfo[newType].m_finalHeight, waveTypeInfo[newType].m_finalWidth,
+									 start, end, waveTypeInfo[newType].m_textureName,
+									 waveTypeInfo[newType].m_secondWaveTimeOffset);
+			second->m_flipU = !primaryFlip;
+		}
+	}
+
+	// A trailer may have been added/removed, so any cached edit-undo tracks are stale.
+	m_editUndoCount = 0;
+	return true;
+}
+
 /**@todo: this is a quick hack for adding/removing/testing breaking waves inside the client.
 Will need to move this code to an external editor at some pont. */
 #include "GameClient/Display.h"
