@@ -34,12 +34,17 @@ WaveEditorOptions*	WaveEditorOptions::m_staticThis = NULL;
 #define WAVE_BRUSH_MIN  30
 #define WAVE_BRUSH_MAX  5000
 
+// Posted to coalesce the per-row LVN_ITEMCHANGED storm of a big list selection into a
+// single tool-side sync (see OnWaveListItemChanged).
+#define WM_WAVE_SYNC_SELECTION  (WM_APP + 0x0057)
+
 /////////////////////////////////////////////////////////////////////////////
 WaveEditorOptions::WaveEditorOptions(CWnd* pParent /*=NULL*/)
 {
 	//{{AFX_DATA_INIT(WaveEditorOptions)
 	//}}AFX_DATA_INIT
 	m_updatingList = false;
+	m_selSyncPending = false;
 }
 
 void WaveEditorOptions::DoDataExchange(CDataExchange* pDX)
@@ -192,6 +197,23 @@ void WaveEditorOptions::OnDeleteSelected()
 	populateList();
 }
 
+/// Wipe every wave on the map.  Not undoable (delete clears the wave undo stack), so
+/// confirm first.
+void WaveEditorOptions::OnDeleteAll()
+{
+	Int count = WaveEditorTool::getWaveCount();
+	if (count <= 0)
+		return;
+
+	CString msg;
+	msg.Format("Delete all %d wave%s? This cannot be undone.", count, (count == 1 ? "" : "s"));
+	if (MessageBox(msg, "Delete All Waves", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES)
+		return;
+
+	WaveEditorTool::deleteAllWaves();
+	populateList();
+}
+
 /// Push-like radio buttons only auto-toggle within a contiguous group; the Paint
 /// button sits outside that group (non-adjacent control ID), so set all three checks
 /// by hand whenever the mode changes to keep exactly one pressed.
@@ -309,6 +331,12 @@ void WaveEditorOptions::OnShowWindow(BOOL bShow, UINT nStatus)
 /// List selection changed -> rebuild the tool's multi-selection from the list's selected
 /// rows.  Letting the native list control own selection means Ctrl-click (toggle) and
 /// Shift-click (range) work for free; we just mirror the result into the wave tool.
+///
+/// LVN_ITEMCHANGED fires once PER ROW, so a Shift-click range or Ctrl+A over 1000+ waves
+/// arrives as 1000+ notifications.  Syncing inside each one is O(rows) work per
+/// notification (it re-walks the whole selection), which froze the UI on big maps.  So
+/// don't sync here: post a one-shot message and rebuild the tool selection ONCE after the
+/// notification storm drains.
 void WaveEditorOptions::OnWaveListItemChanged(NMHDR* pNMHDR, LRESULT* pResult)
 {
 	NM_LISTVIEW* pNMListView = (NM_LISTVIEW*)pNMHDR;
@@ -323,7 +351,20 @@ void WaveEditorOptions::OnWaveListItemChanged(NMHDR* pNMHDR, LRESULT* pResult)
 	if (!((pNMListView->uNewState ^ pNMListView->uOldState) & LVIS_SELECTED))
 		return;	// this change wasn't about the selection bit
 
+	if (!m_selSyncPending)
+	{
+		m_selSyncPending = true;
+		PostMessage(WM_WAVE_SYNC_SELECTION);
+	}
+}
+
+/// The coalesced selection sync posted by OnWaveListItemChanged: runs once after a burst
+/// of per-row selection notifications has been processed.
+LRESULT WaveEditorOptions::OnSyncSelectionFromList(WPARAM, LPARAM)
+{
+	m_selSyncPending = false;
 	syncToolSelectionFromList();
+	return 0;
 }
 
 /// Right-click on the wave list: pop up a menu of wave types and retype every selected
@@ -412,6 +453,7 @@ BEGIN_MESSAGE_MAP(WaveEditorOptions, COptionsPanel)
 	ON_BN_CLICKED(IDC_WAVE_SAVE, OnSave)
 	ON_BN_CLICKED(IDC_WAVE_RELOAD, OnReload)
 	ON_BN_CLICKED(IDC_WAVE_DELETE, OnDeleteSelected)
+	ON_BN_CLICKED(IDC_WAVE_DELETE_ALL, OnDeleteAll)
 	ON_BN_CLICKED(IDC_WAVE_MODE_CREATE, OnModeCreate)
 	ON_BN_CLICKED(IDC_WAVE_MODE_MANIPULATE, OnModeManipulate)
 	ON_BN_CLICKED(IDC_WAVE_MODE_PAINT, OnModePaint)
@@ -423,4 +465,5 @@ BEGIN_MESSAGE_MAP(WaveEditorOptions, COptionsPanel)
 	ON_NOTIFY(NM_RCLICK, IDC_WAVE_LIST, OnWaveListRClick)
 	ON_WM_SHOWWINDOW()
 	//}}AFX_MSG_MAP
+	ON_MESSAGE(WM_WAVE_SYNC_SELECTION, OnSyncSelectionFromList)
 END_MESSAGE_MAP()

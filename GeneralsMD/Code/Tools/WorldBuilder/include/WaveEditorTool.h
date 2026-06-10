@@ -167,6 +167,7 @@ public:
 	static void endListSelection(Int anchorIndex);
 
 	static void deleteSelectedWave(void);		///< remove ALL selected waves from the system
+	static void deleteAllWaves(void);			///< remove every wave from the system
 
 	// Ghost preview (read by DrawObject while the user drags out a new wave).
 	static Bool getGhostWave(float &centerX, float &centerY,
@@ -192,8 +193,11 @@ protected:
 	static CString	m_loadedMapPath;	///< map path the current in-memory waves belong to
 
 	// Multi-selection set (Manipulate mode).  Stored as a flat index list to avoid pulling
-	// STL into this MFC tool; the wave count per map is small so linear scans are fine.
-	enum { WAVE_SEL_MAX = 256 };
+	// STL into this MFC tool.  Bucket-filled coastlines can run to thousands of waves, so
+	// the cap must cover a whole-map select-all (a too-small cap silently truncates bulk
+	// retype/delete); the panel coalesces list notifications so the linear scans here only
+	// run once per selection change.
+	enum { WAVE_SEL_MAX = 8192 };
 	static Int	m_selSet[WAVE_SEL_MAX];	///< selected wave indices
 	static Int	m_selCount;				///< number of entries in m_selSet
 	static void addToSelectionInternal(Int index);	///< append if not already present (no refresh)

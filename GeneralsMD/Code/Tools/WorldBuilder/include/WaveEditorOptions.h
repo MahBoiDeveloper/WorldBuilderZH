@@ -59,6 +59,7 @@ protected:
 	afx_msg void OnSave();
 	afx_msg void OnReload();
 	afx_msg void OnDeleteSelected();
+	afx_msg void OnDeleteAll();
 	afx_msg void OnModeCreate();
 	afx_msg void OnModeManipulate();
 	afx_msg void OnModePaint();
@@ -70,11 +71,13 @@ protected:
 	afx_msg void OnWaveListRClick(NMHDR* pNMHDR, LRESULT* pResult);	///< right-click: popup to change selected waves' type
 	afx_msg void OnShowWindow(BOOL bShow, UINT nStatus);
 	//}}AFX_MSG
+	afx_msg LRESULT OnSyncSelectionFromList(WPARAM wParam, LPARAM lParam);	///< deferred one-shot selection sync
 	DECLARE_MESSAGE_MAP()
 
 	static WaveEditorOptions *m_staticThis;
 
 	Bool m_updatingList;	///< guard so programmatic list changes don't re-fire selection
+	Bool m_selSyncPending;	///< a coalesced selection sync is already posted (see OnWaveListItemChanged)
 
 	void updateTypeLabel(void);
 	void updateBrushSizeLabel(void);	///< refresh the "Bucket brush: N" readout from the tool

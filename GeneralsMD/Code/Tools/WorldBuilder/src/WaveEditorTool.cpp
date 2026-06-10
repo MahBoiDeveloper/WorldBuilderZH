@@ -741,10 +741,12 @@ void WaveEditorTool::paintWaveAt(float cx, float cy, float dirX, float dirY)
 }
 
 /** Bucket fill: drop waves along every cached shoreline point within the brush radius of
-	(cx,cy).  Each wave is centered slightly OFFSHORE of the boundary (so its crest breaks
-	onto the beach), aimed toward land, and auto-spaced by the wave's crest width so they
-	tile instead of stacking.  We dedupe against existing waves (including ones placed
-	earlier in this same stroke), which is what produces the even spacing. */
+	(cx,cy).  The placed center is the wave front's MAXIMUM-REACH point (WaterTracksObj::
+	init spawns the wave m_waveDistance back into the water and stops the front exactly at
+	the placed point), so each wave is centered slightly ONSHORE of the boundary to make
+	the wash climb the beach.  Waves are aimed toward land and auto-spaced by the wave's
+	crest width so they tile instead of stacking.  We dedupe against existing waves
+	(including ones placed earlier in this same stroke), which produces the even spacing. */
 void WaveEditorTool::bucketApplyAt(float cx, float cy)
 {
 	ensureSystem();
@@ -758,8 +760,8 @@ void WaveEditorTool::bucketApplyAt(float cx, float cy)
 
 	Real crest = TheWaterTracksRenderSystem->getWaveCrestWidth(m_currentType);
 	if (crest < 1.0f) crest = 1.0f;
-	const float spacing  = crest * 0.9f;	// crests tile along the shore without big overlaps
-	const float offshore = crest * 0.20f;	// nudge center into the water so the crest breaks ashore
+	const float spacing = crest * 0.9f;	// crests tile along the shore without big overlaps
+	const float onshore = crest * 0.01f;	// max-reach point a hair onshore: the wave breaks right at the waterline
 	const float R = (float)(m_bucketBrushSize > 0 ? m_bucketBrushSize : 1);
 	const float Rsq = R * R;
 	const float spacingSq = spacing * spacing;
@@ -780,9 +782,9 @@ void WaveEditorTool::bucketApplyAt(float cx, float cy)
 		if (!shoreDirForSeg(mx, my, s[0], s[1], s[2], s[3], dx, dy))
 			continue;
 
-		// Center the wave a little offshore (offshore = away from land = -dir).
-		float centerX = mx - dx * offshore;
-		float centerY = my - dy * offshore;
+		// Center (= max reach of the wave front) a little onshore (+dir = toward land).
+		float centerX = mx + dx * onshore;
+		float centerY = my + dy * onshore;
 
 		// Auto-spacing: skip if a wave already sits within 'spacing' of this center.
 		// Includes waves placed earlier in THIS stroke, so the fill self-spaces.
@@ -1333,7 +1335,10 @@ void WaveEditorTool::beginListSelection(void)
 
 void WaveEditorTool::addListSelection(Int index)
 {
-	addToSelectionInternal(index);
+	// The list enumerates its selected rows uniquely and beginListSelection() emptied the
+	// set, so append without the dup scan - it made a full-list selection O(rows^2).
+	if (index >= 0 && m_selCount < WAVE_SEL_MAX)
+		m_selSet[m_selCount++] = index;
 }
 
 void WaveEditorTool::endListSelection(Int anchorIndex)
@@ -1372,6 +1377,25 @@ void WaveEditorTool::deleteSelectedWave(void)
 	}
 	for (Int i = 0; i < n; ++i)
 		TheWaterTracksRenderSystem->removeWaveAt(idx[i]);
+
+	clearSelectionInternal();
+	m_selectedWave = -1;
+	m_undoTop = 0;	// stored undo indices are stale once waves are removed/reindexed
+
+	WbView3d *p3View = CWorldBuilderDoc::GetActive3DView();
+	if (p3View)
+		p3View->Invalidate();
+}
+
+void WaveEditorTool::deleteAllWaves(void)
+{
+	if (!TheWaterTracksRenderSystem)
+		return;
+
+	// Highest index down, same as deleteSelectedWave, so removal never reindexes a wave
+	// we still have to remove.
+	for (Int i = TheWaterTracksRenderSystem->getWaveCount() - 1; i >= 0; --i)
+		TheWaterTracksRenderSystem->removeWaveAt(i);
 
 	clearSelectionInternal();
 	m_selectedWave = -1;

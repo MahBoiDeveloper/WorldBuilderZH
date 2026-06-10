@@ -619,6 +619,7 @@
 #define IDC_WAVE_MODE_BUCKET            1398
 #define IDC_WAVE_BRUSH_SIZE             1399
 #define IDC_WAVE_BRUSH_SIZE_LABEL       1400
+#define IDC_WAVE_DELETE_ALL             1401
 #define IDC_UPDATE_TEAM_MEMBERS         1331
 #define IDC_USE_TEAM_DEFAULTS           1332
 #define IDC_LOOPING_CHECKBOX            1333
