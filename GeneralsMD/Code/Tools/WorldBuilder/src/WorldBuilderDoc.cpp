@@ -214,6 +214,13 @@ static AsciiString sanitizeMapIni(const AsciiString &iniPath, std::vector<AsciiS
 			// block header ("Object <name>"; "Object = <name>" is a field elsewhere)
 			curObjName = tok2;
 			curTemplate = TheThingFactory ? TheThingFactory->findTemplate(curObjName, FALSE) : NULL;
+			if (curTemplate == NULL && TheThingFactory)
+			{
+				// object defined by the map.ini itself: ThingFactory::newTemplate seeds it
+				// as a copy of DefaultThingTemplate, so those are the module tags a
+				// RemoveModule will actually see (ModuleTag_DefaultInactiveBody etc.)
+				curTemplate = TheThingFactory->findTemplate(AsciiString("DefaultThingTemplate"), FALSE);
+			}
 			tagsAdded.clear();
 			tagsRemoved.clear();
 		}
@@ -276,6 +283,113 @@ static AsciiString sanitizeMapIni(const AsciiString &iniPath, std::vector<AsciiS
 	fwrite(output.data(), 1, output.size(), out);
 	fclose(out);
 	return tempPath;
+}
+
+// ----------------------------------------------------------------------------
+// Modal info dialog with a scrollable read-only log. MessageBox grows with its
+// text and runs off-screen for long skip lists, so we build a fixed-size dialog
+// template in memory (no .rc resource needed) holding a multiline edit.
+
+static const WORD SCROLL_LOG_EDIT_ID = 1001;
+
+static INT_PTR CALLBACK scrollableInfoDlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case WM_INITDIALOG:
+		::SetDlgItemTextA(hDlg, SCROLL_LOG_EDIT_ID, (const char *)lParam);
+		return TRUE;
+	case WM_COMMAND:
+		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+		{
+			::EndDialog(hDlg, IDOK);
+			return TRUE;
+		}
+		break;
+	}
+	return FALSE;
+}
+
+static void dlgAppend(std::vector<BYTE> &buf, const void *data, size_t len)
+{
+	const BYTE *p = (const BYTE *)data;
+	buf.insert(buf.end(), p, p + len);
+}
+static void dlgAppendWord(std::vector<BYTE> &buf, WORD w)
+{
+	dlgAppend(buf, &w, sizeof(w));
+}
+static void dlgAppendWideString(std::vector<BYTE> &buf, const wchar_t *s)
+{
+	dlgAppend(buf, s, (wcslen(s) + 1) * sizeof(wchar_t));
+}
+static void dlgAlign4(std::vector<BYTE> &buf)
+{
+	while (buf.size() % 4)
+		buf.push_back(0);
+}
+
+static void showScrollableInfoDialog(const char *title, const char *text)
+{
+	// fixed size in dialog units (~570x500 px at 8pt) -- fits any usable screen
+	const short DLG_W = 380, DLG_H = 250;
+
+	std::vector<BYTE> buf;
+	buf.reserve(512);
+
+	DLGTEMPLATE dt;
+	memset(&dt, 0, sizeof(dt));
+	dt.style = DS_MODALFRAME | DS_SETFONT | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU;
+	dt.cdit = 2;
+	dt.cx = DLG_W;
+	dt.cy = DLG_H;
+	dlgAppend(buf, &dt, sizeof(dt));
+	dlgAppendWord(buf, 0);	// no menu
+	dlgAppendWord(buf, 0);	// default dialog class
+	{
+		wchar_t wtitle[256];
+		::MultiByteToWideChar(CP_ACP, 0, title, -1, wtitle, 256);
+		wtitle[255] = 0;
+		dlgAppendWideString(buf, wtitle);
+	}
+	dlgAppendWord(buf, 8);	// font size
+	dlgAppendWideString(buf, L"MS Shell Dlg");
+
+	// read-only multiline edit with a vertical scrollbar (text set in WM_INITDIALOG)
+	dlgAlign4(buf);
+	DLGITEMTEMPLATE item;
+	memset(&item, 0, sizeof(item));
+	item.style = WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP | WS_VSCROLL |
+				 ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL;
+	item.x = 7;
+	item.y = 7;
+	item.cx = DLG_W - 14;
+	item.cy = DLG_H - 32;
+	item.id = SCROLL_LOG_EDIT_ID;
+	dlgAppend(buf, &item, sizeof(item));
+	dlgAppendWord(buf, 0xFFFF);
+	dlgAppendWord(buf, 0x0081);	// EDIT
+	dlgAppendWord(buf, 0);		// empty title
+	dlgAppendWord(buf, 0);		// no creation data
+
+	// OK button
+	dlgAlign4(buf);
+	memset(&item, 0, sizeof(item));
+	item.style = WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON;
+	item.x = (DLG_W - 50) / 2;
+	item.y = DLG_H - 21;
+	item.cx = 50;
+	item.cy = 14;
+	item.id = IDOK;
+	dlgAppend(buf, &item, sizeof(item));
+	dlgAppendWord(buf, 0xFFFF);
+	dlgAppendWord(buf, 0x0080);	// BUTTON
+	dlgAppendWideString(buf, L"OK");
+	dlgAppendWord(buf, 0);		// no creation data
+
+	::DialogBoxIndirectParamA(::AfxGetInstanceHandle(), (LPCDLGTEMPLATE)&buf[0],
+		::AfxGetMainWnd() ? ::AfxGetMainWnd()->GetSafeHwnd() : NULL,
+		scrollableInfoDlgProc, (LPARAM)text);
 }
 
 static bool secondGreaterThan(const std::pair<AsciiString, Int>& __t1, const std::pair<AsciiString, Int>& __t2)
@@ -2272,13 +2386,13 @@ BOOL CWorldBuilderDoc::OnOpenDocument(LPCTSTR lpszPathName)
 				if (!skippedDirectives.empty()) {
 					CString msg =
 						"map.ini loaded, but some directives don't match the installed game data "
-						"and were skipped:\n\n";
+						"and were skipped:\r\n\r\n";
 					for (size_t i = 0; i < skippedDirectives.size(); ++i) {
 						msg += skippedDirectives[i].str();
-						msg += "\n";
+						msg += "\r\n";
 					}
-					msg += "\n(The game itself would refuse to load this map.ini.)";
-					::MessageBox(NULL, msg, "Map.ini Loader (Beta)", MB_OK | MB_ICONINFORMATION);
+					msg += "\r\n(The game itself would refuse to load this map.ini.)";
+					showScrollableInfoDialog("Map.ini Loader (Beta)", msg);
 				}
 			}
 			catch (const INIException &e) {
