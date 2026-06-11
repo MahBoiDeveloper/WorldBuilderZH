@@ -326,15 +326,13 @@ private:
 	void createLabelFont();					///< (re)create m3DFont honoring m_textAntialias
 
 
-	ID3DXFont*							m3DFont;		// legacy; unused (labels use the GDI atlas)
+	ID3DXFont*							m3DFont;		// in-frame label font (Old renderer mode)
 	WBFontAtlas							m_fontAtlas;	// GDI-built glyph atlas -> D3D quads
 
-	// --- viewport-label vertex-batch cache ---------------------------------
-	// The label batch is rebuilt + resubmitted every frame today, even when the
-	// view is static; on label-dense maps that is the dominant per-frame cost.
-	// We snapshot the inputs that affect label geometry/colour into a key each
-	// frame; when it matches the previous frame we re-issue the cached vertex
-	// batch (m_fontAtlas.reissue) instead of rebuilding it (begin/drawLabels/end).
+	// --- viewport-label change-detection key --------------------------------
+	// Snapshot of everything that affects label geometry/colour. Built per frame
+	// by buildLabelKey(); used by the GDI-mode repaint coalescing below to detect
+	// "nothing changed" frames.
 	struct LabelCacheKey
 	{
 		Real camXform[12];		// camera transform (3x4) signature
@@ -348,8 +346,6 @@ private:
 
 		Bool operator==(const LabelCacheKey &o) const;
 	};
-	LabelCacheKey	m_lastLabelKey;
-	Bool			m_haveLabelCache;	// m_lastLabelKey / the atlas batch are valid
 	UnsignedInt		m_labelEpoch;		// bumped whenever labels may have changed
 
 	// --- GDI-mode (Label Renderer: New) flicker coalescing -----------------

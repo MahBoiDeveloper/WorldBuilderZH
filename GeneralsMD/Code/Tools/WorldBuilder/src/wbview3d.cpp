@@ -24,7 +24,6 @@
 #include "resource.h"
 #include "wwmath.h"
 #include "ww3d.h"
-#include "WBParallel.h"		// parallel fork-join pool for label projection
 #include <vector>
 #include "texturefilter.h"
 #include "scene.h"
@@ -617,7 +616,6 @@ WbView3d::WbView3d() :
 	m_theta(0.0),
 	m_time(0),
 	m_updateCount(0),
-	m_haveLabelCache(false),
 	m_labelEpoch(0),
 	m_labelAnchorMode(0),
 	m_labelRenderer(0),
@@ -2134,7 +2132,6 @@ void WbView3d::updateHeightMapInView(WorldHeightMap *htMap, Bool partial, const 
 	if (htMap == NULL)
 		return;
 	++m_updateCount;
-	m_haveLabelCache = false;	// new/changed terrain or map -> don't reuse a stale label batch
 	DrawObject::invalidateShoreline();	// terrain/map changed -> wave editor's shoreline guide must rescan
 
 	if (m_heightMapRenderObj == NULL) {
@@ -3759,15 +3756,15 @@ void WbView3d::drawLabels(HDC hdc)
 
 	// Draw labels.
 	//
-	// The per-object work splits into two parts: a parallelizable COMPUTE part
-	// (projection, terrain-height lookup, property dictionary reads, name/color/
-	// status resolution) and a serial EMIT part (m_fontAtlas.drawText /
-	// drawStatusLabels) that drives the D3D8 device and must stay on the UI
-	// thread. We snapshot the object list, fill one LabelRecord per object in a
-	// parallel prepass, then emit serially IN THE ORIGINAL ORDER so the frame is
-	// byte-identical to the single-threaded path. WBParallel falls back to a
-	// serial inline run for small object counts, so light scenes pay no overhead.
-	struct StatusLabel { const char *text; };	// emit text, in fixed order
+	// The per-object work splits into two parts: a COMPUTE prepass (projection,
+	// terrain-height lookup, property dictionary reads, name/color/status
+	// resolution into one LabelRecord per object) and an EMIT pass (DrawText /
+	// drawStatusLabels). The prepass used to run on the WBParallel worker pool,
+	// but measurement (2026-06) showed it costs ~0.4ms serial vs ~0.2ms parallel
+	// on a 2300-object map while the emit costs 11-21ms -- so it now runs serial,
+	// which also keeps engine getters (Dict, templates, render objects) off
+	// worker threads. (The emit's DrawText cost is intrinsic to D3DX8 -- see the
+	// comment at the emit pass.)
 	struct LabelRecord {
 		bool   project;					// passed projection + LOD cull -> has name/status labels to emit
 		CPoint pt;
@@ -3787,23 +3784,13 @@ void WbView3d::drawLabels(HDC hdc)
 		Real         selRadius;
 	};
 
-	// Snapshot the object list on the UI thread (it must not mutate during the
-	// parallel pass).
+	// Snapshot the object list so the records can be indexed by position.
 	std::vector<MapObject*> objs;
 	for (MapObject *o = MapObject::getFirstMapObject(); o; o = o->getNext())
 		objs.push_back(o);
 	const int objCount = (int)objs.size();
 
 	std::vector<LabelRecord> recs(objCount);
-
-	// Prime the camera frustum once on this thread. CameraClass::Project() lazily
-	// rebuilds a mutable cached frustum on first use; doing it here means every
-	// worker's Project() sees a valid frustum and only READS it (no data race on
-	// the mutable cache).
-	{
-		Vector3 dummy;
-		m_camera->Project(dummy, Vector3(0, 0, 0));
-	}
 
 	// Projection target space. The two renderers draw into DIFFERENT pixel spaces:
 	//  - Old (D3DX): label quads are composited into the D3D back buffer, whose size
@@ -3812,8 +3799,7 @@ void WbView3d::drawLabels(HDC hdc)
 	//  - New (GDI): ::TextOut draws into the window's client HDC at 1:1 client pixels.
 	//    Project into the client rect (and offset by its origin) or the text lands
 	//    offset/scaled relative to the stretched 3D image.
-	// GetClientRect must run on the UI thread (not inside the parallel worker), so we
-	// resolve the projection size/origin here, once, and the workers only read it.
+	// Resolved once here; the prepass only reads it.
 	Int projW, projH, projOriginX, projOriginY;
 	if (m_labelRenderer == 1) {
 		CRect rClientProj;
@@ -3829,9 +3815,8 @@ void WbView3d::drawLabels(HDC hdc)
 		projOriginY = 0;
 	}
 
-	WBParallel::parallelFor(0, objCount, [&](int begin, int end)
 	{
-		for (int oi = begin; oi < end; ++oi) {
+		for (int oi = 0; oi < objCount; ++oi) {
 			MapObject *pMapObj = objs[oi];
 			LabelRecord &rec = recs[oi];
 			rec.project = false;
@@ -3880,7 +3865,7 @@ void WbView3d::drawLabels(HDC hdc)
 			//   - flag-style markers with no model (ambient sounds = ES_AUDIO, and waypoints)
 			//     -> mid-height of the pole drawn by DrawObject (poleHeight 20 -> ~10);
 			//   - anything else flat (e.g. scorches) -> ground anchor.
-			// Reads static geometry/template data only -> thread-safe in this parallel pass.
+			// Reads static geometry/template data only.
 			if (m_labelAnchorMode == 1) {
 				if (RenderObjClass *ro = pMapObj->getRenderObj()) {
 					SphereClass s;
@@ -4060,11 +4045,15 @@ void WbView3d::drawLabels(HDC hdc)
 					rec.statusText[rec.statusCount++] = "Not Selectable";
 			}
 		}
-	});
+	}
 
-	// Serial emit pass (UI thread): walk records in original order so the output
-	// is identical to the single-threaded path. drawText / drawStatusLabels drive
-	// the D3D device and must not run concurrently.
+	// Emit pass. With names on this is the dominant label cost (~11ms/frame on a
+	// 2300-object map, vs ~0.5ms for the whole prepass above): ID3DXFont::DrawText
+	// GDI-rasterizes and uploads each string per call, inside D3DX8. Measured
+	// (A/B alternating every 100 frames, 2026-06): wrapping the whole emit in one
+	// explicit Begin()/End() changes NOTHING (11.4ms either way), so don't try
+	// that again. The cost is inherent to per-string DrawText; judged acceptable
+	// for an inspection-mode overlay rather than worth a custom text path.
 	if (true) {
 		for (int oi = 0; oi < objCount; ++oi) {
 			const LabelRecord &rec = recs[oi];
@@ -5634,12 +5623,11 @@ void WbView3d::OnUpdateTextAntialias(CCmdUI* pCmdUI)
 }
 
 // Label anchor mode: Default (ground) vs New (object center-height). Presented as a
-// radio pair under Text Rendering. Clearing m_haveLabelCache forces an immediate rebuild.
+// radio pair under Text Rendering.
 void WbView3d::OnTextAnchorDefault()
 {
 	m_labelAnchorMode = 0;
 	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "LabelAnchorMode", 0);
-	m_haveLabelCache = false;
 	Invalidate();
 }
 
@@ -5652,7 +5640,6 @@ void WbView3d::OnTextAnchorNew()
 {
 	m_labelAnchorMode = 1;
 	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "LabelAnchorMode", 1);
-	m_haveLabelCache = false;
 	Invalidate();
 }
 
@@ -5664,12 +5651,11 @@ void WbView3d::OnUpdateTextAnchorNew(CCmdUI* pCmdUI)
 // Label renderer: Old (D3DX m3DFont, drawn inside the D3D frame -> no flicker) vs
 // New (raw GDI ::TextOut on the window HDC -> sharper but strobes, because D3D8 has no
 // way to draw GDI into the presented frame). Presented as a radio pair under Text
-// Rendering. Clearing m_haveLabelCache forces an immediate rebuild.
+// Rendering.
 void WbView3d::OnTextRendererOld()
 {
 	m_labelRenderer = 0;
 	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "LabelRenderer", 0);
-	m_haveLabelCache = false;
 	Invalidate();
 }
 
@@ -5682,7 +5668,6 @@ void WbView3d::OnTextRendererNew()
 {
 	m_labelRenderer = 1;
 	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "LabelRenderer", 1);
-	m_haveLabelCache = false;
 	Invalidate();
 }
 

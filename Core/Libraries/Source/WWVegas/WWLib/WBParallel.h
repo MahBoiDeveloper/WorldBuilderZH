@@ -19,8 +19,10 @@
 // WBParallel.h
 //
 // A tiny persistent fork-join thread pool for data-parallel loops in the
-// WorldBuilder tool (minimap resample, viewport label projection) and the
-// shared map-load decode. NOT a general task system: parallelFor() splits a
+// WorldBuilder tool (currently the minimap terrain resample; the viewport
+// label prepass used it too until measurement showed its win was ~0.2ms
+// against an 11-21ms serial DrawText emit, so it went back to serial -- see
+// wbview3d.cpp drawLabels). NOT a general task system: parallelFor() splits a
 // half-open integer range into N disjoint contiguous sub-ranges, runs them on
 // pooled worker threads (plus the calling thread), and joins before returning.
 // Each sub-range owns its output exclusively, so the loop body needs no locks.
