@@ -94,6 +94,7 @@ protected:
 
 	Bool             m_soundPreviewPlaying; //< The Play button is currently in its "Stop" state
 	std::vector<unsigned char> m_soundPreviewData; //< In-memory WAV the preview plays from (must outlive playback)
+	Int              m_soundComboTextWidth; //< Widest sound-combo entry, measured once in InitSound (px)
 	void stopSoundPreview(void);
 
 	ModifyObjectUndoable *m_posUndoable;

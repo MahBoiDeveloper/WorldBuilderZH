@@ -75,7 +75,8 @@ MapObjectProps::MapObjectProps(Dict* dictToEdit, const char* title, CWnd* pParen
   m_angle( 0 ),
   m_defaultEntryIndex(0),
   m_defaultIsNone(true),
-  m_soundPreviewPlaying(false)
+  m_soundPreviewPlaying(false),
+  m_soundComboTextWidth(0)
 {
 
 
@@ -1626,7 +1627,9 @@ void MapObjectProps::OnDblclkProperties()
 static const Char NO_SOUND_STRING[] = "(None)";
 static const Char BASE_DEFAULT_STRING[] = "Default";
 
-static void sizeComboDropToContents( CComboBox *combo );
+static int comboEntryTextWidth( CComboBox *combo, int index );
+static int maxComboTextWidth( CComboBox *combo );
+static void setComboDropWidth( CComboBox *combo, int textWidth );
 
 void MapObjectProps::OnSelchangeProperties() 
 {
@@ -1776,7 +1779,10 @@ void MapObjectProps::InitSound(void)
 
     soundComboBox->InsertString( 1, NO_SOUND_STRING );
 
-    sizeComboDropToContents( soundComboBox );
+    // One-time full measure of the dropdown width; per-selection refreshes reuse it
+    // (see maxComboTextWidth).
+    m_soundComboTextWidth = maxComboTextWidth( soundComboBox );
+    setComboDropWidth( soundComboBox, m_soundComboTextWidth );
   }
 
 } // end InitSound
@@ -2111,15 +2117,35 @@ void MapObjectProps::priorityToDict(void)
 }
 
 
-// The Attached Sound combo box is narrow (to fit the Listen button); size its
-// dropdown list to the widest entry so the full event names stay readable.
-static void sizeComboDropToContents( CComboBox *combo )
+// Pixel width of a single combo entry's text in the combo's font.
+static int comboEntryTextWidth( CComboBox *combo, int index )
 {
-  if ( combo == NULL )
-    return;
+  if ( combo == NULL || index < 0 || index >= combo->GetCount() )
+    return 0;
   CDC *dc = combo->GetDC();
   if ( dc == NULL )
-    return;
+    return 0;
+  CFont *oldFont = dc->SelectObject( combo->GetFont() );
+  CString itemText;
+  combo->GetLBText( index, itemText );
+  int cx = dc->GetTextExtent( itemText ).cx;
+  dc->SelectObject( oldFont );
+  combo->ReleaseDC( dc );
+  return cx;
+}
+
+// Widest entry text in the combo. This walks EVERY entry -- the sound combo holds
+// thousands of audio events, so it must only run once per panel creation (InitSound).
+// dictToAttachedSound runs on every selection click and must NOT re-walk the list
+// (doing so cost ~200ms of select/deselect latency); it measures only its new
+// Default entry against the cached InitSound result.
+static int maxComboTextWidth( CComboBox *combo )
+{
+  if ( combo == NULL )
+    return 0;
+  CDC *dc = combo->GetDC();
+  if ( dc == NULL )
+    return 0;
   CFont *oldFont = dc->SelectObject( combo->GetFont() );
   int maxWidth = 0;
   const int count = combo->GetCount();
@@ -2133,7 +2159,16 @@ static void sizeComboDropToContents( CComboBox *combo )
   }
   dc->SelectObject( oldFont );
   combo->ReleaseDC( dc );
-  combo->SetDroppedWidth( maxWidth + ::GetSystemMetrics( SM_CXVSCROLL ) + 8 );
+  return maxWidth;
+}
+
+// The Attached Sound combo box is narrow (to fit the Listen button); size its
+// dropdown list to the given text width so the full event names stay readable.
+static void setComboDropWidth( CComboBox *combo, int textWidth )
+{
+  if ( combo == NULL )
+    return;
+  combo->SetDroppedWidth( textWidth + ::GetSystemMetrics( SM_CXVSCROLL ) + 8 );
 }
 
 static const UINT SOUND_PREVIEW_TIMER_ID = 0x5051;
@@ -2333,8 +2368,13 @@ void MapObjectProps::dictToAttachedSound()
     m_defaultEntryIndex = soundComboBox->InsertString(0, BASE_DEFAULT_STRING);
   }
 
-  // the new "Default <...>" entry may be the longest one
-  sizeComboDropToContents( soundComboBox );
+  // The new "Default <...>" entry may be the longest one: measure just that entry
+  // against the cached full-list width from InitSound(). This runs on every selection
+  // click, so re-measuring the whole list here (thousands of sound events) is what
+  // caused the ~200ms select/deselect latency regression.
+  int defaultEntryWidth = comboEntryTextWidth( soundComboBox, m_defaultEntryIndex );
+  setComboDropWidth( soundComboBox,
+    defaultEntryWidth > m_soundComboTextWidth ? defaultEntryWidth : m_soundComboTextWidth );
 
   // Now select the correct entry in the list box
   AsciiString sound;
