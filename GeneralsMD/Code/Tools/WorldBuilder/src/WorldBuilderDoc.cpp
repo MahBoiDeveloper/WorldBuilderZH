@@ -31,6 +31,7 @@
 
 #include "Common/Debug.h"
 #include "Common/DataChunk.h"
+#include "Common/INIException.h"
 #include "Common/PlayerTemplate.h"
 #include "Common/MapReaderWriterInfo.h"
 #include "Common/ThingTemplate.h"
@@ -73,6 +74,10 @@
 #include "MapPreview.h"
 
 #include "TileTool.h"
+
+#include <algorithm>
+#include <string>
+#include <vector>
 
 #ifdef _INTERNAL
 // for occasional debugging...
@@ -140,6 +145,139 @@ static void unloadMapIniOverrides(void)
 
 	g_mapiniloaded = false;
 }
+
+// ----------------------------------------------------------------------------
+// Map.ini pre-scan.
+//
+// The engine treats "RemoveModule <tag>" for a tag the template doesn't have as a
+// fatal error (ThingTemplate::parseRemoveModule throws -- "The game will crash
+// now!"). Maps are often authored against game data that doesn't match the local
+// install (patched INIZH.big, mods), so before handing map.ini to the parser we
+// blank out just the RemoveModule lines that would throw and load everything else.
+// Mirrors ThingTemplate::removeModuleInfo's search: the behavior, draw and
+// clientUpdate module lists.
+static Bool templateHasModuleTag(const ThingTemplate *tmpl, const char *tag)
+{
+	const ModuleInfo *lists[] = {
+		&tmpl->getBehaviorModuleInfo(),
+		&tmpl->getDrawModuleInfo(),
+		&tmpl->getClientUpdateModuleInfo(),
+	};
+	for (Int li = 0; li < 3; ++li)
+		for (Int i = 0; i < lists[li]->getCount(); ++i)
+			if (strcmp(lists[li]->getNthTag(i).str(), tag) == 0)
+				return true;
+	return false;
+}
+
+// Returns the path loadWB should read: iniPath itself when nothing had to be
+// stripped, else a temp copy with the offending lines blanked. Blanked lines are
+// kept as empty lines so parser error line numbers still match the real map.ini.
+// skippedOut collects one description per stripped directive.
+static AsciiString sanitizeMapIni(const AsciiString &iniPath, std::vector<AsciiString> &skippedOut)
+{
+	FILE *fp = fopen(iniPath.str(), "rt");
+	if (fp == NULL)
+		return iniPath;	// let the real loader produce the error
+
+	std::string output;
+	Bool modified = false;
+
+	const ThingTemplate *curTemplate = NULL;
+	AsciiString curObjName;
+	std::vector<AsciiString> tagsAdded;		// tags introduced inside this block (AddModule headers)
+	std::vector<AsciiString> tagsRemoved;	// tags consumed by an earlier RemoveModule in this block
+
+	char line[4096];
+	Int lineNum = 0;
+	while (fgets(line, sizeof(line), fp))
+	{
+		++lineNum;
+
+		// tokenize a working copy, stripping comments the way INI::readLine does
+		char work[4096];
+		strcpy(work, line);
+		char *cmt = strchr(work, ';');
+		if (cmt) *cmt = 0;
+		cmt = strstr(work, "//");
+		if (cmt) *cmt = 0;
+		Bool hasEquals = (strchr(work, '=') != NULL);
+
+		static const char *seps = " \t\n\r=";
+		const char *tok1 = strtok(work, seps);
+		const char *tok2 = tok1 ? strtok(NULL, seps) : NULL;
+		const char *tok3 = tok2 ? strtok(NULL, seps) : NULL;
+
+		Bool keep = true;
+		if (tok1 && tok2 && !hasEquals && strcmp(tok1, "Object") == 0)
+		{
+			// block header ("Object <name>"; "Object = <name>" is a field elsewhere)
+			curObjName = tok2;
+			curTemplate = TheThingFactory ? TheThingFactory->findTemplate(curObjName, FALSE) : NULL;
+			tagsAdded.clear();
+			tagsRemoved.clear();
+		}
+		else if (tok1 && tok2 && strcmp(tok1, "RemoveModule") == 0)
+		{
+			AsciiString tag(tok2);
+			Bool present = false;
+			if (std::find(tagsRemoved.begin(), tagsRemoved.end(), tag) == tagsRemoved.end())
+			{
+				if (curTemplate && templateHasModuleTag(curTemplate, tok2))
+					present = true;
+				else if (std::find(tagsAdded.begin(), tagsAdded.end(), tag) != tagsAdded.end())
+					present = true;
+			}
+			if (present)
+			{
+				tagsRemoved.push_back(tag);
+			}
+			else
+			{
+				keep = false;
+				AsciiString warn;
+				warn.format("line %d: RemoveModule %s -- '%s' has no such module", lineNum, tok2,
+					curObjName.isEmpty() ? "(no object)" : curObjName.str());
+				skippedOut.push_back(warn);
+			}
+		}
+		else if (tok1 && tok3 &&
+				 (strcmp(tok1, "Behavior") == 0 || strcmp(tok1, "Draw") == 0 ||
+				  strcmp(tok1, "Body") == 0 || strcmp(tok1, "ClientUpdate") == 0 ||
+				  strcmp(tok1, "ClientBehavior") == 0))
+		{
+			// module header (e.g. under AddModule): its tag now exists for this block
+			tagsAdded.push_back(AsciiString(tok3));
+		}
+
+		if (keep)
+		{
+			output += line;
+		}
+		else
+		{
+			output += "\n";	// keep line numbering intact
+			modified = true;
+		}
+	}
+	fclose(fp);
+
+	if (!modified)
+		return iniPath;
+
+	char tempDir[MAX_PATH];
+	::GetTempPathA(MAX_PATH, tempDir);
+	AsciiString tempPath;
+	tempPath.format("%swb_sanitized_map.ini", tempDir);
+
+	FILE *out = fopen(tempPath.str(), "wt");
+	if (out == NULL)
+		return iniPath;	// can't write the temp copy; let the loader fail loudly
+	fwrite(output.data(), 1, output.size(), out);
+	fclose(out);
+	return tempPath;
+}
+
 static bool secondGreaterThan(const std::pair<AsciiString, Int>& __t1, const std::pair<AsciiString, Int>& __t2)
 {
 	return __t1.second > __t2.second;
@@ -2117,13 +2255,57 @@ BOOL CWorldBuilderDoc::OnOpenDocument(LPCTSTR lpszPathName)
 		if (res == IDYES) {
 			DEBUG_LOG(("Loading map.ini from [%s]\n", iniPath.str()));
 
-			INI ini;
-			// ini.loadObjectsOnly(iniPath, NULL);
-			ini.loadWB(iniPath, INI_LOAD_CREATE_OVERRIDES, NULL);
+			// strip RemoveModule directives that don't match the installed game data
+			// (they are fatal in the engine parser) and load the rest
+			std::vector<AsciiString> skippedDirectives;
+			AsciiString loadPath = sanitizeMapIni(iniPath, skippedDirectives);
 
-			ObjectOptions::reprocessObjectList();
+			try {
+				INI ini;
+				// ini.loadObjectsOnly(iniPath, NULL);
+				ini.loadWB(loadPath, INI_LOAD_CREATE_OVERRIDES, NULL);
 
-			g_mapiniloaded = true;
+				ObjectOptions::reprocessObjectList();
+
+				g_mapiniloaded = true;
+
+				if (!skippedDirectives.empty()) {
+					CString msg =
+						"map.ini loaded, but some directives don't match the installed game data "
+						"and were skipped:\n\n";
+					for (size_t i = 0; i < skippedDirectives.size(); ++i) {
+						msg += skippedDirectives[i].str();
+						msg += "\n";
+					}
+					msg += "\n(The game itself would refuse to load this map.ini.)";
+					::MessageBox(NULL, msg, "Map.ini Loader (Beta)", MB_OK | MB_ICONINFORMATION);
+				}
+			}
+			catch (const INIException &e) {
+				// A bad map.ini (e.g. RemoveModule for a tag the local game data doesn't
+				// have) must not take down the editor. Strip whatever overrides were
+				// created before the error and open the map without map.ini.
+				g_mapiniloaded = true;	// so the teardown below actually runs
+				unloadMapIniOverrides();
+
+				CString msg;
+				msg.Format("The map.ini could not be loaded and has been skipped:\n\n%s\n"
+					"The map will open without its map.ini overrides.",
+					e.mFailureMessage ? e.mFailureMessage : "Unknown INI error.");
+				::MessageBox(NULL, msg, "Map.ini Loader (Beta)", MB_OK | MB_ICONWARNING);
+			}
+			catch (...) {
+				g_mapiniloaded = true;	// so the teardown below actually runs
+				unloadMapIniOverrides();
+
+				::MessageBox(NULL,
+					"The map.ini could not be loaded and has been skipped (unknown INI error).\n"
+					"The map will open without its map.ini overrides.",
+					"Map.ini Loader (Beta)", MB_OK | MB_ICONWARNING);
+			}
+
+			if (strcmp(loadPath.str(), iniPath.str()) != 0)
+				::DeleteFileA(loadPath.str());
 		}
 		else {
 			DEBUG_LOG(("User chose not to load map.ini\n"));
