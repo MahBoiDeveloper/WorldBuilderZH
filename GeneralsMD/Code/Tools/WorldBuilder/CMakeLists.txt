@@ -240,7 +240,14 @@ target_link_libraries(z_worldbuilder PRIVATE
 if(WIN32 OR "${CMAKE_SYSTEM}" MATCHES "Windows")
     # /LARGEADDRESSAWARE lets this 32-bit exe use up to 4GB of address space on
     # 64-bit Windows (instead of the default 2GB), giving big maps more RAM headroom.
-    target_link_options(z_worldbuilder PRIVATE /LARGEADDRESSAWARE /NODEFAULTLIB:libci.lib /NODEFAULTLIB:libc.lib)
+    #
+    # /PDBALTPATH:%_PDB% embeds only the PDB *filename* in the exe (not the absolute
+    # build path). WorldBuilder opens its own PDB at startup to symbolicate crash
+    # dumps; without this, a copy of the exe deployed elsewhere (e.g. a game install)
+    # reaches back via the embedded absolute path and holds the build-dir PDB open,
+    # which then makes the linker fail with LNK1201 on the next build. With just the
+    # filename, the running copy looks beside itself and never locks the build PDB.
+    target_link_options(z_worldbuilder PRIVATE /LARGEADDRESSAWARE /PDBALTPATH:%_PDB% /NODEFAULTLIB:libci.lib /NODEFAULTLIB:libc.lib)
     target_compile_definitions(z_worldbuilder PRIVATE _AFXDLL)
     target_sources(z_worldbuilder PRIVATE res/WorldBuilder.rc)
     set_target_properties(z_worldbuilder PROPERTIES OUTPUT_NAME WorldBuilderZH)

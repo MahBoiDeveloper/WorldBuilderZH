@@ -235,6 +235,14 @@ protected:
 	afx_msg void OnUpdateTextRendererNew(CCmdUI* pCmdUI);
 	afx_msg void OnTextRendererAtlas();
 	afx_msg void OnUpdateTextRendererAtlas(CCmdUI* pCmdUI);
+	afx_msg void OnTextLabelCullOff();
+	afx_msg void OnUpdateTextLabelCullOff(CCmdUI* pCmdUI);
+	afx_msg void OnTextLabelCullNear();
+	afx_msg void OnUpdateTextLabelCullNear(CCmdUI* pCmdUI);
+	afx_msg void OnTextLabelCullMedium();
+	afx_msg void OnUpdateTextLabelCullMedium(CCmdUI* pCmdUI);
+	afx_msg void OnTextLabelCullFar();
+	afx_msg void OnUpdateTextLabelCullFar(CCmdUI* pCmdUI);
 	afx_msg void OnViewShowSubDraw();
 	afx_msg void OnUpdateViewShowSubDraw(CCmdUI* pCmdUI);
 	afx_msg void OnViewShowBaseRadius();
@@ -323,6 +331,7 @@ private:
 	Bool m_textAntialias;					///< grayscale antialiasing for viewport labels
 	Int  m_labelAnchorMode;					///< 0 = Default (ground), 1 = New (object center-height)
 	Int  m_labelRenderer;					///< 0 = Old (D3DX m3DFont, in-frame), 1 = New (raw GDI TextOut, strobes), 2 = Atlas (batched glyph quads, in-frame)
+	Int  m_labelCull;						///< viewport-label cull: 0 = Off, 1 = Near, 2 = Medium, 3 = Far (ground distance from look-at target; zoom-independent)
 	void setMSAA(D3DMULTISAMPLE_TYPE type);
 	void setTextureFilter(int mode);
 	void createLabelFont();					///< (re)create m3DFont honoring m_textAntialias

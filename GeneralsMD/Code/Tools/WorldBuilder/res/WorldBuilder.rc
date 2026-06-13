@@ -384,6 +384,14 @@ BEGIN
         MENUITEM "Label Renderer: Old (D3DX)",  ID_TEXT_RENDERER_OLD
         MENUITEM "Label Renderer: New (GDI)",   ID_TEXT_RENDERER_NEW
         MENUITEM "Label Renderer: Atlas (Batched, Fast)", ID_TEXT_RENDERER_ATLAS
+        MENUITEM SEPARATOR
+        POPUP "Reduce labels"
+        BEGIN
+            MENUITEM "Off",                     ID_TEXT_LABELCULL_OFF
+            MENUITEM "Near",                    ID_TEXT_LABELCULL_NEAR
+            MENUITEM "Medium",                  ID_TEXT_LABELCULL_MEDIUM
+            MENUITEM "Far",                     ID_TEXT_LABELCULL_FAR
+        END
     END
     POPUP "&Window"
     BEGIN

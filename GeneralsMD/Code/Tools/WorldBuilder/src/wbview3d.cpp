@@ -666,6 +666,7 @@ WbView3d::WbView3d() :
 	m_textAntialias = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "TextAntialias", 1) != 0;
 	m_labelAnchorMode = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "LabelAnchorMode", 0);
 	m_labelRenderer = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "LabelRenderer", 0);
+	m_labelCull = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "LabelCull", 0);
 	m_snapCameraAngle45 = (::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "SnapCameraAngle45", 0) != 0);
 
 	int msaaMode = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "MSAAMode", 0);
@@ -3264,6 +3265,14 @@ BEGIN_MESSAGE_MAP(WbView3d, WbView)
 	ON_UPDATE_COMMAND_UI(ID_TEXT_RENDERER_NEW, OnUpdateTextRendererNew)
 	ON_COMMAND(ID_TEXT_RENDERER_ATLAS, OnTextRendererAtlas)
 	ON_UPDATE_COMMAND_UI(ID_TEXT_RENDERER_ATLAS, OnUpdateTextRendererAtlas)
+	ON_COMMAND(ID_TEXT_LABELCULL_OFF, OnTextLabelCullOff)
+	ON_UPDATE_COMMAND_UI(ID_TEXT_LABELCULL_OFF, OnUpdateTextLabelCullOff)
+	ON_COMMAND(ID_TEXT_LABELCULL_NEAR, OnTextLabelCullNear)
+	ON_UPDATE_COMMAND_UI(ID_TEXT_LABELCULL_NEAR, OnUpdateTextLabelCullNear)
+	ON_COMMAND(ID_TEXT_LABELCULL_MEDIUM, OnTextLabelCullMedium)
+	ON_UPDATE_COMMAND_UI(ID_TEXT_LABELCULL_MEDIUM, OnUpdateTextLabelCullMedium)
+	ON_COMMAND(ID_TEXT_LABELCULL_FAR, OnTextLabelCullFar)
+	ON_UPDATE_COMMAND_UI(ID_TEXT_LABELCULL_FAR, OnUpdateTextLabelCullFar)
 
 	ON_COMMAND(ID_REVALIDATE_RENDER, OnRefreshSceneObjects)
 	//}}AFX_MSG_MAP
@@ -3836,6 +3845,13 @@ void WbView3d::drawLabels(HDC hdc)
 		projOriginY = 0;
 	}
 
+	// Look-at point on the terrain for the distant-label cull below. Using the
+	// camera TARGET (where you're aiming on the ground) rather than the camera
+	// POSITION makes the cull zoom-independent: zooming moves the camera in/out
+	// along the view ray but leaves m_cameraTarget on the same ground point, so
+	// the same objects stay labeled at any zoom level.
+	Vector3 camTarget = m_cameraTarget;
+
 	{
 		for (int oi = 0; oi < objCount; ++oi) {
 			MapObject *pMapObj = objs[oi];
@@ -3989,6 +4005,29 @@ void WbView3d::drawLabels(HDC hdc)
 				int dy = pt.y - center.y;
 				int distSq = dx * dx + dy * dy;
 				if (distSq > 300 * 300) continue;
+			}
+
+			// Distant-label cull (Text Rendering > Reduce labels). A level-of-detail
+			// "potato saver": drop labels for objects far from where the camera is
+			// LOOKING so dense maps stay readable and cheap. Measured as ground (XY)
+			// distance in WORLD units from the look-at target, not screen pixels:
+			//  - screen-center pixels wrongly culled the bottom-of-screen objects
+			//    (nearest the camera in the tilted view) while keeping far ones, and
+			//  - distance from the camera POSITION scaled with zoom (zoom out -> the
+			//    camera recedes -> everything tripped the threshold and vanished).
+			// Distance from the look-at target avoids both: it's zoom-independent and
+			// centered on what you're inspecting. Standalone from the LOD-mode-1
+			// screen cull above; works at any LOD level. 0 = Off.
+			if (m_labelCull != 0) {
+				float cullDist;
+				switch (m_labelCull) {
+					case 1:  cullDist =  800.0f; break;	// Near
+					case 2:  cullDist = 1500.0f; break;	// Medium
+					default: cullDist = 2500.0f; break;	// Far
+				}
+				float ddx = camTarget.X - pos.x;
+				float ddy = camTarget.Y - pos.y;
+				if (ddx*ddx + ddy*ddy > cullDist * cullDist) continue;
 			}
 
 			rec.project = true;
@@ -5723,6 +5762,57 @@ void WbView3d::OnTextRendererAtlas()
 void WbView3d::OnUpdateTextRendererAtlas(CCmdUI* pCmdUI)
 {
 	pCmdUI->SetCheck(m_labelRenderer == 2);
+}
+
+// Distant-label cull presets (Text Rendering > Cull Distant Labels). Radio group:
+// 0 = Off, 1 = Near, 2 = Medium, 3 = Far. See the cull in drawLabels(); the radius
+// is a resolution-relative fraction of the viewport, not a fixed pixel count.
+void WbView3d::OnTextLabelCullOff()
+{
+	m_labelCull = 0;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "LabelCull", 0);
+	Invalidate();
+}
+
+void WbView3d::OnUpdateTextLabelCullOff(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_labelCull == 0);
+}
+
+void WbView3d::OnTextLabelCullNear()
+{
+	m_labelCull = 1;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "LabelCull", 1);
+	Invalidate();
+}
+
+void WbView3d::OnUpdateTextLabelCullNear(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_labelCull == 1);
+}
+
+void WbView3d::OnTextLabelCullMedium()
+{
+	m_labelCull = 2;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "LabelCull", 2);
+	Invalidate();
+}
+
+void WbView3d::OnUpdateTextLabelCullMedium(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_labelCull == 2);
+}
+
+void WbView3d::OnTextLabelCullFar()
+{
+	m_labelCull = 3;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "LabelCull", 3);
+	Invalidate();
+}
+
+void WbView3d::OnUpdateTextLabelCullFar(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_labelCull == 3);
 }
 
 void WbView3d::OnKillFocus(CWnd* pNewWnd)
