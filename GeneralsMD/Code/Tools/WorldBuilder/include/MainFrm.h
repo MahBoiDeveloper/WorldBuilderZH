@@ -108,6 +108,14 @@ public:
 	void closeScriptDialog();
 	ScriptDialog* getScriptDialog() { return m_scriptDialog; }
 
+#ifdef RTS_HAS_QT
+	// Phase 2 MFC -> Qt: the Qt host (a QWinWidget HWND) the 3D viewport is reparented
+	// into; NULL when not hosted. positionQtViewportHost() sizes it to fill the same pane
+	// the view used to occupy (client minus the docked toolbar/status bar).
+	HWND m_qtViewportHost;
+	void positionQtViewportHost(void);
+#endif
+
 protected:  // control bar embedded members
 	CStatusBar					m_wndStatusBar;
 	CToolBar						m_wndToolBar;

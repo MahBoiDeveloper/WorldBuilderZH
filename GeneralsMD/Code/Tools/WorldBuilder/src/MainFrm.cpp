@@ -36,6 +36,9 @@
 #include "PickUnitDialog.h"
 
 #include "ScriptDialog.h"
+#ifdef RTS_HAS_QT
+#include "qt/WBQtBridge.h"
+#endif
 #define ADJUST_VIEW_TIMER 6969
 #define COUNTDOWN_TIMER 6910
 
@@ -84,6 +87,9 @@ CMainFrame::CMainFrame()
 	m_minimapDialog = NULL;
 	m_curDialogID = IDD_NO_OPTIONS;
 	m_scriptDialog = NULL;
+#ifdef RTS_HAS_QT
+	m_qtViewportHost = NULL;
+#endif
 	// DragAcceptFiles(TRUE);
 }
 
@@ -459,6 +465,17 @@ void CMainFrame::adjustWindowSize(Bool forcedResolution, Bool dynamicResolution)
 		}
 
 
+#ifdef RTS_HAS_QT
+	// When the viewport is hosted in Qt, the Qt host owns the on-screen pixel area and its
+	// resizeEvent drives the device (WBQt_OnViewportHostResized). Don't snap the frame to a
+	// registry resolution or push a competing device size here. Keep m_3dViewWidth current
+	// so the resolution-menu checkmark stays consistent.
+	if (m_qtViewportHost != NULL) {
+		m_3dViewWidth = newWidth;
+		return;
+	}
+#endif
+
 	this->SetWindowPos(NULL, 0,
 	0, newWidth, newHeight,
 	SWP_NOMOVE|SWP_NOZORDER); // MainFrm.cpp sets the top and left.
@@ -721,6 +738,16 @@ void CMainFrame::OnDestroy()
 	m_hAutoSaveTimer = NULL;
 
 	KillTimer(ADJUST_VIEW_TIMER);
+#ifdef RTS_HAS_QT
+	// Detach the viewport from the Qt host while everything is still alive, BEFORE MFC tears
+	// the frame children down -- so the MFC-owned view HWND is not double-destroyed.
+	if (m_qtViewportHost != NULL)
+	{
+		WbView3d *p3d = CWorldBuilderDoc::GetActive3DView();
+		WBQt_UnhostViewport(GetSafeHwnd(), p3d ? p3d->GetSafeHwnd() : NULL);
+		m_qtViewportHost = NULL;
+	}
+#endif
 	CFrameWnd::OnDestroy();
 }
 
@@ -729,6 +756,27 @@ void CMainFrame::ScheduleAdjustViewAfterResize(void)
     KillTimer(ADJUST_VIEW_TIMER);
     SetTimer(ADJUST_VIEW_TIMER, 300, NULL);  // 300ms delay to detect when resizing stops
 }
+
+#ifdef RTS_HAS_QT
+// Size the Qt viewport host to fill the same pane the 3D view used to occupy: the client
+// area minus the docked toolbar/status bar. RepositionBars(..., reposQuery, &pane) asks MFC
+// for that rect without moving anything, so the host lands exactly where the view was.
+void CMainFrame::positionQtViewportHost(void)
+{
+	if (m_qtViewportHost == NULL || !::IsWindow(m_qtViewportHost))
+	{
+		return;
+	}
+
+	CRect pane;
+	RepositionBars(AFX_IDW_CONTROLBAR_FIRST, AFX_IDW_CONTROLBAR_LAST,
+		AFX_IDW_PANE_FIRST, reposQuery, &pane);
+	// Drive the host geometry through Qt so its layout reflows and sizes the hosted
+	// viewport to fill (a Win32 SetWindowPos left Qt's geometry stale, pinning the view
+	// at Qt's ~100x30 default).
+	WBQt_SetViewportHostGeometry(pane.left, pane.top, pane.Width(), pane.Height());
+}
+#endif
 
 void CMainFrame::OnTimer(UINT nIDEvent) 
 {

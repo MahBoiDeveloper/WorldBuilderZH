@@ -527,6 +527,19 @@ BOOL CWorldBuilderApp::InitInstance()
 	// Bring up the Qt event loop now that the MFC main window exists. Qt is pumped from
 	// inside MFC's CWinApp::Run() (QMfcApp::pluginInstance), so MFC keeps owning the loop.
 	WBQt_Startup();
+
+	// Phase 2: host the live 3D viewport inside the Qt layer (in-place). The frame and 3D
+	// view exist now (created by ProcessShellCommand), so reparent the view HWND into a Qt
+	// host that is a child of the frame.
+	{
+		WbView3d *p3d = CWorldBuilderDoc::GetActive3DView();
+		CMainFrame *pFrame = CMainFrame::GetMainFrame();
+		if (p3d != NULL && pFrame != NULL)
+		{
+			pFrame->m_qtViewportHost = (HWND)WBQt_HostViewport(pFrame->GetSafeHwnd(), p3d->GetSafeHwnd());
+			pFrame->positionQtViewportHost();
+		}
+	}
 #endif
 
 	// Parse command line for standard shell commands, DDE, file open

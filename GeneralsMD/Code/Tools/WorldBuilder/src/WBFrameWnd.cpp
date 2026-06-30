@@ -270,6 +270,10 @@ void CWB3dFrameWnd::OnSize(UINT nType, int cx, int cy)
     // m_newWidth = cx;
     // m_newHeight = cy;
 
+#ifdef RTS_HAS_QT
+	// Keep the Qt viewport host filling the pane as the frame resizes.
+	positionQtViewportHost();
+#endif
 	// Kill any existing timer and start a new one
 	ScheduleAdjustViewAfterResize();
     // KillTimer(1);

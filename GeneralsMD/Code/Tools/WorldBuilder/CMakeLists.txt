@@ -99,6 +99,7 @@ set(WORLDBUILDER_SRC
     "src/WBFrameWnd.cpp"
     "src/WBHeightMap.cpp"
     "src/WBPopupSlider.cpp"
+    "src/WBQtHostBridge.cpp"
     "src/wbview.cpp"
     "src/wbview3d.cpp"
     "src/WHeightMapEdit.cpp"
@@ -275,6 +276,10 @@ if(RTS_ENABLE_WORLDBUILDER_QT)
     add_library(z_worldbuilder_qt STATIC
         "qt/3rdparty/qtwinmigrate/qmfcapp.cpp"
         "qt/3rdparty/qtwinmigrate/qmfcapp.h"
+        "qt/3rdparty/qtwinmigrate/qwinwidget.cpp"
+        "qt/3rdparty/qtwinmigrate/qwinwidget.h"
+        "qt/3rdparty/qtwinmigrate/qwinhost.cpp"
+        "qt/3rdparty/qtwinmigrate/qwinhost.h"
         "qt/WBQtBridge.cpp"
         "qt/WBQtBridge.h"
         "qt/WBQtTheme.cpp"
@@ -294,7 +299,9 @@ if(RTS_ENABLE_WORLDBUILDER_QT)
     target_compile_definitions(z_worldbuilder_qt PRIVATE _AFXDLL NOMINMAX RTS_HAS_QT)
 
     # dwmapi: DwmSetWindowAttribute for the dark title bar (WBQtTheme).
-    target_link_libraries(z_worldbuilder_qt PUBLIC Qt5::Widgets PRIVATE dwmapi)
+    # Qt5::GuiPrivate: qwinwidget.cpp uses the qpa platform-native-interface (a Qt private
+    # header) to resolve a QWindow's HWND for MFC embedding.
+    target_link_libraries(z_worldbuilder_qt PUBLIC Qt5::Widgets PRIVATE Qt5::GuiPrivate dwmapi)
 
     # Link the Qt lib into the exe and turn on the guarded bootstrap in WorldBuilder.cpp.
     target_link_libraries(z_worldbuilder PRIVATE z_worldbuilder_qt)
