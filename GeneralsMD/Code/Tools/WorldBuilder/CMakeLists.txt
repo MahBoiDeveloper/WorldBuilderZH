@@ -250,7 +250,70 @@ if(WIN32 OR "${CMAKE_SYSTEM}" MATCHES "Windows")
     target_link_options(z_worldbuilder PRIVATE /LARGEADDRESSAWARE /PDBALTPATH:%_PDB% /NODEFAULTLIB:libci.lib /NODEFAULTLIB:libc.lib)
     target_compile_definitions(z_worldbuilder PRIVATE _AFXDLL)
     target_sources(z_worldbuilder PRIVATE res/WorldBuilder.rc)
-    set_target_properties(z_worldbuilder PROPERTIES OUTPUT_NAME WorldBuilderZH)
+    # Per-config exe names so a Debug and a Release build deployed to the same folder
+    # don't clobber each other: WorldBuilderZH_d.exe (Debug) vs WorldBuilderZH_r.exe (Release).
+    # Other configs (Internal/Profile are Release-config; MinSizeRel/RelWithDebInfo) keep the
+    # base name.
+    set_target_properties(z_worldbuilder PROPERTIES
+        OUTPUT_NAME WorldBuilderZH
+        OUTPUT_NAME_DEBUG WorldBuilderZH_d
+        OUTPUT_NAME_RELEASE WorldBuilderZH_r)
 else()
     set_target_properties(z_worldbuilder PROPERTIES OUTPUT_NAME worldbuilderzh)
+endif()
+
+# --- Experimental Qt coexistence (Phase 1 of MFC -> Qt migration) ----------------
+# OFF by default; when OFF nothing below runs and z_worldbuilder is byte-for-byte the
+# normal MFC build. When ON, all Qt code lives in a SEPARATE static lib so AUTOMOC
+# only scans the handful of Qt files (never the big hand-maintained MFC source list).
+# Configure with a 32-bit Qt5, e.g. -DCMAKE_PREFIX_PATH=C:/Qt/5.15.2/msvc2019.
+if(RTS_ENABLE_WORLDBUILDER_QT)
+    find_package(Qt5 COMPONENTS Widgets REQUIRED)
+
+    # qmfcapp.cpp is the ONLY translation unit that mixes MFC (afxwin.h) and Qt; the
+    # rest is pure Qt reached through the opaque WBQtBridge facade.
+    add_library(z_worldbuilder_qt STATIC
+        "qt/3rdparty/qtwinmigrate/qmfcapp.cpp"
+        "qt/3rdparty/qtwinmigrate/qmfcapp.h"
+        "qt/WBQtBridge.cpp"
+        "qt/WBQtBridge.h"
+        "qt/WBQtTheme.cpp"
+        "qt/WBQtTheme.h"
+        "qt/WBQtTestWindow.cpp"
+        "qt/WBQtTestWindow.h")
+
+    set_target_properties(z_worldbuilder_qt PROPERTIES AUTOMOC ON)
+
+    target_include_directories(z_worldbuilder_qt PRIVATE
+        qt
+        qt/3rdparty/qtwinmigrate)
+
+    # _AFXDLL: match the exe's shared-MFC config so afxwin.h resolves identically in
+    # qmfcapp.cpp. NOMINMAX: keep windows.h min/max macros from breaking Qt headers in
+    # that mixed TU. RTS_HAS_QT: compile-time gate for the bootstrap calls.
+    target_compile_definitions(z_worldbuilder_qt PRIVATE _AFXDLL NOMINMAX RTS_HAS_QT)
+
+    # dwmapi: DwmSetWindowAttribute for the dark title bar (WBQtTheme).
+    target_link_libraries(z_worldbuilder_qt PUBLIC Qt5::Widgets PRIVATE dwmapi)
+
+    # Link the Qt lib into the exe and turn on the guarded bootstrap in WorldBuilder.cpp.
+    target_link_libraries(z_worldbuilder PRIVATE z_worldbuilder_qt)
+    target_compile_definitions(z_worldbuilder PRIVATE RTS_HAS_QT)
+
+    # WorldBuilder is an MFC app: it already has MFC's WinMain and no main(). Stop Qt's
+    # CMake config from auto-linking qtmain.lib (which supplies a WinMain -> main shim and
+    # would otherwise cause "unresolved external symbol _main").
+    set_target_properties(z_worldbuilder PROPERTIES Qt5_NO_LINK_QTMAIN ON)
+
+    # Copy the Qt runtime (Qt5 DLLs + platforms/qwindows.dll) next to the exe so a dev
+    # run straight from the build tree resolves the Qt libraries and platform plugin.
+    get_target_property(_qt5_qmake Qt5::qmake IMPORTED_LOCATION)
+    get_filename_component(_qt5_bin "${_qt5_qmake}" DIRECTORY)
+    add_custom_command(TARGET z_worldbuilder POST_BUILD
+        COMMAND "${_qt5_bin}/windeployqt.exe"
+                --no-translations --no-system-d3d-compiler --no-opengl-sw --no-compiler-runtime
+                "$<IF:$<CONFIG:Debug>,--debug,--release>"
+                "$<TARGET_FILE:z_worldbuilder>"
+        COMMENT "Deploying Qt runtime next to WorldBuilder (RTS_ENABLE_WORLDBUILDER_QT)"
+        VERBATIM)
 endif()

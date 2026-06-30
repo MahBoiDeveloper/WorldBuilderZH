@@ -89,6 +89,11 @@
 
 #include "Common/WellKnownKeys.h"
 #include "Common/CriticalSection.h"
+
+#ifdef RTS_HAS_QT
+#include "qt/WBQtBridge.h"		// Phase 1 MFC -> Qt coexistence (experimental; opaque facade, no Qt headers leak here)
+#endif
+
 #ifdef _INTERNAL
 // for occasional debugging...
 //#pragma optimize("", off)
@@ -517,6 +522,12 @@ BOOL CWorldBuilderApp::InitInstance()
 	// The one and only window has been initialized, so show and update it.
 	m_pMainWnd->ShowWindow(SW_SHOW);
 	m_pMainWnd->UpdateWindow();
+
+#ifdef RTS_HAS_QT
+	// Bring up the Qt event loop now that the MFC main window exists. Qt is pumped from
+	// inside MFC's CWinApp::Run() (QMfcApp::pluginInstance), so MFC keeps owning the loop.
+	WBQt_Startup();
+#endif
 
 	// Parse command line for standard shell commands, DDE, file open
 //	CCommandLineInfo cmdInfo;
@@ -1377,6 +1388,12 @@ void CWorldBuilderApp::OnAppAbout()
 
 int CWorldBuilderApp::ExitInstance()
 {
+#ifdef RTS_HAS_QT
+	// Tear down Qt FIRST (it came up last). Must be explicit: the app's global dtor
+	// calls _exit(0) right after this returns, so static/atexit teardown never runs.
+	WBQt_Shutdown();
+#endif
+
 	RemoveDialogFontHook();
 
 	// Join and destroy the parallel worker pool before tearing down subsystems,

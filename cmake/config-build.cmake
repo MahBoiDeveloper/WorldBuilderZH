@@ -8,6 +8,11 @@ option(RTS_BUILD_OPTION_PROFILE "Build code with the \"Profile\" configuration."
 option(RTS_BUILD_OPTION_DEBUG "Build code with the \"Debug\" configuration." OFF)
 option(RTS_BUILD_OPTION_ASAN "Build code with Address Sanitizer." OFF)
 
+# Experimental: build WorldBuilder (Zero Hour) with an embedded Qt event loop that
+# coexists with MFC (Phase 1 of an incremental MFC -> Qt migration). OFF leaves the
+# normal MFC build completely unchanged. Requires a 32-bit Qt5 (-DCMAKE_PREFIX_PATH).
+option(RTS_ENABLE_WORLDBUILDER_QT "Build WorldBuilder with an embedded Qt event loop (experimental Phase 1 Qt migration)." OFF)
+
 if(NOT RTS_BUILD_ZEROHOUR AND NOT RTS_BUILD_GENERALS)
     set(RTS_BUILD_ZEROHOUR TRUE)
     message("You must select one project to build, building Zero Hour by default.")
@@ -21,6 +26,7 @@ add_feature_info(InternalBuild RTS_BUILD_OPTION_INTERNAL "Building as an \"Inter
 add_feature_info(ProfileBuild RTS_BUILD_OPTION_PROFILE "Building as a \"Profile\" build")
 add_feature_info(DebugBuild RTS_BUILD_OPTION_DEBUG "Building as a \"Debug\" build")
 add_feature_info(AddressSanitizer RTS_BUILD_OPTION_ASAN "Building with address sanitizer")
+add_feature_info(WorldBuilderQt RTS_ENABLE_WORLDBUILDER_QT "Building WorldBuilder with an embedded Qt event loop (experimental)")
 
 if(RTS_BUILD_ZEROHOUR)
     option(RTS_BUILD_ZEROHOUR_TOOLS "Build tools for Zero Hour" ON)
