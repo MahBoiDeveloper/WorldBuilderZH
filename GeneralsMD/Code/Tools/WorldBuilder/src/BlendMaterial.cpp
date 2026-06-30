@@ -322,6 +322,10 @@ void BlendMaterial::addTerrain(const char *pPath, Int terrainNdx, HTREEITEM pare
 //* Create the tree view of textures from the textures in pMap. */
 void BlendMaterial::updateTextures(void)
 {
+	if (m_terrainTreeView.GetSafeHwnd() == NULL)
+	{
+		return;	// tree view is intentionally disabled (see OnInitDialog) -- nothing to populate
+	}
 	m_updating = true;
 	m_terrainTreeView.DeleteAllItems();
 	Int i;

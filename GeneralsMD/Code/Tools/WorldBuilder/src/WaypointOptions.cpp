@@ -290,8 +290,17 @@ void WaypointOptions::updateTheUI(void)
 		pWaypointLocation->ShowWindow(SW_HIDE);
 		pWaypointY->ShowWindow(SW_HIDE);
 		pWaypointX->ShowWindow(SW_HIDE);
-		pCaption3->ShowWindow(SW_HIDE);
-		pCaption4->ShowWindow(SW_HIDE);
+		// pCaption3/pCaption4 come from GetDlgItem(65535)/GetDlgItem(65534), which are not
+		// real control IDs in this dialog, so GetDlgItem returns NULL.  Guard before hiding
+		// (selecting a trigger area was a NULL CWnd::ShowWindow crash).
+		if (pCaption3)
+		{
+			pCaption3->ShowWindow(SW_HIDE);
+		}
+		if (pCaption4)
+		{
+			pCaption4->ShowWindow(SW_HIDE);
+		}
 		pCaption5->ShowWindow(SW_HIDE);
 		pWaypointLabel1->ShowWindow(SW_HIDE);
 		pWaypointLabel2->ShowWindow(SW_HIDE);

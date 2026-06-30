@@ -591,23 +591,8 @@ BOOL TerrainMaterial::OnInitDialog()
 	ScreenToClient(&favRect);
 	favRect.DeflateRect(2, 2, 2, 2);
 
-	// Create the font for the treeview
-	m_treeFont.CreateFont(
-		14,
-		0,
-		0,
-		0,
-		FW_MEDIUM,
-		FALSE,
-		FALSE,
-		0,
-		ANSI_CHARSET,
-		OUT_DEFAULT_PRECIS,
-		CLIP_DEFAULT_PRECIS,
-		DEFAULT_QUALITY,
-		DEFAULT_PITCH | FF_SWISS,
-		_T("Segoe UI")
-	);
+	// Reuse the font already created above (m_treeFont); calling CreateFont a
+	// second time on the same CFont asserts (wingdi.cpp:1113, m_hObject != NULL).
 
 	// Create the TreeView
 	m_favTreeView.Create(
