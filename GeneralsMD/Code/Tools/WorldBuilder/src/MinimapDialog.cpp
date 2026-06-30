@@ -338,13 +338,24 @@ void MinimapDialog::requestRebuild(Bool terrainChanged)
 		return;
 
 	// Object change (no terrain resample needed): recomposite the cached terrain +
-	// objects. Cheap relative to a resample. An object edit may be a road edit (roads
-	// are MapObjects), so invalidate the terrain+roads cache -- only camera-only
-	// refreshes (requestViewBoxRefresh) keep it, which is where the savings matter.
+	// objects. An object edit may be a road edit (roads are MapObjects), so invalidate
+	// the terrain+roads cache -- only camera-only refreshes (requestViewBoxRefresh) keep
+	// it, which is where the savings matter.
+	//
+	// COALESCE through the throttle timer instead of recompositing synchronously here.
+	// Object invalidations arrive in BURSTS: band-selecting or moving many objects at
+	// once funnels one invalObject -> WbView3d::invalObjectInView -> requestRebuild(false)
+	// PER object. A synchronous recomposite per object -- including the expensive road
+	// re-rasterization, since m_roadsValid is cleared each time -- stalled the 3D viewport
+	// for the whole burst whenever the minimap was open (selecting 30+ objects locked the
+	// main window for ~a second). The one-shot timer just keeps resetting, so the whole
+	// burst collapses into a single recomposite once it settles. Use a one-frame (16ms)
+	// tick when auto-refresh is off so a lone object edit still shows promptly.
 	if (!terrainChanged && m_terrainValid)
 	{
-		m_roadsValid = false;
-		refreshObjects();
+		m_roadsValid     = false;
+		m_rebuildPending = true;
+		SetTimer(MINIMAP_REBUILD_TIMER, (UINT)(m_refreshDelayMs > 0 ? m_refreshDelayMs : 16), NULL);
 		return;
 	}
 
