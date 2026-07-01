@@ -166,6 +166,39 @@ public:
 	static void setPaintDensity(Int d);
 	// static void ReloadFavorites();
 
+#ifdef RTS_HAS_QT
+	// Qt Terrain Material panel support (WBQtTerrainMaterialBridge.cpp). These reach the
+	// favorites tree + width/height edits owned by the (hidden OFF-fallback) MFC dialog, and
+	// let the Qt panel refresh itself when the texture list is rebuilt. Guarded so the OFF
+	// build is byte-for-byte unchanged.
+public:
+	static void qtRefreshPanel(void);           ///< called from updateTextures to reseed the Qt tree
+	static int  qtIsSingleCell(void);           ///< 1 = single-tile tool (multi-only controls off)
+	static int  qtGetWidthEdit(void);           ///< read the IDC_SIZE_EDIT box the tools follow
+	static void qtSetWidthEdit(int width);      ///< write it through the same setWidth path
+	static int  qtGetHeightEdit(void);          ///< read the IDC_Z_EDIT box
+	static void qtSetHeightEdit(int height);    ///< write it through the same setHeight path
+	static int  qtGetFavoriteCount(void);
+	static bool qtGetFavorite(int index, char *nameOut, int cap, int *texClassOut);
+	static bool qtAddFavorite(int texClass, const char *label);  ///< false if it already exists
+	static void qtDeleteFavorite(int index);
+	static int  qtImportFavorites(void);        ///< returns the new favorite count
+	// Paint / copy / pathing setters: set the tool statics directly (same effect the MFC On*
+	// handlers have on the flags the tools read), so the Qt front-end need not touch the hidden
+	// dialog controls.
+	static void qtSetPaintingPathing(Bool on);
+	static void qtSetPassable(Bool passable);
+	static void qtSetPatternPaint(Bool on);
+	static void qtSetPaintMode(Int mode);
+	static void qtSetCopyTextureMode(Bool on);
+	static void qtSetCopyTerrainMode(Bool on);
+	static void qtSetRaiseOnly(Bool on);
+	static void qtSetCopySelectMode(void);
+	static void qtSetCopyApplyMode(void);
+	static void qtSetCopyRotation(Int degrees);
+#endif
+
+
 public:
 	Bool setTerrainTreeViewSelection(HTREEITEM parent, Int selection);
 

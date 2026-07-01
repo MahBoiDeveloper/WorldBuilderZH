@@ -290,6 +290,9 @@ void TerrainMaterial::setToolOptions(Bool singleCell, Bool floodfill)
 
 		m_staticThis->m_updating = false;
 	}
+#ifdef RTS_HAS_QT
+	qtRefreshPanel();	// keep the Qt panel enable-state in sync with single/multi tool
+#endif
 }
 
 void TerrainMaterial::updateLabel(void)
@@ -807,6 +810,9 @@ void TerrainMaterial::updateTextures(WorldHeightMapEdit *pMap)
 		m_staticThis->m_currentFgTexture = defaultMaterialIndex;
 		updateTextureSelection();
 	}
+#endif
+#ifdef RTS_HAS_QT
+	qtRefreshPanel();
 #endif
 }
 
@@ -1364,3 +1370,353 @@ void TerrainMaterial::OnToggleNoMixing()
 	BigTileTool::toggleNoMixing();
 }
 
+
+#ifdef RTS_HAS_QT
+//////////////////////////////////////////////////////////////////////////////
+// Qt Terrain Material panel support.
+//
+// Definitions for the qt* helpers declared (guarded) in TerrainMaterial.h. They reach the
+// favorites tree + width/height edit boxes owned by the (hidden OFF-fallback) MFC dialog, so
+// they live here rather than in the bridge TU. Guarded so the OFF build is unchanged.
+//////////////////////////////////////////////////////////////////////////////
+
+// The Qt panel defines this (extern "C") in WBQtTerrainMaterialPanel.cpp; forward-declared here
+// so we do not have to pull in the Qt panel header (which drags in Qt) from this MFC TU.
+extern "C" void WBQtTerrainMaterial_PushRefresh(void);
+
+void TerrainMaterial::qtRefreshPanel(void)
+{
+	WBQtTerrainMaterial_PushRefresh();
+}
+
+int TerrainMaterial::qtIsSingleCell(void)
+{
+	// m_lastTool is "tile" for the single-cell TileTool, "bigtile" for BigTileTool; when it
+	// has not been set yet, treat as multi (all controls enabled), matching the default panel.
+	if (m_staticThis == NULL)
+	{
+		return 0;
+	}
+	return (m_staticThis->m_lastTool == "tile") ? 1 : 0;
+}
+
+int TerrainMaterial::qtGetWidthEdit(void)
+{
+	if (m_staticThis == NULL)
+	{
+		return BigTileTool::getTileToolWidth();
+	}
+	CWnd *pEdit = m_staticThis->GetDlgItem(IDC_SIZE_EDIT);
+	if (pEdit)
+	{
+		char buffer[64];
+		pEdit->GetWindowText(buffer, sizeof(buffer));
+		Int width = m_staticThis->m_currentWidth;
+		sscanf(buffer, "%d", &width);
+		return width;
+	}
+	return m_staticThis->m_currentWidth;
+}
+
+void TerrainMaterial::qtSetWidthEdit(int width)
+{
+	// Route through the same edit box the tools read; OnChangeSizeEdit picks it up and drives
+	// BigTileTool, exactly as if the user typed into the MFC size edit.
+	if (m_staticThis == NULL)
+	{
+		BigTileTool::setWidth(width);
+		return;
+	}
+	CWnd *pEdit = m_staticThis->GetDlgItem(IDC_SIZE_EDIT);
+	if (pEdit)
+	{
+		CString s;
+		s.Format("%d", width);
+		pEdit->SetWindowText(s);
+	}
+	else
+	{
+		BigTileTool::setWidth(width);
+	}
+}
+
+int TerrainMaterial::qtGetHeightEdit(void)
+{
+	if (m_staticThis == NULL)
+	{
+		return 0;
+	}
+	CWnd *pEdit = m_staticThis->GetDlgItem(IDC_Z_EDIT);
+	if (pEdit)
+	{
+		char buffer[64];
+		pEdit->GetWindowText(buffer, sizeof(buffer));
+		Int height = m_staticThis->m_currentHeight;
+		sscanf(buffer, "%d", &height);
+		return height;
+	}
+	return m_staticThis->m_currentHeight;
+}
+
+void TerrainMaterial::qtSetHeightEdit(int height)
+{
+	if (m_staticThis == NULL)
+	{
+		BigTileTool::setHeight(height);
+		return;
+	}
+	CWnd *pEdit = m_staticThis->GetDlgItem(IDC_Z_EDIT);
+	if (pEdit)
+	{
+		CString s;
+		s.Format("%d", height);
+		pEdit->SetWindowText(s);
+	}
+	else
+	{
+		BigTileTool::setHeight(height);
+	}
+}
+
+int TerrainMaterial::qtGetFavoriteCount(void)
+{
+	if (m_staticThis == NULL)
+	{
+		return 0;
+	}
+	int count = 0;
+	HTREEITEM hItem = m_staticThis->m_favTreeView.GetRootItem();
+	while (hItem)
+	{
+		count++;
+		hItem = m_staticThis->m_favTreeView.GetNextSiblingItem(hItem);
+	}
+	return count;
+}
+
+bool TerrainMaterial::qtGetFavorite(int index, char *nameOut, int cap, int *texClassOut)
+{
+	if (m_staticThis == NULL || nameOut == NULL || cap <= 0)
+	{
+		return false;
+	}
+	int i = 0;
+	HTREEITEM hItem = m_staticThis->m_favTreeView.GetRootItem();
+	while (hItem)
+	{
+		if (i == index)
+		{
+			CString name = m_staticThis->m_favTreeView.GetItemText(hItem);
+			strncpy(nameOut, name, cap - 1);
+			nameOut[cap - 1] = 0;
+			if (texClassOut != NULL)
+			{
+				*texClassOut = (int)m_staticThis->m_favTreeView.GetItemData(hItem);
+			}
+			return true;
+		}
+		i++;
+		hItem = m_staticThis->m_favTreeView.GetNextSiblingItem(hItem);
+	}
+	return false;
+}
+
+bool TerrainMaterial::qtAddFavorite(int texClass, const char *label)
+{
+	// Mirrors OnSetFavorite: skip if an identical (name + class) favorite already exists, then
+	// insert and persist to the map-folder .ini.
+	if (m_staticThis == NULL || label == NULL)
+	{
+		return false;
+	}
+	CString itemText = label;
+	DWORD_PTR itemData = (DWORD_PTR)texClass;
+
+	HTREEITEM hItem = m_staticThis->m_favTreeView.GetRootItem();
+	while (hItem)
+	{
+		CString favText = m_staticThis->m_favTreeView.GetItemText(hItem);
+		DWORD_PTR favData = m_staticThis->m_favTreeView.GetItemData(hItem);
+		if (favText == itemText && favData == itemData)
+		{
+			::MessageBeep(MB_ICONEXCLAMATION);
+			return false;
+		}
+		hItem = m_staticThis->m_favTreeView.GetNextSiblingItem(hItem);
+	}
+
+	HTREEITEM hNewItem = m_staticThis->m_favTreeView.InsertItem(itemText);
+	m_staticThis->m_favTreeView.SetItemData(hNewItem, itemData);
+	m_staticThis->SaveFavoritesToMapFolder();
+	return true;
+}
+
+void TerrainMaterial::qtDeleteFavorite(int index)
+{
+	if (m_staticThis == NULL)
+	{
+		return;
+	}
+	int i = 0;
+	HTREEITEM hItem = m_staticThis->m_favTreeView.GetRootItem();
+	while (hItem)
+	{
+		if (i == index)
+		{
+			m_staticThis->m_favTreeView.DeleteItem(hItem);
+			m_staticThis->SaveFavoritesToMapFolder();
+			return;
+		}
+		i++;
+		hItem = m_staticThis->m_favTreeView.GetNextSiblingItem(hItem);
+	}
+}
+
+int TerrainMaterial::qtImportFavorites(void)
+{
+	// Mirrors OnImportFavoritesFromMapFolder's parse loop, minus the confirmation MessageBox
+	// (the Qt panel prompts before calling this).
+	if (m_staticThis == NULL)
+	{
+		return 0;
+	}
+	CWorldBuilderDoc *pDoc = CWorldBuilderDoc::GetActiveDoc();
+	if (!pDoc)
+	{
+		return qtGetFavoriteCount();
+	}
+	CString mapPath = pDoc->getMapPath();
+	if (mapPath.IsEmpty())
+	{
+		return qtGetFavoriteCount();
+	}
+
+	char folderPath[_MAX_PATH];
+	strncpy(folderPath, mapPath, _MAX_PATH - 1);
+	folderPath[_MAX_PATH - 1] = '\0';
+	char *lastSlash = strrchr(folderPath, '\\');
+	if (lastSlash)
+	{
+		*lastSlash = '\0';
+	}
+
+	CString iniPath;
+	iniPath.Format("%s\\texture_favorites.ini", folderPath);
+
+	for (int i = 0; i < 100; ++i)
+	{
+		CString key;
+		key.Format("Texture_%d", i);
+
+		char buffer[512] = { 0 };
+		::GetPrivateProfileString("FavoriteTextures", key, "", buffer, sizeof(buffer) - 1, iniPath);
+		if (strlen(buffer) == 0)
+		{
+			break;
+		}
+
+		char *sep = strchr(buffer, '|');
+		if (!sep)
+		{
+			continue;
+		}
+		*sep = '\0';
+		int textureId = atoi(buffer);
+		CString name = sep + 1;
+		if (textureId <= 0 || name.IsEmpty())
+		{
+			continue;
+		}
+
+		bool alreadyExists = false;
+		HTREEITEM hItem = m_staticThis->m_favTreeView.GetRootItem();
+		while (hItem)
+		{
+			CString existingName = m_staticThis->m_favTreeView.GetItemText(hItem);
+			DWORD_PTR existingId = m_staticThis->m_favTreeView.GetItemData(hItem);
+			if (existingId == (DWORD_PTR)textureId && existingName == name)
+			{
+				alreadyExists = true;
+				break;
+			}
+			hItem = m_staticThis->m_favTreeView.GetNextSiblingItem(hItem);
+		}
+		if (alreadyExists)
+		{
+			continue;
+		}
+
+		HTREEITEM hNewItem = m_staticThis->m_favTreeView.InsertItem(name);
+		if (hNewItem)
+		{
+			m_staticThis->m_favTreeView.SetItemData(hNewItem, textureId);
+		}
+	}
+	return qtGetFavoriteCount();
+}
+
+void TerrainMaterial::qtSetPaintingPathing(Bool on)
+{
+	m_paintingPathingInfo = on;
+	if (!on)
+	{
+		// Leaving pathing paint mode clears the copy flags too, matching OnPassableCheck.
+		m_onCopyApplyMode = false;
+		m_onCopySelectMode = false;
+		m_copyTerrainMode = false;
+		m_copyTextureMode = false;
+		m_raiseOnly = false;
+	}
+}
+
+void TerrainMaterial::qtSetPassable(Bool passable)
+{
+	m_paintingPassable = passable;
+}
+
+void TerrainMaterial::qtSetPatternPaint(Bool on)
+{
+	m_patternPaintMode = on;
+	// Refresh the brush feedback, matching OnTogglePaintMode's tail.
+	DrawObject::setBrushFeedbackParms(false,
+		m_staticThis ? m_staticThis->m_currentWidth : BigTileTool::getTileToolWidth(), 0);
+}
+
+void TerrainMaterial::qtSetPaintMode(Int mode)
+{
+	m_paintMode = mode;
+}
+
+void TerrainMaterial::qtSetCopyTextureMode(Bool on)
+{
+	m_copyTextureMode = on;
+}
+
+void TerrainMaterial::qtSetCopyTerrainMode(Bool on)
+{
+	m_copyTerrainMode = on;
+	DrawObject::m_terrainPasteFeedback = false;	// matches OnCopyModeTerrain
+}
+
+void TerrainMaterial::qtSetRaiseOnly(Bool on)
+{
+	m_raiseOnly = on;
+}
+
+void TerrainMaterial::qtSetCopySelectMode(void)
+{
+	m_onCopyApplyMode = false;
+	m_onCopySelectMode = true;
+}
+
+void TerrainMaterial::qtSetCopyApplyMode(void)
+{
+	m_onCopySelectMode = false;
+	m_onCopyApplyMode = true;
+}
+
+void TerrainMaterial::qtSetCopyRotation(Int degrees)
+{
+	m_copyRotation = degrees;
+}
+#endif
