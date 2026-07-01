@@ -59,6 +59,27 @@ int  WBQtBrush_GetMirrorX(void);
 int  WBQtBrush_GetMirrorY(void);
 int  WBQtBrush_GetMirrorXY(void);
 
+// --- Mound panel: forward push, tool -> Qt widget (implemented Qt-side) ------------------
+void WBQtMound_PushWidth(int v);
+void WBQtMound_PushFeather(int v);
+void WBQtMound_PushHeight(int v);
+
+// --- Mound panel: reverse, Qt widget -> tool (implemented MFC-side, WBQtMoundBridge) ------
+void WBQtMound_SetWidth(int v);
+void WBQtMound_SetFeather(int v);
+void WBQtMound_SetHeight(int v);
+void WBQtMound_ToggleMirror(void);
+void WBQtMound_ToggleMirrorX(void);
+void WBQtMound_ToggleMirrorY(void);
+void WBQtMound_ToggleMirrorXY(void);
+int  WBQtMound_GetWidth(void);
+int  WBQtMound_GetFeather(void);
+int  WBQtMound_GetHeight(void);
+int  WBQtMound_GetMirror(void);
+int  WBQtMound_GetMirrorX(void);
+int  WBQtMound_GetMirrorY(void);
+int  WBQtMound_GetMirrorXY(void);
+
 #ifdef __cplusplus
 }
 #endif

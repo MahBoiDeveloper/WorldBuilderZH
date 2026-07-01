@@ -64,6 +64,11 @@ public:
 	static void toggleMirrorX() { m_mirrorX = !m_mirrorX; }
 	static void toggleMirrorY() { m_mirrorY = !m_mirrorY; }
 	static void toggleMirrorXY() { m_mirrorDiag = !m_mirrorDiag; }
+
+	static Bool getEnableMirror(void) {return m_enableMirror;};
+	static Bool getMirrorX(void) {return m_mirrorX;};
+	static Bool getMirrorY(void) {return m_mirrorY;};
+	static Bool getMirrorXY(void) {return m_mirrorDiag;};
 	
 
 
