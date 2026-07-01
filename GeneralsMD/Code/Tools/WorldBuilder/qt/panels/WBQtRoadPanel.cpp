@@ -1,6 +1,7 @@
 // WBQtRoadPanel.cpp -- see WBQtRoadPanel.h.
 #include "WBQtRoadPanel.h"
 #include "WBQtRoadBridge.h"
+#include "WBQtTreeStyle.h"
 
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -40,25 +41,29 @@ WBQtRoadPanel::WBQtRoadPanel(QWidget *owner)
 	searchRow->addWidget(resetBtn);
 	root->addLayout(searchRow);
 
-	// The road/bridge tree.
+	// The road/bridge tree -- the primary control; give it a large minimum + all the slack so
+	// the boxes below don't squeeze it into a few rows.
 	m_tree = new QTreeWidget(this);
 	m_tree->setHeaderHidden(true);
 	m_tree->setColumnCount(1);
-	root->addWidget(m_tree, 1);
+	m_tree->setMinimumHeight(260);
+	m_tree->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+	WBQtTreeStyle::applyTreeLines(m_tree);
+	root->addWidget(m_tree, 3);
 
-	// Selected-road name + Apply.
-	m_nameLabel = new QLabel("Road", this);
-	root->addWidget(m_nameLabel);
-
-	QPushButton *applyBtn = new QPushButton("Apply Road", this);
-	root->addWidget(applyBtn);
+	// Current road type (the selected road name), matching the MFC "Current road type:" box.
+	QGroupBox *curBox = new QGroupBox("Current road type:", this);
+	QVBoxLayout *curLay = new QVBoxLayout(curBox);
+	m_nameLabel = new QLabel("Road", curBox);
+	curLay->addWidget(m_nameLabel);
+	root->addWidget(curBox);
 
 	// Corner-type radio group (Broad / Tight / Angled -- mutually exclusive like the MFC panel).
-	QGroupBox *cornerBox = new QGroupBox("Corner type", this);
+	QGroupBox *cornerBox = new QGroupBox("Corner Type:", this);
 	QVBoxLayout *cornerLay = new QVBoxLayout(cornerBox);
-	m_broad = new QRadioButton("Broad curve", cornerBox);
-	m_tight = new QRadioButton("Tight curve", cornerBox);
-	m_angled = new QRadioButton("Angled", cornerBox);
+	m_broad = new QRadioButton("Broad Curve", cornerBox);
+	m_tight = new QRadioButton("Tight Curve.", cornerBox);
+	m_angled = new QRadioButton("Angled.", cornerBox);
 	cornerLay->addWidget(m_broad);
 	cornerLay->addWidget(m_tight);
 	cornerLay->addWidget(m_angled);
@@ -69,21 +74,37 @@ WBQtRoadPanel::WBQtRoadPanel(QWidget *owner)
 	m_cornerGroup->setExclusive(true);
 	root->addWidget(cornerBox);
 
-	// Join checkbox.
-	m_join = new QCheckBox("Join to different road type", this);
+	// Join checkbox (matches the MFC IDC_JOIN label).
+	m_join = new QCheckBox("Add end cap and/or Join to different road.", this);
 	root->addWidget(m_join);
 
-	// Road snap distance.
-	QHBoxLayout *snapRow = new QHBoxLayout();
-	snapRow->addWidget(new QLabel("Snap distance:", this));
-	m_snap = new QDoubleSpinBox(this);
+	// Road Replacer: applies the current road type to the selected road points, flood-fill
+	// style. IDC_APPLY_ROAD in the MFC dialog.
+	QGroupBox *replacerBox = new QGroupBox("Road Replacer", this);
+	QVBoxLayout *replacerLay = new QVBoxLayout(replacerBox);
+	QLabel *replacerText = new QLabel(
+		"Updates only the selected road points (single or multiple), spreading to connected "
+		"segments like a flood fill.", replacerBox);
+	replacerText->setWordWrap(true);
+	replacerLay->addWidget(replacerText);
+	QPushButton *applyBtn = new QPushButton("Apply To Selection", replacerBox);
+	replacerLay->addWidget(applyBtn, 0, Qt::AlignRight);
+	root->addWidget(replacerBox);
+
+	// Tool Option: road snap distance.
+	QGroupBox *snapBox = new QGroupBox("Tool Option:", this);
+	QHBoxLayout *snapRow = new QHBoxLayout(snapBox);
+	snapRow->addWidget(new QLabel("Road Snap Distance:", snapBox));
+	m_snap = new QDoubleSpinBox(snapBox);
 	m_snap->setDecimals(2);
 	m_snap->setRange(0.2, 5.0);
 	m_snap->setSingleStep(0.1);
 	snapRow->addWidget(m_snap, 1);
-	root->addLayout(snapRow);
+	snapRow->addWidget(new QLabel("(Min: 0.0 - Max: 5.0)", snapBox));
+	root->addWidget(snapBox);
 
-	root->addStretch(1);
+	// No trailing stretch -- the tree (Expanding, stretch 3) takes all the vertical slack so
+	// there's no wasted space below the controls.
 
 	// Seed everything under the guard so nothing echoes back while we populate.
 	m_updating = true;

@@ -1,6 +1,7 @@
 // WBQtFencePanel.cpp -- see WBQtFencePanel.h.
 #include "WBQtFencePanel.h"
 #include "WBQtFenceBridge.h"
+#include "WBQtTreeStyle.h"
 
 #include <QCheckBox>
 #include <QDoubleSpinBox>
@@ -52,7 +53,10 @@ WBQtFencePanel::WBQtFencePanel(QWidget *owner)
 	m_tree = new QTreeWidget(this);
 	m_tree->setHeaderHidden(true);
 	m_tree->setColumnCount(1);
-	root->addWidget(m_tree, 1);
+	m_tree->setMinimumHeight(260);
+	m_tree->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+	WBQtTreeStyle::applyTreeLines(m_tree);
+	root->addWidget(m_tree, 3);
 
 	// Selected-object name + preview thumbnail.
 	m_nameLabel = new QLabel("No Selection", this);

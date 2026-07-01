@@ -1,6 +1,7 @@
 // WBQtTerrainMaterialPanel.cpp -- see WBQtTerrainMaterialPanel.h.
 #include "WBQtTerrainMaterialPanel.h"
 #include "WBQtTerrainMaterialBridge.h"
+#include "WBQtTreeStyle.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -55,6 +56,7 @@ WBQtTerrainMaterialPanel::WBQtTerrainMaterialPanel(QWidget *owner)
 	// so the many groups below can't squeeze it down to a few rows, and let it take the slack.
 	m_tree->setMinimumHeight(240);
 	m_tree->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+	WBQtTreeStyle::applyTreeLines(m_tree);
 	root->addWidget(m_tree, 3);
 
 	m_nameLabel = new QLabel("No Selection", this);
@@ -88,6 +90,7 @@ WBQtTerrainMaterialPanel::WBQtTerrainMaterialPanel(QWidget *owner)
 	m_favTree->setHeaderHidden(true);
 	m_favTree->setColumnCount(1);
 	m_favTree->setMaximumHeight(120);
+	WBQtTreeStyle::applyTreeLines(m_favTree);
 	favLay->addWidget(m_favTree);
 	QHBoxLayout *favBtnRow = new QHBoxLayout();
 	m_setFavBtn = new QPushButton("Set", favBox);

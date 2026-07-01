@@ -35,6 +35,8 @@ WBQtBuildListPanel::WBQtBuildListPanel(QWidget *owner)
 	QGroupBox *listBox = new QGroupBox("Build List", this);
 	QVBoxLayout *listLay = new QVBoxLayout(listBox);
 	m_buildList = new QListWidget(listBox);
+	m_buildList->setMinimumHeight(220);
+	m_buildList->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 	listLay->addWidget(m_buildList, 1);
 
 	// Move + edit buttons.
@@ -58,7 +60,7 @@ WBQtBuildListPanel::WBQtBuildListPanel(QWidget *owner)
 	ioRow->addStretch(1);
 	listLay->addLayout(ioRow);
 	listLay->addWidget(m_alreadyBuilt);
-	root->addWidget(listBox, 1);
+	root->addWidget(listBox, 3);
 
 	// Per-building attributes.
 	QGroupBox *attrBox = new QGroupBox("Selected Building", this);

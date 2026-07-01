@@ -1,6 +1,7 @@
 // WBQtScriptWindow.cpp -- see WBQtScriptWindow.h.
 #include "WBQtScriptWindow.h"
 #include "WBQtPanelBridge.h"
+#include "WBQtTreeStyle.h"
 
 #include <QApplication>
 #include <QBrush>
@@ -121,6 +122,7 @@ WBQtScriptWindow::WBQtScriptWindow(QWidget *owner)
 	m_tree->setDragDropMode(QAbstractItemView::InternalMove);
 	m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
 	m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
+	WBQtTreeStyle::applyTreeLines(m_tree);
 	split->addWidget(m_tree);
 
 	QWidget *detailPane = new QWidget(split);

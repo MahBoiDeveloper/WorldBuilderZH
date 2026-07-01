@@ -58,6 +58,8 @@ WBQtMeshMoldPanel::WBQtMeshMoldPanel(QWidget *owner)
 	QGroupBox *moldBox = new QGroupBox("Mold Models", this);
 	QVBoxLayout *moldLay = new QVBoxLayout(moldBox);
 	m_moldList = new QListWidget(moldBox);
+	m_moldList->setMinimumHeight(240);
+	m_moldList->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 	moldLay->addWidget(m_moldList, 1);
 
 	QHBoxLayout *moldBtnRow = new QHBoxLayout();
@@ -66,7 +68,7 @@ WBQtMeshMoldPanel::WBQtMeshMoldPanel(QWidget *owner)
 	moldBtnRow->addWidget(openFolderBtn);
 	moldBtnRow->addWidget(openLinkBtn);
 	moldLay->addLayout(moldBtnRow);
-	root->addWidget(moldBox, 1);
+	root->addWidget(moldBox, 3);
 
 	// Developer Note: the informational text the MFC dialog shows (the custom-mold blurb and
 	// the shift-drag height hint). Wrapping labels so the text isn't clipped.

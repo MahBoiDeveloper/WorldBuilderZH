@@ -302,6 +302,8 @@ if(RTS_ENABLE_WORLDBUILDER_QT)
         "qt/WBQtBridge.h"
         "qt/WBQtTheme.cpp"
         "qt/WBQtTheme.h"
+        "qt/WBQtTreeStyle.cpp"
+        "qt/WBQtTreeStyle.h"
         "qt/WBQtTestWindow.cpp"
         "qt/WBQtTestWindow.h"
         "qt/WBQtPanelBridge.h"
