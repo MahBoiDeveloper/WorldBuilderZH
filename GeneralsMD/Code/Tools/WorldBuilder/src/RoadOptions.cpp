@@ -33,6 +33,10 @@
 
 #include <list>
 
+#ifdef RTS_HAS_QT
+#include "qt/panels/WBQtRoadBridge.h"
+#endif
+
 RoadOptions *RoadOptions::m_staticThis = NULL;
 Bool RoadOptions::m_updating = false;
 AsciiString RoadOptions::m_currentRoadName;
@@ -212,6 +216,11 @@ void RoadOptions::updateSelection(void)
 		pButton = (CButton *)m_staticThis->GetDlgItem(IDC_JOIN);
 		pButton->SetCheck(join);
 	}
+#ifdef RTS_HAS_QT
+	// Keep the Qt Road panel (the RTS_HAS_QT front-end) in step: it re-reads the selection
+	// state through the bridge whenever the MFC selection path runs.
+	WBQtRoad_PushRefresh();
+#endif
 }
 
 /** Applies road corner flags and road type to selection. */
@@ -803,3 +812,221 @@ void RoadOptions::ExpandAllItems(CTreeCtrl& treeCtrl, HTREEITEM hItem)
         hItem = treeCtrl.GetNextSiblingItem(hItem);
     }
 }
+
+#ifdef RTS_HAS_QT
+//----------------------------------------------------------------------------------------
+// RoadOptions Qt-support statics (declared in RoadOptions.h; defined here so the Qt Road
+// panel can mirror the road-type selection statics and fire the same command handlers
+// without churning the MFC message map). See qt/panels/WBQtRoadBridge.h for the contract.
+//----------------------------------------------------------------------------------------
+int RoadOptions::qtGetCurrentIndex(void)
+{
+	return m_currentRoadIndex;
+}
+
+void RoadOptions::qtSelectIndex(int index, const char *name)
+{
+	// Mirrors the MFC TVN_SELCHANGED leaf branch: record the current road-type index + name.
+	m_currentRoadIndex = index;
+	if (name != NULL)
+	{
+		m_currentRoadName = name;
+	}
+	if (m_staticThis)
+	{
+		m_staticThis->updateLabel();
+	}
+}
+
+int RoadOptions::qtGetCurrentName(char *nameOut, int cap)
+{
+	if (nameOut == NULL || cap <= 0)
+	{
+		return 0;
+	}
+	const char *src = m_currentRoadName.str();
+	strncpy(nameOut, src, cap - 1);
+	nameOut[cap - 1] = 0;
+	return 1;
+}
+
+int RoadOptions::qtGetCornerType(void)
+{
+	if (m_angleCorners)
+	{
+		return WBQT_ROAD_CORNER_ANGLED;
+	}
+	if (m_tightCurve)
+	{
+		return WBQT_ROAD_CORNER_TIGHT;
+	}
+	return WBQT_ROAD_CORNER_BROAD;
+}
+
+void RoadOptions::qtSetCornerType(int cornerType)
+{
+	// Mirrors OnBroadCurve / OnTightCurve / OnAngled: set the sticky corner flags, then apply
+	// the flags to the current road selection.
+	if (cornerType == WBQT_ROAD_CORNER_ANGLED)
+	{
+		m_angleCorners = true;
+		m_tightCurve = false;
+	}
+	else if (cornerType == WBQT_ROAD_CORNER_TIGHT)
+	{
+		m_angleCorners = false;
+		m_tightCurve = true;
+	}
+	else
+	{
+		m_angleCorners = false;
+		m_tightCurve = false;
+	}
+	if (m_staticThis)
+	{
+		m_staticThis->applyToSelection();
+	}
+}
+
+int RoadOptions::qtGetJoin(void)
+{
+	return m_doJoin ? 1 : 0;
+}
+
+void RoadOptions::qtSetJoin(int on)
+{
+	// Mirrors OnJoin, but takes the toggle state directly instead of reading the MFC checkbox.
+	m_doJoin = (on != 0);
+	Int flagMask = FLAG_ROAD_JOIN;
+	Int flagVal = 0;
+	if (m_doJoin)
+	{
+		flagVal = FLAG_ROAD_JOIN;
+	}
+	CWorldBuilderDoc* pDoc = CWorldBuilderDoc::GetActiveDoc();
+	if (pDoc)
+	{
+		ModifyFlagsUndoable *pUndo = new ModifyFlagsUndoable(pDoc, flagMask, flagVal);
+		pDoc->AddAndDoUndoable(pUndo);
+		REF_PTR_RELEASE(pUndo); // belongs to pDoc now.
+	}
+}
+
+void RoadOptions::qtApplyRoadType(void)
+{
+	// Mirrors OnApplyRoad -> ChangeRoadType(m_currentRoadName).
+	if (m_staticThis && m_currentRoadName != AsciiString::TheEmptyString)
+	{
+		m_staticThis->ChangeRoadType(m_currentRoadName);
+	}
+}
+
+void RoadOptions::qtGetSelectionState(int *cornerTypeOut, int *joinOut, int *mixedOut, char *roadNameOut, int cap)
+{
+	// Replicates the corner/join/name computation in updateSelection() without touching any MFC
+	// controls, so the Qt panel can show the right checkbox states for the current road selection.
+	Int angled = 0;
+	Int tight = 0;
+	Int broad = 0;
+	Int join = 0;
+	AsciiString roadName;
+	Bool multipleNames = false;
+
+	MapObject *pMapObj;
+	for (pMapObj = MapObject::getFirstMapObject(); pMapObj; pMapObj = pMapObj->getNext())
+	{
+		if (pMapObj->isSelected() && pMapObj->getFlag(FLAG_ROAD_FLAGS))
+		{
+			if (roadName.isEmpty())
+			{
+				roadName = pMapObj->getName();
+			}
+			else
+			{
+				if (!(roadName==pMapObj->getName()))
+				{
+					multipleNames = true;
+				}
+			}
+			if (pMapObj->getFlag(FLAG_ROAD_CORNER_ANGLED))
+			{
+				angled = 1;
+			}
+			else if (pMapObj->getFlag(FLAG_ROAD_CORNER_TIGHT))
+			{
+				tight = 1;
+			}
+			else
+			{
+				broad = 1;
+			}
+			if (pMapObj->getFlag(FLAG_ROAD_JOIN))
+			{
+				join = 1;
+			}
+		}
+	}
+
+	Int mixed = 0;
+	if (angled+broad+tight==0)
+	{
+		// nothing selected -- fall back to the sticky corner/join state.
+		if (m_angleCorners)
+		{
+			angled = 1;
+		}
+		else if (m_tightCurve)
+		{
+			tight = 1;
+		}
+		else
+		{
+			broad = 1;
+		}
+		if (m_doJoin)
+		{
+			join = 1;
+		}
+	}
+	else if (angled+broad+tight==1)
+	{
+		// One type selected.
+	}
+	else
+	{
+		// Mixed selection: the MFC path clears all checks.
+		angled = tight = broad = join = 0;
+		mixed = 1;
+	}
+
+	if (cornerTypeOut != NULL)
+	{
+		if (angled)
+		{
+			*cornerTypeOut = WBQT_ROAD_CORNER_ANGLED;
+		}
+		else if (tight)
+		{
+			*cornerTypeOut = WBQT_ROAD_CORNER_TIGHT;
+		}
+		else
+		{
+			*cornerTypeOut = WBQT_ROAD_CORNER_BROAD;
+		}
+	}
+	if (joinOut != NULL)
+	{
+		*joinOut = join;
+	}
+	if (mixedOut != NULL)
+	{
+		*mixedOut = mixed;
+	}
+	if (roadNameOut != NULL && cap > 0)
+	{
+		const char *src = (!roadName.isEmpty() && !multipleNames) ? roadName.str() : "";
+		strncpy(roadNameOut, src, cap - 1);
+		roadNameOut[cap - 1] = 0;
+	}
+}
+#endif

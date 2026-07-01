@@ -110,6 +110,21 @@ public:
 	static void updateSelection(void);
 	static Bool selectionIsRoadsOnly(void);
 	void applyToSelection(void);
+#ifdef RTS_HAS_QT
+	// Qt panel support (WBQtRoadBridge): let the Qt Road panel mirror the road/bridge list
+	// (from TheTerrainRoads), drive the selection statics (m_currentRoadIndex /
+	// m_currentRoadName), and fire the same command handlers RoadTool + the apply path read.
+	// Defined in src/WBQtRoadBridge.cpp; member statics so they can reach the private state.
+	static int qtGetCurrentIndex(void);
+	static void qtSelectIndex(int index, const char *name);
+	static int qtGetCurrentName(char *nameOut, int cap);
+	static int qtGetCornerType(void);
+	static void qtSetCornerType(int cornerType);
+	static int qtGetJoin(void);
+	static void qtSetJoin(int on);
+	static void qtApplyRoadType(void);
+	static void qtGetSelectionState(int *cornerTypeOut, int *joinOut, int *mixedOut, char *roadNameOut, int cap);
+#endif
 }; 
 
 //{{AFX_INSERT_LOCATION}}
