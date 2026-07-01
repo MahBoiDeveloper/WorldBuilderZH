@@ -39,6 +39,9 @@
 
 #include "GameLogic/Module/UpgradeModule.h"
 #include "GameLogic/Module/GenerateMinefieldBehavior.h"
+#ifdef RTS_HAS_QT
+#include "qt/panels/WBQtObjectPropsBridge.h"
+#endif
 
 const char* NEUTRAL_TEAM_UI_STR = "(neutral)";
 const char* NEUTRAL_TEAM_INTERNAL_STR = "team";
@@ -1686,6 +1689,9 @@ void MapObjectProps::updateTheUI(void)
 		// simply break after the first one that's selected
 		break;
 	}
+#ifdef RTS_HAS_QT
+	WBQtObjectProps_PushRefresh();
+#endif
 }
 
 /// Move *all* data from object to dialog controls
@@ -3150,3 +3156,131 @@ void MapObjectProps::OnKillfocusMAPOBJECTXYPosition()
   SetPosition();
 }
 
+
+#ifdef RTS_HAS_QT
+//----------------------------------------------------------------------------------------
+// Qt front-end support (Phase 1: selection + General name/team). The MFC panel stays the
+// singleton (TheMapObjectProps); setters write the hidden MFC control then call the real
+// _XToDict handler so the DictItemUndoable / multi-select path is reused unchanged.
+//----------------------------------------------------------------------------------------
+namespace {
+	void qtCopyStr(char *out, int cap, const char *src)
+	{
+		if (out == NULL || cap <= 0) { return; }
+		if (src == NULL) { out[0] = 0; return; }
+		strncpy(out, src, cap - 1);
+		out[cap - 1] = 0;
+	}
+}
+
+int MapObjectProps::qtHasSelection(void)
+{
+	return (getSingleSelectedObject() != NULL) ? 1 : 0;
+}
+
+int MapObjectProps::qtGetSelCount(void)
+{
+	int n = 0;
+	for (MapObject *pMapObj = MapObject::getFirstMapObject(); pMapObj; pMapObj = pMapObj->getNext())
+	{
+		if (pMapObj->isSelected() && !pMapObj->isWaypoint() && !pMapObj->isLight())
+		{
+			n++;
+		}
+	}
+	return n;
+}
+
+int MapObjectProps::qtGetName(char *out, int cap)
+{
+	if (TheMapObjectProps == NULL || TheMapObjectProps->m_dictToEdit == NULL)
+	{
+		qtCopyStr(out, cap, "");
+		return 0;
+	}
+	Bool exists;
+	AsciiString name = TheMapObjectProps->m_dictToEdit->getAsciiString(TheKey_objectName, &exists);
+	qtCopyStr(out, cap, name.str());
+	return 1;
+}
+
+void MapObjectProps::qtSetName(const char *name)
+{
+	if (TheMapObjectProps == NULL)
+	{
+		return;
+	}
+	CWnd *pEdit = TheMapObjectProps->GetDlgItem(IDC_MAPOBJECT_Name);
+	if (pEdit != NULL)
+	{
+		pEdit->SetWindowText(name ? name : "");
+	}
+	TheMapObjectProps->_NameToDict();
+}
+
+int MapObjectProps::qtGetTeamCount(void)
+{
+	return TheSidesList ? TheSidesList->getNumTeams() : 0;
+}
+
+int MapObjectProps::qtGetTeamName(int i, char *out, int cap)
+{
+	if (i < 0 || i >= TheSidesList->getNumTeams())
+	{
+		return 0;
+	}
+	AsciiString name = TheSidesList->getTeamInfo(i)->getDict()->getAsciiString(TheKey_teamName);
+	if (name == NEUTRAL_TEAM_INTERNAL_STR)
+	{
+		name = NEUTRAL_TEAM_UI_STR;
+	}
+	qtCopyStr(out, cap, name.str());
+	return 1;
+}
+
+int MapObjectProps::qtGetCurTeam(void)
+{
+	if (TheMapObjectProps == NULL || TheMapObjectProps->m_dictToEdit == NULL)
+	{
+		return -1;
+	}
+	AsciiString cur = TheMapObjectProps->m_dictToEdit->getAsciiString(TheKey_originalOwner);
+	for (int i = 0; i < TheSidesList->getNumTeams(); i++)
+	{
+		if (TheSidesList->getTeamInfo(i)->getDict()->getAsciiString(TheKey_teamName) == cur)
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+void MapObjectProps::qtSetTeam(int i)
+{
+	if (TheMapObjectProps == NULL || i < 0 || i >= TheSidesList->getNumTeams())
+	{
+		return;
+	}
+	// Set the hidden MFC combo text to the chosen team, then let _TeamToDict read it back
+	// (it maps the neutral UI string to the internal one and builds the undoable).
+	AsciiString name = TheSidesList->getTeamInfo(i)->getDict()->getAsciiString(TheKey_teamName);
+	if (name == NEUTRAL_TEAM_INTERNAL_STR)
+	{
+		name = NEUTRAL_TEAM_UI_STR;
+	}
+	CComboBox *pCombo = (CComboBox *)TheMapObjectProps->GetDlgItem(IDC_MAPOBJECT_Team);
+	if (pCombo != NULL)
+	{
+		int sel = pCombo->FindStringExact(-1, name.str());
+		if (sel >= 0)
+		{
+			pCombo->SetCurSel(sel);
+		}
+		else
+		{
+			pCombo->SetWindowText(name.str());
+		}
+	}
+	TheMapObjectProps->_TeamToDict();
+}
+#endif

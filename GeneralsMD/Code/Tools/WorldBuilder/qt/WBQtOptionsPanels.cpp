@@ -26,6 +26,7 @@
 #include "panels/WBQtGrovePanel.h"
 #include "panels/WBQtScorchPanel.h"
 #include "panels/WBQtMeshMoldPanel.h"
+#include "panels/WBQtObjectPropsPanel.h"
 #include "resource.h"
 
 #include <QApplication>
@@ -63,6 +64,7 @@ static QWidget *wbQtPanelFor(int dialogID, QWidget *owner)
 	static WBQtGrovePanel           *grovePanel = NULL;
 	static WBQtScorchPanel          *scorchPanel = NULL;
 	static WBQtMeshMoldPanel        *meshMoldPanel = NULL;
+	static WBQtObjectPropsPanel     *objectPropsPanel = NULL;
 
 	switch (dialogID)
 	{
@@ -177,6 +179,13 @@ static QWidget *wbQtPanelFor(int dialogID, QWidget *owner)
 				meshMoldPanel = new WBQtMeshMoldPanel(owner);
 			}
 			return meshMoldPanel;
+
+		case IDD_MAPOBJECT_PROPS:
+			if (objectPropsPanel == NULL)
+			{
+				objectPropsPanel = new WBQtObjectPropsPanel(owner);
+			}
+			return objectPropsPanel;
 
 		default:
 			return NULL;

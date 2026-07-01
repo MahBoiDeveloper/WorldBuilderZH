@@ -117,6 +117,7 @@ set(WORLDBUILDER_SRC
     "src/WBQtGroveBridge.cpp"
     "src/WBQtScorchBridge.cpp"
     "src/WBQtMeshMoldBridge.cpp"
+    "src/WBQtObjectPropsBridge.cpp"
     "src/wbview.cpp"
     "src/wbview3d.cpp"
     "src/WHeightMapEdit.cpp"
@@ -338,7 +339,9 @@ if(RTS_ENABLE_WORLDBUILDER_QT)
         "qt/panels/WBQtScorchPanel.cpp"
         "qt/panels/WBQtScorchPanel.h"
         "qt/panels/WBQtMeshMoldPanel.cpp"
-        "qt/panels/WBQtMeshMoldPanel.h")
+        "qt/panels/WBQtMeshMoldPanel.h"
+        "qt/panels/WBQtObjectPropsPanel.cpp"
+        "qt/panels/WBQtObjectPropsPanel.h")
 
     set_target_properties(z_worldbuilder_qt PROPERTIES AUTOMOC ON)
 

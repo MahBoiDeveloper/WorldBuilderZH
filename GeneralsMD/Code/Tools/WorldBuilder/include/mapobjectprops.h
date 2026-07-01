@@ -208,6 +208,21 @@ protected:
 public:
 	static MapObject *getSingleSelectedObject(void);
 	static void update(void);
+
+#ifdef RTS_HAS_QT
+	// Qt front-end support (WBQtObjectPropsBridge). The MFC panel stays created + hidden
+	// (TheMapObjectProps intact) so update()/getSingleSelectedObject keep working; the Qt
+	// panel reads the selected object's props + drives the same _XToDict handlers. Defined
+	// in mapobjectprops.cpp. Phase 1: selection + General (name/team).
+	static int  qtHasSelection(void);
+	static int  qtGetSelCount(void);
+	static int  qtGetName(char *out, int cap);
+	static void qtSetName(const char *name);
+	static int  qtGetTeamCount(void);
+	static int  qtGetTeamName(int i, char *out, int cap);
+	static int  qtGetCurTeam(void);
+	static void qtSetTeam(int i);
+#endif
   
 private:
   /// Disallow copying: Object is not set up to be copied
