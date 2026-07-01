@@ -38,6 +38,45 @@ int  WBQtObjectProps_GetTeamName(int i, char *out, int cap);
 int  WBQtObjectProps_GetCurTeam(void);
 void WBQtObjectProps_SetTeam(int i);
 
+// --- Phase 2: Logical section (flags, aggressiveness, veterancy, health, HPs, distances) ----
+// Flag ids for Get/SetFlag. Selectable is tri-state (0 off / 1 on / 2 default -- the MFC panel's
+// third state removes the key). Keep in sync with the enum in mapobjectprops.cpp.
+enum {
+	WBQT_OBJPROP_FLAG_ENABLED = 0,
+	WBQT_OBJPROP_FLAG_INDESTRUCTIBLE,
+	WBQT_OBJPROP_FLAG_UNSELLABLE,
+	WBQT_OBJPROP_FLAG_TARGETABLE,
+	WBQT_OBJPROP_FLAG_POWERED,
+	WBQT_OBJPROP_FLAG_RECRUITABLEAI,
+	WBQT_OBJPROP_FLAG_SELECTABLE
+};
+int  WBQtObjectProps_GetFlag(int which);
+void WBQtObjectProps_SetFlag(int which, int state);
+
+// Aggressiveness: value is -2 Sleep, -1 Passive, 0 Normal, 1 Alert, 2 Aggressive.
+int  WBQtObjectProps_GetAggressiveness(void);
+void WBQtObjectProps_SetAggressiveness(int value);
+
+// Veterancy: combo index 0..3 (Regular / Veteran / Elite / Heroic).
+int  WBQtObjectProps_GetVeterancy(void);
+void WBQtObjectProps_SetVeterancy(int index);
+
+// Starting health as a percent int (0/25/50/75/100, or any other value via the Other edit box).
+int  WBQtObjectProps_GetHealthPercent(void);
+void WBQtObjectProps_SetHealthPercent(int value);
+
+// Max hit points: -1 == "Default For Unit", otherwise the explicit value.
+int  WBQtObjectProps_GetMaxHPs(void);
+void WBQtObjectProps_SetMaxHPs(int hps);
+
+// Distances. Vision + shroud are ints (0 == unset/blank); stopping distance is a real.
+int    WBQtObjectProps_GetVisionDistance(void);
+void   WBQtObjectProps_SetVisionDistance(int dist);
+int    WBQtObjectProps_GetShroudClearingDistance(void);
+void   WBQtObjectProps_SetShroudClearingDistance(int dist);
+double WBQtObjectProps_GetStoppingDistance(void);
+void   WBQtObjectProps_SetStoppingDistance(double dist);
+
 // --- Forward: MFC dialog -> Qt widget (implemented Qt-side, WBQtObjectPropsBridge.cpp) ------
 // MapObjectProps::updateTheUI() calls this after re-seeding its controls from the new selection;
 // it re-reads the panel from the Get* funcs above (no-op when the Qt panel isn't open).

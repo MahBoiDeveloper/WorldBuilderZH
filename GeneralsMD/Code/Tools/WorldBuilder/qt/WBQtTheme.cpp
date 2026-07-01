@@ -77,6 +77,23 @@ namespace
 		return p;
 	}
 
+	// A visible etched frame around every QGroupBox, so the migrated panels read as the boxed
+	// MFC sections (General / Logical / Distance / ...) instead of the near-borderless Fusion
+	// default. The border colour is pulled from the active palette so it tracks dark/light, and
+	// the title is notched into the top-left of the frame like the Win32 GROUPBOX.
+	const char *const WB_GROUPBOX_QSS =
+		"QGroupBox {"
+		" border: 1px solid palette(mid);"
+		" border-radius: 3px;"
+		" margin-top: 7px;"
+		"}"
+		"QGroupBox::title {"
+		" subcontrol-origin: margin;"
+		" subcontrol-position: top left;"
+		" left: 8px;"
+		" padding: 0 3px;"
+		"}";
+
 	// Push the current theme onto the QApplication and re-title-bar every open
 	// top-level Qt window. New windows are handled by DarkTitleBarFilter below.
 	void applyCurrentTheme()
@@ -95,6 +112,9 @@ namespace
 			}
 			qApp->setPalette(s_defaultPalette);
 		}
+
+		// Re-apply after the style change (setStyle clears the app stylesheet on some styles).
+		qApp->setStyleSheet(WB_GROUPBOX_QSS);
 
 		const QWidgetList tops = qApp->topLevelWidgets();
 		for (int i = 0; i < tops.size(); ++i)

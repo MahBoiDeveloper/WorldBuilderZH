@@ -3283,4 +3283,346 @@ void MapObjectProps::qtSetTeam(int i)
 	}
 	TheMapObjectProps->_TeamToDict();
 }
+
+//----------------------------------------------------------------------------------------
+// Phase 2: Logical section (flags, aggressiveness, veterancy, starting health, hit points,
+// vision / shroud / stopping distances). Each setter writes the hidden MFC control's state
+// then calls the real _XToDict handler so the DictItemUndoable / multi-select path is reused.
+//----------------------------------------------------------------------------------------
+
+// Flag ids -- keep in sync with the WBQT_OBJPROP_FLAG_* enum in WBQtObjectPropsBridge.h.
+enum
+{
+	QT_FLAG_ENABLED = 0,
+	QT_FLAG_INDESTRUCTIBLE,
+	QT_FLAG_UNSELLABLE,
+	QT_FLAG_TARGETABLE,
+	QT_FLAG_POWERED,
+	QT_FLAG_RECRUITABLEAI,
+	QT_FLAG_SELECTABLE
+};
+
+namespace
+{
+	// Map a flag id to its dialog control id. Returns 0 for an unknown id.
+	int qtFlagControlId(int which)
+	{
+		switch (which)
+		{
+			case QT_FLAG_ENABLED:        return IDC_MAPOBJECT_Enabled;
+			case QT_FLAG_INDESTRUCTIBLE: return IDC_MAPOBJECT_Indestructible;
+			case QT_FLAG_UNSELLABLE:     return IDC_MAPOBJECT_Unsellable;
+			case QT_FLAG_TARGETABLE:     return IDC_MAPOBJECT_Targetable;
+			case QT_FLAG_POWERED:        return IDC_MAPOBJECT_Powered;
+			case QT_FLAG_RECRUITABLEAI:  return IDC_MAPOBJECT_RecruitableAI;
+			case QT_FLAG_SELECTABLE:     return IDC_MAPOBJECT_Selectable;
+			default: return 0;
+		}
+	}
+}
+
+int MapObjectProps::qtGetFlag(int which)
+{
+	if (TheMapObjectProps == NULL)
+	{
+		return 0;
+	}
+	int id = qtFlagControlId(which);
+	if (id == 0)
+	{
+		return 0;
+	}
+	CButton *pButton = (CButton *)TheMapObjectProps->GetDlgItem(id);
+	if (pButton == NULL)
+	{
+		return 0;
+	}
+	// GetCheck() returns 0/1, or 2 for the Selectable box's tri-state 'default' value.
+	return pButton->GetCheck();
+}
+
+void MapObjectProps::qtSetFlag(int which, int state)
+{
+	if (TheMapObjectProps == NULL)
+	{
+		return;
+	}
+	int id = qtFlagControlId(which);
+	if (id == 0)
+	{
+		return;
+	}
+	CButton *pButton = (CButton *)TheMapObjectProps->GetDlgItem(id);
+	if (pButton != NULL)
+	{
+		pButton->SetCheck(state);
+	}
+	switch (which)
+	{
+		case QT_FLAG_ENABLED:        TheMapObjectProps->_EnabledToDict();        break;
+		case QT_FLAG_INDESTRUCTIBLE: TheMapObjectProps->_IndestructibleToDict(); break;
+		case QT_FLAG_UNSELLABLE:     TheMapObjectProps->_UnsellableToDict();     break;
+		case QT_FLAG_TARGETABLE:     TheMapObjectProps->_TargetableToDict();     break;
+		case QT_FLAG_POWERED:        TheMapObjectProps->_PoweredToDict();        break;
+		case QT_FLAG_RECRUITABLEAI:  TheMapObjectProps->_RecruitableAIToDict();  break;
+		case QT_FLAG_SELECTABLE:     TheMapObjectProps->_SelectableToDict();     break;
+		default: break;
+	}
+}
+
+int MapObjectProps::qtGetAggressiveness(void)
+{
+	if (TheMapObjectProps == NULL || TheMapObjectProps->m_dictToEdit == NULL)
+	{
+		return 0;
+	}
+	Bool exists;
+	return TheMapObjectProps->m_dictToEdit->getInt(TheKey_objectAggressiveness, &exists);
+}
+
+void MapObjectProps::qtSetAggressiveness(int value)
+{
+	if (TheMapObjectProps == NULL)
+	{
+		return;
+	}
+	// _AggressivenessToDict reads the combo's text, so select the matching string first.
+	const char *label = "Normal";
+	switch (value)
+	{
+		case -2: label = "Sleep";      break;
+		case -1: label = "Passive";    break;
+		case  0: label = "Normal";     break;
+		case  1: label = "Alert";      break;
+		case  2: label = "Aggressive"; break;
+		default: label = "Normal";     break;
+	}
+	CComboBox *pCombo = (CComboBox *)TheMapObjectProps->GetDlgItem(IDC_MAPOBJECT_Aggressiveness);
+	if (pCombo != NULL)
+	{
+		pCombo->SelectString(-1, label);
+	}
+	TheMapObjectProps->_AggressivenessToDict();
+}
+
+int MapObjectProps::qtGetVeterancy(void)
+{
+	if (TheMapObjectProps == NULL || TheMapObjectProps->m_dictToEdit == NULL)
+	{
+		return 0;
+	}
+	Bool exists;
+	return TheMapObjectProps->m_dictToEdit->getInt(TheKey_objectVeterancy, &exists);
+}
+
+void MapObjectProps::qtSetVeterancy(int index)
+{
+	if (TheMapObjectProps == NULL)
+	{
+		return;
+	}
+	CComboBox *pCombo = (CComboBox *)TheMapObjectProps->GetDlgItem(IDC_MAPOBJECT_Veterancy);
+	if (pCombo != NULL && index >= 0)
+	{
+		pCombo->SetCurSel(index);
+	}
+	TheMapObjectProps->_VeterancyToDict();
+}
+
+int MapObjectProps::qtGetHealthPercent(void)
+{
+	if (TheMapObjectProps == NULL || TheMapObjectProps->m_dictToEdit == NULL)
+	{
+		return 100;
+	}
+	Bool exists;
+	Int v = TheMapObjectProps->m_dictToEdit->getInt(TheKey_objectInitialHealth, &exists);
+	if (!exists)
+	{
+		return 100;
+	}
+	return v;
+}
+
+void MapObjectProps::qtSetHealthPercent(int value)
+{
+	if (TheMapObjectProps == NULL)
+	{
+		return;
+	}
+	// _HealthToDict reads the combo text (Dead/25%/50%/75%/100%/Other) and, for Other, the edit
+	// box. Drive both so any value round-trips exactly like the MFC panel: 0 is the "Dead" item.
+	CComboBox *pCombo = (CComboBox *)TheMapObjectProps->GetDlgItem(IDC_MAPOBJECT_StartingHealth);
+	CWnd *pEdit = TheMapObjectProps->GetDlgItem(IDC_MAPOBJECT_StartingHealthEdit);
+	if (pCombo == NULL)
+	{
+		return;
+	}
+	if (value == 0 || value == 25 || value == 50 || value == 75 || value == 100)
+	{
+		if (value == 0)
+		{
+			pCombo->SelectString(-1, "Dead");
+		}
+		else
+		{
+			static char buf[8];
+			sprintf(buf, "%d%%", value);
+			pCombo->SelectString(-1, buf);
+		}
+		if (pEdit != NULL)
+		{
+			pEdit->SetWindowText("");
+		}
+	}
+	else
+	{
+		pCombo->SelectString(-1, "Other");
+		if (pEdit != NULL)
+		{
+			static char buf[16];
+			sprintf(buf, "%d", value);
+			pEdit->EnableWindow(TRUE);
+			pEdit->SetWindowText(buf);
+		}
+	}
+	TheMapObjectProps->_HealthToDict();
+}
+
+int MapObjectProps::qtGetMaxHPs(void)
+{
+	if (TheMapObjectProps == NULL || TheMapObjectProps->m_dictToEdit == NULL)
+	{
+		return -1;
+	}
+	Bool exists;
+	Int v = TheMapObjectProps->m_dictToEdit->getInt(TheKey_objectMaxHPs, &exists);
+	if (!exists)
+	{
+		return -1;
+	}
+	return v;
+}
+
+void MapObjectProps::qtSetMaxHPs(int hps)
+{
+	if (TheMapObjectProps == NULL)
+	{
+		return;
+	}
+	// _HPsToDict reads the combo text and atoi's it (0 -> -1 == Default For Unit). Setting the
+	// window text to the number (or empty for default) makes it round-trip.
+	CComboBox *pCombo = (CComboBox *)TheMapObjectProps->GetDlgItem(IDC_MAPOBJECT_HitPoints);
+	if (pCombo != NULL)
+	{
+		if (hps <= 0)
+		{
+			pCombo->SetWindowText("");
+		}
+		else
+		{
+			static char buf[16];
+			sprintf(buf, "%d", hps);
+			pCombo->SetWindowText(buf);
+		}
+	}
+	TheMapObjectProps->_HPsToDict();
+}
+
+int MapObjectProps::qtGetVisionDistance(void)
+{
+	if (TheMapObjectProps == NULL || TheMapObjectProps->m_dictToEdit == NULL)
+	{
+		return 0;
+	}
+	Bool exists;
+	return TheMapObjectProps->m_dictToEdit->getInt(TheKey_objectVisualRange, &exists);
+}
+
+void MapObjectProps::qtSetVisionDistance(int dist)
+{
+	if (TheMapObjectProps == NULL)
+	{
+		return;
+	}
+	CWnd *pEdit = TheMapObjectProps->GetDlgItem(IDC_MAPOBJECT_VisionDistance);
+	if (pEdit != NULL)
+	{
+		if (dist <= 0)
+		{
+			pEdit->SetWindowText("");
+		}
+		else
+		{
+			static char buf[16];
+			sprintf(buf, "%d", dist);
+			pEdit->SetWindowText(buf);
+		}
+	}
+	TheMapObjectProps->_VisibilityToDict();
+}
+
+int MapObjectProps::qtGetShroudClearingDistance(void)
+{
+	if (TheMapObjectProps == NULL || TheMapObjectProps->m_dictToEdit == NULL)
+	{
+		return 0;
+	}
+	Bool exists;
+	return TheMapObjectProps->m_dictToEdit->getInt(TheKey_objectShroudClearingDistance, &exists);
+}
+
+void MapObjectProps::qtSetShroudClearingDistance(int dist)
+{
+	if (TheMapObjectProps == NULL)
+	{
+		return;
+	}
+	CWnd *pEdit = TheMapObjectProps->GetDlgItem(IDC_MAPOBJECT_ShroudClearingDistance);
+	if (pEdit != NULL)
+	{
+		if (dist <= 0)
+		{
+			pEdit->SetWindowText("");
+		}
+		else
+		{
+			static char buf[16];
+			sprintf(buf, "%d", dist);
+			pEdit->SetWindowText(buf);
+		}
+	}
+	TheMapObjectProps->_ShroudClearingDistanceToDict();
+}
+
+double MapObjectProps::qtGetStoppingDistance(void)
+{
+	if (TheMapObjectProps == NULL || TheMapObjectProps->m_dictToEdit == NULL)
+	{
+		return 1.0;
+	}
+	Bool exists;
+	Real v = TheMapObjectProps->m_dictToEdit->getReal(TheKey_objectStoppingDistance, &exists);
+	if (!exists)
+	{
+		return 1.0;
+	}
+	return v;
+}
+
+void MapObjectProps::qtSetStoppingDistance(double dist)
+{
+	if (TheMapObjectProps == NULL)
+	{
+		return;
+	}
+	CWnd *pEdit = TheMapObjectProps->GetDlgItem(IDC_MAPOBJECT_StoppingDistance);
+	if (pEdit != NULL)
+	{
+		static char buf[32];
+		sprintf(buf, "%g", dist);
+		pEdit->SetWindowText(buf);
+	}
+	TheMapObjectProps->_StoppingDistanceToDict();
+}
 #endif

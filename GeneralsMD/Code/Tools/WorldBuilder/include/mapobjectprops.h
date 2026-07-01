@@ -222,6 +222,25 @@ public:
 	static int  qtGetTeamName(int i, char *out, int cap);
 	static int  qtGetCurTeam(void);
 	static void qtSetTeam(int i);
+	// Phase 2: Logical section. Flags use the WBQT_OBJPROP_FLAG_* ids; the getters return
+	// the current state and the setters write the hidden MFC control then run the real
+	// _XToDict handler (so the DictItemUndoable / multi-select path is reused).
+	static int  qtGetFlag(int which);
+	static void qtSetFlag(int which, int state);
+	static int  qtGetAggressiveness(void);
+	static void qtSetAggressiveness(int value);
+	static int  qtGetVeterancy(void);
+	static void qtSetVeterancy(int index);
+	static int  qtGetHealthPercent(void);
+	static void qtSetHealthPercent(int value);
+	static int  qtGetMaxHPs(void);
+	static void qtSetMaxHPs(int hps);
+	static int  qtGetVisionDistance(void);
+	static void qtSetVisionDistance(int dist);
+	static int  qtGetShroudClearingDistance(void);
+	static void qtSetShroudClearingDistance(int dist);
+	static double qtGetStoppingDistance(void);
+	static void qtSetStoppingDistance(double dist);
 #endif
   
 private:

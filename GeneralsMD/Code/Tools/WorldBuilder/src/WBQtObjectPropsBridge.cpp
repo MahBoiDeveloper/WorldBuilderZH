@@ -51,4 +51,86 @@ extern "C" void WBQtObjectProps_SetTeam(int i)
 	MapObjectProps::qtSetTeam(i);
 }
 
+// --- Phase 2: Logical section ---------------------------------------------------------------
+
+extern "C" int WBQtObjectProps_GetFlag(int which)
+{
+	return MapObjectProps::qtGetFlag(which);
+}
+
+extern "C" void WBQtObjectProps_SetFlag(int which, int state)
+{
+	MapObjectProps::qtSetFlag(which, state);
+}
+
+extern "C" int WBQtObjectProps_GetAggressiveness(void)
+{
+	return MapObjectProps::qtGetAggressiveness();
+}
+
+extern "C" void WBQtObjectProps_SetAggressiveness(int value)
+{
+	MapObjectProps::qtSetAggressiveness(value);
+}
+
+extern "C" int WBQtObjectProps_GetVeterancy(void)
+{
+	return MapObjectProps::qtGetVeterancy();
+}
+
+extern "C" void WBQtObjectProps_SetVeterancy(int index)
+{
+	MapObjectProps::qtSetVeterancy(index);
+}
+
+extern "C" int WBQtObjectProps_GetHealthPercent(void)
+{
+	return MapObjectProps::qtGetHealthPercent();
+}
+
+extern "C" void WBQtObjectProps_SetHealthPercent(int value)
+{
+	MapObjectProps::qtSetHealthPercent(value);
+}
+
+extern "C" int WBQtObjectProps_GetMaxHPs(void)
+{
+	return MapObjectProps::qtGetMaxHPs();
+}
+
+extern "C" void WBQtObjectProps_SetMaxHPs(int hps)
+{
+	MapObjectProps::qtSetMaxHPs(hps);
+}
+
+extern "C" int WBQtObjectProps_GetVisionDistance(void)
+{
+	return MapObjectProps::qtGetVisionDistance();
+}
+
+extern "C" void WBQtObjectProps_SetVisionDistance(int dist)
+{
+	MapObjectProps::qtSetVisionDistance(dist);
+}
+
+extern "C" int WBQtObjectProps_GetShroudClearingDistance(void)
+{
+	return MapObjectProps::qtGetShroudClearingDistance();
+}
+
+extern "C" void WBQtObjectProps_SetShroudClearingDistance(int dist)
+{
+	MapObjectProps::qtSetShroudClearingDistance(dist);
+}
+
+extern "C" double WBQtObjectProps_GetStoppingDistance(void)
+{
+	return MapObjectProps::qtGetStoppingDistance();
+}
+
+extern "C" void WBQtObjectProps_SetStoppingDistance(double dist)
+{
+	MapObjectProps::qtSetStoppingDistance(dist);
+}
+
 #endif // RTS_HAS_QT
