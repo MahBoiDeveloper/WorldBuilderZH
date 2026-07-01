@@ -3896,6 +3896,146 @@ void ScriptDialog::qtToggleActive(void)
 	// which the Qt window pushed before calling this).
 	OnScriptActivate();
 }
+
+void ScriptDialog::qtGetDetail(int listTypeInt, char *descOut, int descCap, char *commentOut, int commentCap)
+{
+	if (descOut != NULL && descCap > 0)
+	{
+		descOut[0] = 0;
+	}
+	if (commentOut != NULL && commentCap > 0)
+	{
+		commentOut[0] = 0;
+	}
+
+	// Resolve the node without disturbing the real selection.
+	ListType saved = m_curSelection;
+	ListType lt;
+	lt.IntToList(listTypeInt);
+	if (lt.m_playerIndex >= m_sides.getNumSides())
+	{
+		return;
+	}
+	m_curSelection = lt;
+	Script *pScript = getCurScript();
+
+	if (pScript != NULL)
+	{
+		// Description = the script's readable breakdown (== IDC_SCRIPT_DESCRIPTION).
+		if (descOut != NULL && descCap > 0)
+		{
+			strncpy(descOut, pScript->getUiText().str(), descCap - 1);
+			descOut[descCap - 1] = 0;
+		}
+
+		// Comment = comment + condition/action comments, exactly like IDC_SCRIPT_COMMENT but
+		// WITHOUT the expensive cross-script "[Referenced in]" scan (the MFC 'Disable
+		// references' fast path). parseLineBreaks is file-static in this TU.
+		AsciiString scriptComment = pScript->getComment();
+		AsciiString conditionComment = pScript->getConditionComment();
+		AsciiString actionComment = pScript->getActionComment();
+		if (!scriptComment.isEmpty())
+		{
+			scriptComment.concat("\n\n");
+		}
+		if (!conditionComment.isEmpty())
+		{
+			scriptComment.concat("[Condition Comment] : ");
+			scriptComment.concat(conditionComment);
+			scriptComment.concat("\n\n");
+		}
+		if (!actionComment.isEmpty())
+		{
+			scriptComment.concat("[Action Comment] : ");
+			scriptComment.concat(actionComment);
+			scriptComment.concat("\n\n");
+		}
+		scriptComment = parseLineBreaks(scriptComment);
+		if (commentOut != NULL && commentCap > 0)
+		{
+			strncpy(commentOut, scriptComment.str(), commentCap - 1);
+			commentOut[commentCap - 1] = 0;
+		}
+	}
+
+	m_curSelection = saved;
+}
+
+// 9d checkboxes. Ids mirror WBQtPanelBridge.h's WBQT_SCK_*. Get reads the backing member;
+// Set writes the hidden MFC checkbox control then calls the real On* handler so the member,
+// registry persistence, and side effects (font/icon/tree rebuild) all match the MFC path.
+namespace {
+	enum { SCK_COMPRESS = 0, SCK_NEWICONS, SCK_CLEANNAME, SCK_AUTOVERIFY, SCK_SMARTCOPY,
+		SCK_FASTLOAD, SCK_SCRIPTMERGE, SCK_REFBYPARAM, SCK_DISABLEREF };
+	int sckControlId(int which)
+	{
+		switch (which)
+		{
+			case SCK_COMPRESS:    return IDC_COMPRESS;
+			case SCK_NEWICONS:    return IDC_NEWICONS;
+			case SCK_CLEANNAME:   return IDC_CLEANSCRIPTNAME;
+			case SCK_AUTOVERIFY:  return IDC_AUTO_VERIFY;
+			case SCK_SMARTCOPY:   return IDC_SMART_COPY;
+			case SCK_FASTLOAD:    return IDC_DEEPSCAN;
+			case SCK_SCRIPTMERGE: return IDC_SCRIPT_MERGE;
+			case SCK_REFBYPARAM:  return IDC_REFRENCEMODE1;
+			case SCK_DISABLEREF:  return IDC_DISABLEREFERENCE;
+			default: return 0;
+		}
+	}
+}
+
+int ScriptDialog::qtGetCheckbox(int which)
+{
+	switch (which)
+	{
+		case SCK_COMPRESS:    return m_bCompressed ? 1 : 0;
+		case SCK_NEWICONS:    return m_bNewIcons ? 1 : 0;
+		case SCK_CLEANNAME:   return m_bCleanScriptName ? 1 : 0;
+		case SCK_AUTOVERIFY:  return m_autoUpdateWarnings ? 1 : 0;
+		case SCK_SMARTCOPY:   return m_bSmartCopyEnabled ? 1 : 0;
+		case SCK_FASTLOAD:    return m_bDisableDeepScan ? 1 : 0;
+		case SCK_SCRIPTMERGE: return m_bAutoMergeScripts ? 1 : 0;
+		case SCK_REFBYPARAM:  return m_bCheckByParameter ? 1 : 0;
+		case SCK_DISABLEREF:  return m_bDisableReferences ? 1 : 0;
+		default: return 0;
+	}
+}
+
+void ScriptDialog::qtSetCheckbox(int which, int checked)
+{
+	int idc = sckControlId(which);
+	if (idc == 0)
+	{
+		return;
+	}
+	CButton *pButton = (CButton *)GetDlgItem(idc);
+	if (pButton != NULL)
+	{
+		pButton->SetCheck(checked ? 1 : 0);
+	}
+	// Drive the real handler (reads the checkbox back, sets the member, persists, side FX).
+	switch (which)
+	{
+		case SCK_COMPRESS:    OnCompress(); break;
+		case SCK_NEWICONS:    OnNewIcons(); break;
+		case SCK_CLEANNAME:   OnCleanScriptName(); break;
+		case SCK_AUTOVERIFY:  OnAutoVerify(); break;
+		case SCK_SMARTCOPY:   OnSmartCopy(); break;
+		case SCK_FASTLOAD:    OnDisableDeepScan(); break;
+		case SCK_SCRIPTMERGE: OnAutoMergeScripts(); break;
+		case SCK_REFBYPARAM:  OnCheckByParameterForReference(); break;
+		case SCK_DISABLEREF:  OnDisableReferencesEntirely(); break;
+		default: break;
+	}
+}
+
+void ScriptDialog::qtAddDebug(void)      { OnAddDebug(); }
+void ScriptDialog::qtRemoveDebug(void)   { OnRemoveDebug(); }
+void ScriptDialog::qtPatchGC(void)       { OnPatchGC(); }
+void ScriptDialog::qtExportScripts(void) { OnSave(); }
+void ScriptDialog::qtImportScripts(void) { OnLoad(); }
+void ScriptDialog::qtSaveNow(void)       { OnSaveActual(); }
 #endif
 
 void ScriptDialog::OnBegindragScriptTree(NMHDR* pNMHDR, LRESULT* pResult) 

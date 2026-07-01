@@ -159,5 +159,65 @@ void WBQtScript_ToggleActive(void)
 	}
 }
 
+void WBQtScript_GetDetail(int listTypeInt, char *descOut, int descCap, char *commentOut, int commentCap)
+{
+	ScriptDialog *dlg = ScriptDialog::qtInstance();
+	if (dlg != NULL)
+	{
+		dlg->qtGetDetail(listTypeInt, descOut, descCap, commentOut, commentCap);
+	}
+}
+
+int WBQtScript_GetCheckbox(int which)
+{
+	ScriptDialog *dlg = ScriptDialog::qtInstance();
+	return (dlg != NULL) ? dlg->qtGetCheckbox(which) : 0;
+}
+
+void WBQtScript_SetCheckbox(int which, int checked)
+{
+	ScriptDialog *dlg = ScriptDialog::qtInstance();
+	if (dlg != NULL)
+	{
+		dlg->qtSetCheckbox(which, checked);
+	}
+}
+
+void WBQtScript_AddDebug(void)
+{
+	ScriptDialog *dlg = ScriptDialog::qtInstance();
+	if (dlg != NULL) { dlg->qtAddDebug(); }
+}
+
+void WBQtScript_RemoveDebug(void)
+{
+	ScriptDialog *dlg = ScriptDialog::qtInstance();
+	if (dlg != NULL) { dlg->qtRemoveDebug(); }
+}
+
+void WBQtScript_PatchGC(void)
+{
+	ScriptDialog *dlg = ScriptDialog::qtInstance();
+	if (dlg != NULL) { dlg->qtPatchGC(); }
+}
+
+void WBQtScript_ExportScripts(void)
+{
+	ScriptDialog *dlg = ScriptDialog::qtInstance();
+	if (dlg != NULL) { dlg->qtExportScripts(); }
+}
+
+void WBQtScript_ImportScripts(void)
+{
+	ScriptDialog *dlg = ScriptDialog::qtInstance();
+	if (dlg != NULL) { dlg->qtImportScripts(); }
+}
+
+void WBQtScript_SaveNow(void)
+{
+	ScriptDialog *dlg = ScriptDialog::qtInstance();
+	if (dlg != NULL) { dlg->qtSaveNow(); }
+}
+
 }
 #endif

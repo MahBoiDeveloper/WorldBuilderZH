@@ -4,13 +4,23 @@
 
 #include <QApplication>
 #include <QBrush>
+#include <QCheckBox>
 #include <QColor>
 #include <QDropEvent>
 #include <QFont>
+#include <QGridLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QPainter>
+#include <QPixmap>
+#include <QPlainTextEdit>
 #include <QPushButton>
+#include <QShortcut>
+#include <QSplitter>
+#include <QStyle>
 #include <QTreeWidgetItemIterator>
 #include <QVBoxLayout>
 
@@ -63,38 +73,79 @@ WBQtScriptWindow::WBQtScriptWindow(QWidget *owner)
 	// the dark title bar (WBQtTheme targets all top-level windows). owner is now unused.
 	(void)owner;
 	setWindowTitle("Script Editor");
-	resize(420, 660);
+	resize(900, 640);
 
 	QVBoxLayout *root = new QVBoxLayout(this);
 
-	// Search row.
+	// --- Option checkboxes (top strip), mirroring the MFC dialog's row ---
+	QGroupBox *optBox = new QGroupBox("Options", this);
+	QGridLayout *optGrid = new QGridLayout(optBox);
+	m_ckCompress = new QCheckBox("Compress Script", optBox);
+	m_ckNewIcons = new QCheckBox("New Icons", optBox);
+	m_ckCleanName = new QCheckBox("Clean Script Name", optBox);
+	m_ckAutoVerify = new QCheckBox("Auto Verify", optBox);
+	m_ckSmartCopy = new QCheckBox("Smart Copy", optBox);
+	m_ckFastLoad = new QCheckBox("Fast Load", optBox);
+	m_ckScriptMerge = new QCheckBox("Script Merge", optBox);
+	m_ckRefByParam = new QCheckBox("Detect References via picked Parameters", optBox);
+	m_ckDisableRef = new QCheckBox("Disable references (reduces input lag)", optBox);
+	optGrid->addWidget(m_ckCompress, 0, 0);
+	optGrid->addWidget(m_ckNewIcons, 0, 1);
+	optGrid->addWidget(m_ckCleanName, 0, 2);
+	optGrid->addWidget(m_ckAutoVerify, 0, 3);
+	optGrid->addWidget(m_ckSmartCopy, 1, 0);
+	optGrid->addWidget(m_ckFastLoad, 1, 1);
+	optGrid->addWidget(m_ckScriptMerge, 1, 2);
+	optGrid->addWidget(m_ckRefByParam, 2, 0, 1, 2);
+	optGrid->addWidget(m_ckDisableRef, 2, 2, 1, 2);
+	root->addWidget(optBox);
+
+	// --- Search row ---
 	QHBoxLayout *searchRow = new QHBoxLayout();
+	searchRow->addWidget(new QLabel("Search:", this));
 	m_search = new QLineEdit(this);
-	m_search->setPlaceholderText("Find (name / comment / parameter)...");
+	m_search->setPlaceholderText("name / comment / parameter");
 	m_findBtn = new QPushButton("Find Next", this);
 	searchRow->addWidget(m_search, 1);
 	searchRow->addWidget(m_findBtn);
 	root->addLayout(searchRow);
 
+	// --- Middle: tree | (description over comment) ---
+	QSplitter *split = new QSplitter(Qt::Horizontal, this);
+
 	m_tree = new WBQtScriptTree(this);
 	m_tree->setHeaderHidden(true);
 	m_tree->setColumnCount(1);
-	// Internal drag-drop; the actual move is done by the model rebuild in handleDrop.
 	m_tree->setDragEnabled(true);
 	m_tree->setAcceptDrops(true);
 	m_tree->setDragDropMode(QAbstractItemView::InternalMove);
 	m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
 	m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
-	root->addWidget(m_tree, 1);
+	split->addWidget(m_tree);
 
-	// Script/folder command row.
+	QWidget *detailPane = new QWidget(split);
+	QVBoxLayout *detailLay = new QVBoxLayout(detailPane);
+	detailLay->setContentsMargins(0, 0, 0, 0);
+	m_description = new QPlainTextEdit(detailPane);
+	m_description->setReadOnly(true);
+	m_comment = new QPlainTextEdit(detailPane);
+	m_comment->setReadOnly(true);
+	m_comment->setMaximumHeight(140);
+	detailLay->addWidget(m_description, 1);
+	detailLay->addWidget(m_comment);
+	split->addWidget(detailPane);
+	split->setStretchFactor(0, 1);
+	split->setStretchFactor(1, 2);
+	root->addWidget(split, 1);
+
+	// --- Command button rows ---
 	QHBoxLayout *cmdRow = new QHBoxLayout();
 	m_newFolder = new QPushButton("New Folder", this);
 	m_newScript = new QPushButton("New Script", this);
 	m_editScript = new QPushButton("Edit", this);
 	m_copyScript = new QPushButton("Copy", this);
 	m_delete = new QPushButton("Delete", this);
-	m_verify = new QPushButton("Verify", this);
+	m_verify = new QPushButton("Re-Verify All", this);
 	cmdRow->addWidget(m_newFolder);
 	cmdRow->addWidget(m_newScript);
 	cmdRow->addWidget(m_editScript);
@@ -103,17 +154,35 @@ WBQtScriptWindow::WBQtScriptWindow(QWidget *owner)
 	cmdRow->addWidget(m_verify);
 	root->addLayout(cmdRow);
 
-	// Commit row.
+	QHBoxLayout *cmdRow2 = new QHBoxLayout();
+	m_addDebug = new QPushButton("Add Debug", this);
+	m_removeDebug = new QPushButton("Delete Debug", this);
+	m_patchGC = new QPushButton("Patch \"GC_\"", this);
+	m_export = new QPushButton("Export Scripts", this);
+	m_import = new QPushButton("Import Scripts", this);
+	m_saveNow = new QPushButton("Save Now (Ctrl+S)", this);
+	cmdRow2->addWidget(m_addDebug);
+	cmdRow2->addWidget(m_removeDebug);
+	cmdRow2->addWidget(m_patchGC);
+	cmdRow2->addWidget(m_export);
+	cmdRow2->addWidget(m_import);
+	cmdRow2->addWidget(m_saveNow);
+	root->addLayout(cmdRow2);
+
+	// --- Commit row ---
 	QHBoxLayout *okRow = new QHBoxLayout();
 	okRow->addStretch(1);
-	m_ok = new QPushButton("OK", this);
+	m_ok = new QPushButton("Save + Close", this);
 	m_cancel = new QPushButton("Cancel", this);
 	okRow->addWidget(m_ok);
 	okRow->addWidget(m_cancel);
 	root->addLayout(okRow);
 
+	buildIcons();
+	seedCheckboxes();
 	rebuildTree();
 	updateButtonStates();
+	updateDetail();
 
 	connect(m_tree, SIGNAL(itemSelectionChanged()), this, SLOT(onTreeSelectionChanged()));
 	connect(m_findBtn, SIGNAL(clicked()), this, SLOT(onFind()));
@@ -124,12 +193,119 @@ WBQtScriptWindow::WBQtScriptWindow(QWidget *owner)
 	connect(m_copyScript, SIGNAL(clicked()), this, SLOT(onCopyScript()));
 	connect(m_delete, SIGNAL(clicked()), this, SLOT(onDelete()));
 	connect(m_verify, SIGNAL(clicked()), this, SLOT(onVerify()));
+	connect(m_addDebug, SIGNAL(clicked()), this, SLOT(onAddDebug()));
+	connect(m_removeDebug, SIGNAL(clicked()), this, SLOT(onRemoveDebug()));
+	connect(m_patchGC, SIGNAL(clicked()), this, SLOT(onPatchGC()));
+	connect(m_export, SIGNAL(clicked()), this, SLOT(onExport()));
+	connect(m_import, SIGNAL(clicked()), this, SLOT(onImport()));
+	connect(m_saveNow, SIGNAL(clicked()), this, SLOT(onSaveNow()));
 	connect(m_tree, SIGNAL(customContextMenuRequested(const QPoint &)),
 		this, SLOT(onTreeContextMenu(const QPoint &)));
+	connect(m_tree, SIGNAL(itemDoubleClicked(QTreeWidgetItem *, int)),
+		this, SLOT(onTreeDoubleClicked(QTreeWidgetItem *, int)));
 	connect(m_ok, SIGNAL(clicked()), this, SLOT(onOk()));
 	connect(m_cancel, SIGNAL(clicked()), this, SLOT(onCancel()));
 
+	// Ctrl+S = Save Now, matching the MFC dialog's accelerator.
+	QShortcut *saveSc = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_S), this);
+	connect(saveSc, SIGNAL(activated()), this, SLOT(onSaveNow()));
+
+	connect(m_ckCompress, SIGNAL(clicked()), this, SLOT(onCheckboxToggled()));
+	connect(m_ckNewIcons, SIGNAL(clicked()), this, SLOT(onCheckboxToggled()));
+	connect(m_ckCleanName, SIGNAL(clicked()), this, SLOT(onCheckboxToggled()));
+	connect(m_ckAutoVerify, SIGNAL(clicked()), this, SLOT(onCheckboxToggled()));
+	connect(m_ckSmartCopy, SIGNAL(clicked()), this, SLOT(onCheckboxToggled()));
+	connect(m_ckFastLoad, SIGNAL(clicked()), this, SLOT(onCheckboxToggled()));
+	connect(m_ckScriptMerge, SIGNAL(clicked()), this, SLOT(onCheckboxToggled()));
+	connect(m_ckRefByParam, SIGNAL(clicked()), this, SLOT(onCheckboxToggled()));
+	connect(m_ckDisableRef, SIGNAL(clicked()), this, SLOT(onCheckboxToggled()));
+
 	s_instance = this;
+}
+
+namespace
+{
+	// Produce a state variant of a base pixmap: warnings -> red-tinted, inactive -> dimmed.
+	QPixmap variantPixmap(const QPixmap &base, int state)
+	{
+		if (state == 0 || base.isNull())
+		{
+			return base;
+		}
+		QPixmap out = base;
+		QPainter p(&out);
+		if (state == 1)
+		{
+			// warnings: multiply a red wash over the opaque pixels.
+			p.setCompositionMode(QPainter::CompositionMode_SourceAtop);
+			p.fillRect(out.rect(), QColor(200, 40, 40, 130));
+		}
+		else
+		{
+			// inactive: fade the icon out.
+			p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+			p.fillRect(out.rect(), QColor(0, 0, 0, 110));
+		}
+		p.end();
+		return out;
+	}
+}
+
+void WBQtScriptWindow::buildIcons()
+{
+	QStyle *st = style();
+	// Base per node type: player -> a "group/drive" glyph, folder -> directory, script -> file.
+	QPixmap basePix[3];
+	basePix[0] = st->standardIcon(QStyle::SP_DriveHDIcon).pixmap(16, 16);
+	basePix[1] = st->standardIcon(QStyle::SP_DirIcon).pixmap(16, 16);
+	basePix[2] = st->standardIcon(QStyle::SP_FileIcon).pixmap(16, 16);
+	for (int type = 0; type < 3; ++type)
+	{
+		for (int state = 0; state < 3; ++state)
+		{
+			m_icons[type][state] = QIcon(variantPixmap(basePix[type], state));
+		}
+	}
+}
+
+QIcon WBQtScriptWindow::nodeIcon(int listType, int flags) const
+{
+	// Decode the ListType objType (top nibble): 1 PLAYER, 2 GROUP(folder), 3/4 SCRIPT.
+	int objType = (listType >> 28) & 0xF;
+	int type = 2;	// script
+	if (objType == 1)
+	{
+		type = 0;	// player
+	}
+	else if (objType == 2)
+	{
+		type = 1;	// folder
+	}
+	int state = 0;
+	if (flags & 2)
+	{
+		state = 1;	// warnings
+	}
+	else if (!(flags & 1))
+	{
+		state = 2;	// inactive
+	}
+	return m_icons[type][state];
+}
+
+void WBQtScriptWindow::seedCheckboxes()
+{
+	m_updating = true;
+	m_ckCompress->setChecked(WBQtScript_GetCheckbox(WBQT_SCK_COMPRESS) != 0);
+	m_ckNewIcons->setChecked(WBQtScript_GetCheckbox(WBQT_SCK_NEWICONS) != 0);
+	m_ckCleanName->setChecked(WBQtScript_GetCheckbox(WBQT_SCK_CLEANNAME) != 0);
+	m_ckAutoVerify->setChecked(WBQtScript_GetCheckbox(WBQT_SCK_AUTOVERIFY) != 0);
+	m_ckSmartCopy->setChecked(WBQtScript_GetCheckbox(WBQT_SCK_SMARTCOPY) != 0);
+	m_ckFastLoad->setChecked(WBQtScript_GetCheckbox(WBQT_SCK_FASTLOAD) != 0);
+	m_ckScriptMerge->setChecked(WBQtScript_GetCheckbox(WBQT_SCK_SCRIPTMERGE) != 0);
+	m_ckRefByParam->setChecked(WBQtScript_GetCheckbox(WBQT_SCK_REFBYPARAM) != 0);
+	m_ckDisableRef->setChecked(WBQtScript_GetCheckbox(WBQT_SCK_DISABLEREF) != 0);
+	m_updating = false;
 }
 
 void WBQtScriptWindow::rebuildTree()
@@ -137,7 +313,6 @@ void WBQtScriptWindow::rebuildTree()
 	m_updating = true;
 	m_tree->clear();
 
-	// Parent for each depth level: depth 0 -> top level, 1 -> under last depth-0, etc.
 	QTreeWidgetItem *lastAtDepth[3] = { NULL, NULL, NULL };
 
 	const int cap = 512;
@@ -165,7 +340,6 @@ void WBQtScriptWindow::rebuildTree()
 			QTreeWidgetItem *parent = lastAtDepth[depth - 1];
 			if (parent == NULL)
 			{
-				// Malformed ordering -- fall back to top level rather than drop the node.
 				item = new QTreeWidgetItem(m_tree);
 			}
 			else
@@ -175,12 +349,11 @@ void WBQtScriptWindow::rebuildTree()
 		}
 		item->setText(0, QString::fromLatin1(labelBuf));
 		item->setData(0, kListTypeRole, listType);
-		// Players and folders can receive drops; scripts are drag sources but reordering onto
-		// a script inserts next to it, so they accept drops too. Everything is draggable.
 		item->setFlags(item->flags() | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
+		item->setIcon(0, nodeIcon(listType, flags));
 
-		// Visual state (script/group nodes only; player nodes report flags 0). Warnings ->
-		// red, inactive -> dimmed, subroutine -> italic. Mirrors the MFC state-icon meaning.
+		// Visual state (script/group nodes only). Warnings -> red, inactive -> dimmed,
+		// subroutine -> italic. Mirrors the MFC state-icon meaning.
 		if (depth > 0)
 		{
 			const bool active = (flags & 1) != 0;
@@ -215,13 +388,12 @@ void WBQtScriptWindow::rebuildTree()
 
 void WBQtScriptWindow::resetForNewSession()
 {
-	// A new ScriptDialog session means a fresh model with fresh ListType indices; a find cursor
-	// captured against the previous session's model is meaningless (and dangerous) now.
 	m_lastFoundListType = 0;
 	if (m_search != NULL)
 	{
 		m_search->clear();
 	}
+	seedCheckboxes();	// pick up any persisted-setting changes
 }
 
 int WBQtScriptWindow::selectedListType() const
@@ -267,6 +439,27 @@ void WBQtScriptWindow::updateButtonStates()
 	m_editScript->setEnabled(hasScript || hasGroup);
 	m_copyScript->setEnabled(hasScript || hasGroup);
 	m_delete->setEnabled(hasScript || hasGroup);
+	m_addDebug->setEnabled(hasScript);
+	m_removeDebug->setEnabled(hasScript);
+}
+
+void WBQtScriptWindow::updateDetail()
+{
+	int lt = selectedListType();
+	if (lt == -1)
+	{
+		m_description->clear();
+		m_comment->clear();
+		return;
+	}
+	const int cap = 8192;
+	static char descBuf[cap];
+	static char commentBuf[cap];
+	descBuf[0] = 0;
+	commentBuf[0] = 0;
+	WBQtScript_GetDetail(lt, descBuf, cap, commentBuf, cap);
+	m_description->setPlainText(QString::fromLatin1(descBuf));
+	m_comment->setPlainText(QString::fromLatin1(commentBuf));
 }
 
 void WBQtScriptWindow::onTreeSelectionChanged()
@@ -277,6 +470,7 @@ void WBQtScriptWindow::onTreeSelectionChanged()
 	}
 	pushSelectionToDialog();
 	updateButtonStates();
+	updateDetail();
 }
 
 void WBQtScriptWindow::handleDrop(int dragListType, int targetListType)
@@ -284,6 +478,7 @@ void WBQtScriptWindow::handleDrop(int dragListType, int targetListType)
 	WBQtScript_DropOn(dragListType, targetListType);
 	rebuildTree();
 	updateButtonStates();
+	updateDetail();
 }
 
 void WBQtScriptWindow::onNewFolder()
@@ -292,6 +487,7 @@ void WBQtScriptWindow::onNewFolder()
 	WBQtScript_NewFolder();
 	rebuildTree();
 	updateButtonStates();
+	updateDetail();
 }
 
 void WBQtScriptWindow::onNewScript()
@@ -300,6 +496,7 @@ void WBQtScriptWindow::onNewScript()
 	WBQtScript_NewScript();
 	rebuildTree();
 	updateButtonStates();
+	updateDetail();
 }
 
 void WBQtScriptWindow::onEditScript()
@@ -308,6 +505,7 @@ void WBQtScriptWindow::onEditScript()
 	WBQtScript_EditScript();
 	rebuildTree();
 	updateButtonStates();
+	updateDetail();
 }
 
 void WBQtScriptWindow::onCopyScript()
@@ -316,6 +514,7 @@ void WBQtScriptWindow::onCopyScript()
 	WBQtScript_CopyScript();
 	rebuildTree();
 	updateButtonStates();
+	updateDetail();
 }
 
 void WBQtScriptWindow::onDelete()
@@ -324,21 +523,98 @@ void WBQtScriptWindow::onDelete()
 	WBQtScript_Delete();
 	rebuildTree();
 	updateButtonStates();
+	updateDetail();
 }
 
 void WBQtScriptWindow::onVerify()
 {
 	WBQtScript_Verify();
-	rebuildTree();	// pick up the recomputed warning flags
+	rebuildTree();
 	updateButtonStates();
+	updateDetail();
 }
 
 void WBQtScriptWindow::onToggleActive()
 {
 	pushSelectionToDialog();
 	WBQtScript_ToggleActive();
-	rebuildTree();	// active flag changed -> restyle + relabel
+	rebuildTree();
 	updateButtonStates();
+	updateDetail();
+}
+
+void WBQtScriptWindow::onAddDebug()
+{
+	pushSelectionToDialog();
+	WBQtScript_AddDebug();
+	rebuildTree();
+	updateDetail();
+}
+
+void WBQtScriptWindow::onRemoveDebug()
+{
+	pushSelectionToDialog();
+	WBQtScript_RemoveDebug();
+	rebuildTree();
+	updateDetail();
+}
+
+void WBQtScriptWindow::onPatchGC()
+{
+	WBQtScript_PatchGC();
+	rebuildTree();
+	updateDetail();
+}
+
+void WBQtScriptWindow::onExport()
+{
+	pushSelectionToDialog();
+	WBQtScript_ExportScripts();
+}
+
+void WBQtScriptWindow::onImport()
+{
+	WBQtScript_ImportScripts();
+	rebuildTree();
+	updateButtonStates();
+	updateDetail();
+}
+
+void WBQtScriptWindow::onSaveNow()
+{
+	WBQtScript_SaveNow();
+}
+
+void WBQtScriptWindow::onCheckboxToggled()
+{
+	if (m_updating)
+	{
+		return;
+	}
+	QCheckBox *box = qobject_cast<QCheckBox*>(sender());
+	if (box == NULL)
+	{
+		return;
+	}
+	int which = -1;
+	if (box == m_ckCompress) { which = WBQT_SCK_COMPRESS; }
+	else if (box == m_ckNewIcons) { which = WBQT_SCK_NEWICONS; }
+	else if (box == m_ckCleanName) { which = WBQT_SCK_CLEANNAME; }
+	else if (box == m_ckAutoVerify) { which = WBQT_SCK_AUTOVERIFY; }
+	else if (box == m_ckSmartCopy) { which = WBQT_SCK_SMARTCOPY; }
+	else if (box == m_ckFastLoad) { which = WBQT_SCK_FASTLOAD; }
+	else if (box == m_ckScriptMerge) { which = WBQT_SCK_SCRIPTMERGE; }
+	else if (box == m_ckRefByParam) { which = WBQT_SCK_REFBYPARAM; }
+	else if (box == m_ckDisableRef) { which = WBQT_SCK_DISABLEREF; }
+	if (which < 0)
+	{
+		return;
+	}
+	WBQtScript_SetCheckbox(which, box->isChecked() ? 1 : 0);
+	// Clean Script Name changes the labels; New Icons/Compress affect display -- rebuild so the
+	// Qt tree reflects any label change, and refresh the detail (Disable references etc.).
+	rebuildTree();
+	updateDetail();
 }
 
 void WBQtScriptWindow::onTreeContextMenu(const QPoint &pos)
@@ -348,7 +624,7 @@ void WBQtScriptWindow::onTreeContextMenu(const QPoint &pos)
 	{
 		return;
 	}
-	m_tree->setCurrentItem(item);	// so the seam acts on the right-clicked node
+	m_tree->setCurrentItem(item);
 	pushSelectionToDialog();
 
 	bool hasScript = (WBQtScript_HasScript() != 0);
@@ -364,24 +640,32 @@ void WBQtScriptWindow::onTreeContextMenu(const QPoint &pos)
 	actCopy->setEnabled(hasScript || hasGroup);
 	QAction *actDelete = menu.addAction("Delete");
 	actDelete->setEnabled(hasScript || hasGroup);
+	menu.addSeparator();
+	QAction *actAddDebug = menu.addAction("Add Debug");
+	actAddDebug->setEnabled(hasScript);
+	QAction *actRemoveDebug = menu.addAction("Delete Debug");
+	actRemoveDebug->setEnabled(hasScript);
 
 	QAction *chosen = menu.exec(m_tree->viewport()->mapToGlobal(pos));
-	if (chosen == actActivate)
+	if (chosen == actActivate) { onToggleActive(); }
+	else if (chosen == actEdit) { onEditScript(); }
+	else if (chosen == actCopy) { onCopyScript(); }
+	else if (chosen == actDelete) { onDelete(); }
+	else if (chosen == actAddDebug) { onAddDebug(); }
+	else if (chosen == actRemoveDebug) { onRemoveDebug(); }
+}
+
+void WBQtScriptWindow::onTreeDoubleClicked(QTreeWidgetItem *item, int)
+{
+	if (item == NULL)
 	{
-		onToggleActive();
+		return;
 	}
-	else if (chosen == actEdit)
-	{
-		onEditScript();
-	}
-	else if (chosen == actCopy)
-	{
-		onCopyScript();
-	}
-	else if (chosen == actDelete)
-	{
-		onDelete();
-	}
+	// Double-click edits a script OR a folder (folder -> the EditGroup rename/settings dialog),
+	// matching the MFC OnDblclkScriptTree -> OnEditScript. onEditScript pushes the selection and
+	// only acts if it resolves to a script/group, so double-clicking a player is a no-op.
+	m_tree->setCurrentItem(item);
+	onEditScript();
 }
 
 void WBQtScriptWindow::onFind()
@@ -396,13 +680,12 @@ void WBQtScriptWindow::onFind()
 	{
 		m_lastFoundListType = out;
 		selectByListType(out);
-		// selectByListType suppressed the selection signal; sync the dialog + buttons.
 		WBQtScript_SetSelection(out);
 		updateButtonStates();
+		updateDetail();
 	}
 	else
 	{
-		// Wrap around: next Find starts from the top again.
 		m_lastFoundListType = 0;
 		QApplication::beep();
 	}
@@ -428,8 +711,6 @@ extern "C" void WBQtScript_Open(void *frameHwnd, int x, int y)
 		return;
 	}
 
-	// The Script window is a standalone top-level (see the ctor) -- it doesn't need a
-	// QWinWidget owner. frameHwnd is only used to pull foreground focus onto the Qt window.
 	WBQtScriptWindow *win = WBQtScriptWindow::instance();
 	if (win == NULL)
 	{
@@ -439,20 +720,12 @@ extern "C" void WBQtScript_Open(void *frameHwnd, int x, int y)
 	{
 		win->rebuildTree();
 	}
-	// Fresh session: clear any leftover search text + find cursor from a previous ScriptDialog
-	// (the model was rebuilt, so the old find cursor's ListType no longer maps to it).
 	win->resetForNewSession();
 
-	// Unlike the transient option panels (which use WA_ShowWithoutActivating so they never
-	// steal viewport focus mid-paint), the Script editor is a real interactive window: it
-	// must ACTIVATE and take keyboard focus, otherwise keystrokes fall through to the MFC
-	// main view and fire tool hotkeys instead of typing into the search / rename fields.
 	win->move(x, y);
 	win->show();
 	win->raise();
 	win->activateWindow();
-	// Pull Win32 foreground/focus to the Qt window's HWND so its widgets receive keys through
-	// the QMfcApp message hook rather than MFC's frame accelerators.
 	HWND h = reinterpret_cast<HWND>(win->winId());
 	::SetForegroundWindow(h);
 	::SetFocus(h);
@@ -475,8 +748,6 @@ extern "C" int WBQtScript_OwnsFocus(void)
 	{
 		return 0;
 	}
-	// True if the currently focused Win32 window is the script window's top-level HWND or a
-	// descendant of it (its child controls -- the tree, the line-edits -- are child HWNDs).
 	HWND focus = ::GetFocus();
 	HWND winHwnd = reinterpret_cast<HWND>(win->winId());
 	if (focus == NULL || winHwnd == NULL)

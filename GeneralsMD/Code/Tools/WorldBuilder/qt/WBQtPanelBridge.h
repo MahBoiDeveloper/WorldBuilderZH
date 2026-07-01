@@ -194,6 +194,28 @@ int  WBQtScript_FindNext(const char *text, int fromListType, int *outListType);
 // 9c: recompute warnings (Verify) and toggle the current selection's active flag.
 void WBQtScript_Verify(void);
 void WBQtScript_ToggleActive(void);
+// 9d: fill the description + comment detail panels for the node at listTypeInt.
+void WBQtScript_GetDetail(int listTypeInt, char *descOut, int descCap, char *commentOut, int commentCap);
+
+// 9d option checkboxes. `which` is one of these ids; Get reads the current state, Set applies
+// it (updates the hidden MFC checkbox + runs the real On* handler so persistence + side
+// effects match). Setting a label-affecting box (e.g. CleanScriptName) may rebuild the tree,
+// so the Qt window rebuilds after any Set.
+enum {
+	WBQT_SCK_COMPRESS = 0, WBQT_SCK_NEWICONS, WBQT_SCK_CLEANNAME, WBQT_SCK_AUTOVERIFY,
+	WBQT_SCK_SMARTCOPY, WBQT_SCK_FASTLOAD, WBQT_SCK_SCRIPTMERGE, WBQT_SCK_REFBYPARAM,
+	WBQT_SCK_DISABLEREF
+};
+int  WBQtScript_GetCheckbox(int which);
+void WBQtScript_SetCheckbox(int which, int checked);
+
+// 9d remaining buttons -> the existing handlers (each may pop MFC dialogs / mutate the model).
+void WBQtScript_AddDebug(void);
+void WBQtScript_RemoveDebug(void);
+void WBQtScript_PatchGC(void);
+void WBQtScript_ExportScripts(void);
+void WBQtScript_ImportScripts(void);
+void WBQtScript_SaveNow(void);
 
 // Forward (Qt-side, WBQtScriptWindow): open/close the Qt Script window. WBQtScript_Open is
 // called from CMainFrame::onEditScripts after the hidden MFC dialog is created; it builds

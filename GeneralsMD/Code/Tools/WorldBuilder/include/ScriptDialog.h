@@ -132,6 +132,18 @@ public:
 	// flag (== OnScriptActivate). The Qt window rebuilds after to pick up the new flags.
 	void qtVerify(void);
 	void qtToggleActive(void);
+	// 9d: fill the description (getUiText) + comment panels for the node at listTypeInt.
+	// Skips the expensive cross-script reference scan (the MFC 'Disable references' path).
+	void qtGetDetail(int listTypeInt, char *descOut, int descCap, char *commentOut, int commentCap);
+	// 9d option checkboxes (which == the WBQT_SCK_* ids) + remaining command buttons.
+	int  qtGetCheckbox(int which);
+	void qtSetCheckbox(int which, int checked);
+	void qtAddDebug(void);
+	void qtRemoveDebug(void);
+	void qtPatchGC(void);
+	void qtExportScripts(void);
+	void qtImportScripts(void);
+	void qtSaveNow(void);
 	static ScriptDialog *qtInstance(void) { return m_staticThis; }
 #endif
 
