@@ -86,6 +86,16 @@ public:
 	static void update(void);
 	static Scorches getScorchType(void) {return m_scorchtype;}
 	static Real getScorchSize(void) {return m_scorchsize;}
+#ifdef RTS_HAS_QT
+	// Qt panel support (WBQtScorchBridge): let the Qt Scorch panel read the current
+	// scorch type/size and drive the same Dict edits the MFC handlers do. Defined in
+	// src/WBQtScorchBridge.cpp; member statics so they can reach changeScorch()/changeSize()
+	// (which build the DictItemUndoable against the selected scorch objects).
+	static int qtGetScorchType(void);
+	static double qtGetScorchSize(void);
+	static void qtSetScorchType(int type);
+	static void qtSetScorchSize(double size);
+#endif
 
 	virtual void GetPopSliderInfo(const long sliderID, long *pMin, long *pMax, long *pLineSize, long *pInitial);
 	virtual void PopSliderChanged(const long sliderID, long theVal);
