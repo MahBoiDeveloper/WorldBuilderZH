@@ -50,6 +50,15 @@ public:
 	static void toggleMirrorY() { m_mirrorY = !m_mirrorY; }
 	static void toggleMirrorXY() { m_mirrorDiag = !m_mirrorDiag; }
 
+#ifdef RTS_HAS_QT
+	// Qt panel support (WBQtBlendMaterialBridge): the Qt Blend Material panel seeds its
+	// mirror checkboxes from these; toggles still go through the toggle* methods above.
+	static Bool getEnableMirror() { return m_enableMirror; }
+	static Bool getMirrorX() { return m_mirrorX; }
+	static Bool getMirrorY() { return m_mirrorY; }
+	static Bool getMirrorXY() { return m_mirrorDiag; }
+#endif
+
 public:
 	void applyEdgeAt(CPoint pt, WorldHeightMapEdit* htMapEditCopy, Bool shiftKey);
 	virtual void mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBuilderDoc *pDoc);

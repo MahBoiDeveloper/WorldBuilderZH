@@ -98,6 +98,15 @@ public:
 	static Int getBlendTexClass(void) {return m_currentBlendTexture;}
 	static void setBlendTexClass(Int texClass);
 
+#ifdef RTS_HAS_QT
+	// Qt panel support (WBQtBlendMaterialBridge): let the Qt Blend Material panel drive the
+	// gap statics the same way the MFC On* handlers do (set the flag, refresh the tooltip).
+	// Defined in src/WBQtBlendMaterialBridge.cpp; static so they can reach the protected state.
+	static void qtSetHorizVertGap(Bool on);
+	static void qtSetDiagGap(Bool on);
+	static void qtSetRevalBlends(Bool on);
+#endif
+
 public:
 	Bool setTerrainTreeViewSelection(HTREEITEM parent, Int selection);
 
