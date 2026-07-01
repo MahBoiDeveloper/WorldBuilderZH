@@ -33,6 +33,9 @@
 #include "GameLogic/PolygonTrigger.h"
 #include "Common/WellKnownKeys.h"
 #include "LayersList.h"
+#ifdef RTS_HAS_QT
+#include "qt/panels/WBQtWaterBridge.h"
+#endif
 
 WaterOptions *WaterOptions::m_staticThis = NULL;
 Int WaterOptions::m_waterHeight = 7;
@@ -103,6 +106,9 @@ void WaterOptions::update(void)
 	if (m_staticThis) {
 		m_staticThis->updateTheUI();
 	}
+#ifdef RTS_HAS_QT
+	WBQtWater_PushRefresh();
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -525,4 +531,227 @@ void WaterOptions::OnChangeSpacingEdit()
 		m_updating = false;
 	}
 }
+
+
+#ifdef RTS_HAS_QT
+//----------------------------------------------------------------------------------------
+// Qt panel support (declared in WaterOptions.h). These reuse the same global statics and the
+// same protected height helpers the MFC handlers use, so the Qt Water panel and the tools
+// stay in step. See src/WBQtWaterBridge.cpp for the extern "C" seam that calls these.
+//----------------------------------------------------------------------------------------
+
+// True when a single water-area PolygonTrigger is selected (the only case where name / height
+// / Make River are meaningful), mirroring updateTheUI keying those controls off the trigger.
+Bool WaterOptions::qtHasSelection(void)
+{
+	PolygonTrigger *theTrigger = WaypointOptions::getSingleSelectedPolygon();
+	if (theTrigger == NULL)
+	{
+		return false;
+	}
+	return theTrigger->isWaterArea();
+}
+
+// The selected trigger's current height (point 0's z), matching updateTheUI's setHeight() seed.
+Int WaterOptions::qtGetSelectionHeight(void)
+{
+	PolygonTrigger *theTrigger = WaypointOptions::getSingleSelectedPolygon();
+	if (theTrigger != NULL && theTrigger->isWaterArea() && theTrigger->getNumPoints() > 0)
+	{
+		return theTrigger->getPoint(0)->z;
+	}
+	return m_waterHeight;
+}
+
+// Apply a new water height to the selected trigger through the same MovePolygonUndoable
+// sequence the MFC edit / slider path uses (startUpdateHeight -> updateHeight ->
+// endUpdateHeight). Runs on the hidden MFC panel instance so the protected helpers are reachable.
+void WaterOptions::qtSetHeight(Int height)
+{
+	m_waterHeight = height;
+	if (m_staticThis == NULL)
+	{
+		return;
+	}
+	m_staticThis->startUpdateHeight();
+	m_staticThis->updateHeight();
+	m_staticThis->endUpdateHeight();
+}
+
+// Store the point spacing (the global static), mirroring OnChangeSpacingEdit's accepted-value
+// case (the Qt spinbox has already parsed the int).
+void WaterOptions::qtSetSpacing(Int spacing)
+{
+	m_waterPointSpacing = spacing;
+}
+
+// Flip the "creating water areas" toggle (the global static), mirroring OnWaterPolygon.
+void WaterOptions::qtSetCreatingWaterAreas(Bool on)
+{
+	m_creatingWaterAreas = on;
+}
+
+// Rename the selected trigger, reusing OnChangeWaterEdit's duplicate-name check. Returns true
+// if the name was applied, false if it was already in use (a message box was shown) / nothing
+// was selected.
+Bool WaterOptions::qtSetName(const char *name)
+{
+	if (name == NULL)
+	{
+		return false;
+	}
+	PolygonTrigger *theTrigger = WaypointOptions::getSingleSelectedPolygon();
+	if (theTrigger == NULL)
+	{
+		return false;
+	}
+	AsciiString newName(name);
+
+	// check to see if the user-entered name is already in use (mirrors OnChangeWaterEdit).
+	Bool didMatch = false;
+	PolygonTrigger *pTrig;
+	for (pTrig = PolygonTrigger::getFirstPolygonTrigger(); !didMatch && pTrig; pTrig = pTrig->getNext())
+	{
+		if (pTrig == theTrigger)
+		{
+			continue; // don't check against yourself.
+		}
+		AsciiString trigName = pTrig->getTriggerName();
+		if (newName == trigName)
+		{
+			if (pTrig->isValid())
+			{
+				didMatch = true;
+			}
+			else
+			{
+				PolygonTrigger::removePolygonTrigger(pTrig);
+			}
+			break;
+		}
+	}
+
+	if (didMatch)
+	{
+		::AfxMessageBox("Name already in use");
+		return false;
+	}
+	theTrigger->setTriggerName(newName);
+	return true;
+}
+
+// Flip the Make River flag on the selected trigger, reusing OnMakeRiver's flow-direction
+// reorder when turning it on (OnMakeRiver reads the button state; this factors the body out to
+// a parameterised static).
+void WaterOptions::qtSetRiver(Bool river)
+{
+	PolygonTrigger *theTrigger = WaypointOptions::getSingleSelectedPolygon();
+	if (theTrigger == NULL)
+	{
+		return;
+	}
+
+	theTrigger->setRiver(river);
+
+	if (river)
+	{
+		Int selectedPoint = PolygonTool::getSelectedPointNdx();
+		if (selectedPoint < 0)
+		{
+			selectedPoint = 0; // Default to first point if none selected
+		}
+
+		// Determine river flow direction by checking which orientation has wider segments
+		Int horizontalWideCount = 0;
+		Int verticalWideCount = 0;
+		Int i;
+
+		for (i = 0; i < theTrigger->getNumPoints() - 1; i++)
+		{
+			ICoord3D pt1 = *theTrigger->getPoint(i);
+			ICoord3D pt2 = *theTrigger->getPoint(i + 1);
+
+			Real dx = abs(pt1.x - pt2.x);
+			Real dy = abs(pt1.y - pt2.y);
+
+			if (dx > dy)
+			{
+				horizontalWideCount++;
+			}
+			else
+			{
+				verticalWideCount++;
+			}
+		}
+
+		// Flow is perpendicular to the wide segments
+		Bool flowIsHorizontal = (verticalWideCount > horizontalWideCount);
+
+		// Find the opposite end based on flow direction
+		Int endPoint = 0;
+		Real maxDistance = 0;
+
+		ICoord3D startPt = *theTrigger->getPoint(selectedPoint);
+
+		for (i = 0; i < theTrigger->getNumPoints(); i++)
+		{
+			if (i == selectedPoint)
+			{
+				continue;
+			}
+
+			ICoord3D pt = *theTrigger->getPoint(i);
+			Real distance;
+
+			if (flowIsHorizontal)
+			{
+				distance = abs(pt.x - startPt.x);
+			}
+			else
+			{
+				distance = abs(pt.y - startPt.y);
+			}
+
+			if (distance > maxDistance)
+			{
+				maxDistance = distance;
+				endPoint = i;
+			}
+		}
+
+		// Reorder points if needed so start is at index 0
+		if (selectedPoint != 0)
+		{
+			// Store all points temporarily
+			int numPoints = theTrigger->getNumPoints();
+			ICoord3D *tempPoints = new ICoord3D[numPoints];
+
+			for (i = 0; i < numPoints; i++)
+			{
+				tempPoints[i] = *theTrigger->getPoint(i);
+			}
+
+			// Clear existing points
+			while (theTrigger->getNumPoints())
+			{
+				theTrigger->deletePoint(theTrigger->getNumPoints() - 1);
+			}
+
+			// Add points in new order (from selected to end, then beginning to selected)
+			for (i = selectedPoint; i < numPoints; i++)
+			{
+				theTrigger->addPoint(tempPoints[i]);
+			}
+			for (i = 0; i < selectedPoint; i++)
+			{
+				theTrigger->addPoint(tempPoints[i]);
+			}
+
+			delete[] tempPoints;
+		}
+
+		theTrigger->setRiverStart(0);
+	}
+}
+#endif
 
