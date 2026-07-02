@@ -389,7 +389,7 @@ void WBQtPlayerListDialog::onAddSkirmishPlayers()
 
 // ===================== WBQtAddPlayerDialog =====================
 
-WBQtAddPlayerDialog::WBQtAddPlayerDialog(QWidget *parent)
+WBQtAddPlayerDialog::WBQtAddPlayerDialog(QWidget *parent, const QString &onlySide)
 	: QDialog(parent)
 {
 	setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
@@ -408,10 +408,22 @@ WBQtAddPlayerDialog::WBQtAddPlayerDialog(QWidget *parent)
 		char buf[512];
 		buf[0] = 0;
 		WBQtAddPlayerData_GetTemplateName(i, buf, sizeof(buf));
-		if (buf[0] != 0)
+		if (buf[0] == 0)
 		{
-			names.append(QString::fromLocal8Bit(buf));
+			continue;
 		}
+		if (!onlySide.isEmpty())
+		{
+			// == AddPlayerDialog's m_side filter (exact match, like AsciiString ==).
+			char side[512];
+			side[0] = 0;
+			WBQtAddPlayerData_GetTemplateSide(i, side, sizeof(side));
+			if (onlySide != QString::fromLocal8Bit(side))
+			{
+				continue;
+			}
+		}
+		names.append(QString::fromLocal8Bit(buf));
 	}
 	names.sort(Qt::CaseInsensitive);	// == the CBS_SORT combo
 	m_templates->addItems(names);
@@ -465,4 +477,49 @@ extern "C" int WBQtPlayerList_Run(void *frameHwnd)
 		::EnableWindow(frame, TRUE);
 	}
 	return rc;
+}
+
+// Tier 5b: the standalone Add-Player run for the object-placement auto-add flow
+// (ObjectOptions.cpp). Nesting-safe frame disable -- placement can happen while other
+// windows are up.
+extern "C" int WBQtAddPlayer_Run(void *frameHwnd, const char *onlySide, char *addedOut, int cap)
+{
+	if (addedOut != NULL && cap > 0)
+	{
+		addedOut[0] = 0;
+	}
+	if (qApp == NULL)
+	{
+		return -1;	// pre-Qt startup -- the caller falls back to the MFC dialog
+	}
+	WBQtAddPlayerDialog dlg(QApplication::activeModalWidget(),
+		QString::fromLocal8Bit((onlySide != NULL) ? onlySide : ""));
+	dlg.setWindowModality(Qt::ApplicationModal);
+	HWND frame = reinterpret_cast<HWND>(frameHwnd);
+	bool frameWasEnabled = (frame != NULL && ::IsWindowEnabled(frame));
+	if (frameWasEnabled)
+	{
+		::EnableWindow(frame, FALSE);
+	}
+	int rc = dlg.exec();
+	if (frameWasEnabled)
+	{
+		::EnableWindow(frame, TRUE);
+	}
+	if (rc != QDialog::Accepted || dlg.addedTemplate().isEmpty())
+	{
+		return 0;
+	}
+	QByteArray added = dlg.addedTemplate().toLocal8Bit();
+	if (addedOut != NULL && cap > 0)
+	{
+		int n = added.size();
+		if (n > cap - 1)
+		{
+			n = cap - 1;
+		}
+		memcpy(addedOut, added.constData(), n);
+		addedOut[n] = 0;
+	}
+	return 1;
 }

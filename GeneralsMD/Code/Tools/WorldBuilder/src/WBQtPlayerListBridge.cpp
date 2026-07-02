@@ -610,6 +610,22 @@ extern "C" void WBQtAddPlayerData_GetTemplateName(int i, char *buf, int cap)
 	}
 }
 
+extern "C" void WBQtAddPlayerData_GetTemplateSide(int i, char *buf, int cap)
+{
+	if (buf != NULL && cap > 0)
+	{
+		buf[0] = 0;
+	}
+	if (ThePlayerTemplateStore != NULL && i >= 0 && i < ThePlayerTemplateStore->getPlayerTemplateCount())
+	{
+		const PlayerTemplate* pt = ThePlayerTemplateStore->getNthPlayerTemplate(i);
+		if (pt != NULL)
+		{
+			copyOut(pt->getSide().str(), buf, cap);
+		}
+	}
+}
+
 extern "C" int WBQtAddPlayer_Commit(const char *templateName)
 {
 	// == AddPlayerDialog::OnOK.

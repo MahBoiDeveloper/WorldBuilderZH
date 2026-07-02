@@ -37,6 +37,9 @@
 #include "Common/ThingFactory.h"
 #include "GameClient/Line2D.h"
 #include "ToastDialog.h"
+#ifdef RTS_HAS_QT
+#include "qt/WBQtToast.h"
+#endif
 
 static bool g_roadSelectTooltip = false;
 //
@@ -161,12 +164,23 @@ void RoadTool::activate()
 
 	if(!g_roadSelectTooltip)
 	{
+#ifdef RTS_HAS_QT
+		if (WBQtToast_Show("Hold Ctrl and click a road point to select all connected road points. \n (All Object Icons must be viewable first.)", 20000, 1))
+		{
+			g_roadSelectTooltip = true;
+		}
+		else
+		{
+#endif
 		CToastDialog* pToast = new CToastDialog(
 		_T("Hold Ctrl and click a road point to select all connected road points. \n (All Object Icons must be viewable first.)"),
 		20000, true);
 		pToast->Create(CToastDialog::IDD);
 		pToast->ShowWindow(SW_SHOWNOACTIVATE);
 		g_roadSelectTooltip = true;
+#ifdef RTS_HAS_QT
+		}
+#endif
 	}
 }
 

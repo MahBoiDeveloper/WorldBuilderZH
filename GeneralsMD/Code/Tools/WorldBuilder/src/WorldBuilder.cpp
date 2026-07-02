@@ -97,6 +97,7 @@
 #include "qt/WBQtBridge.h"		// Phase 1 MFC -> Qt coexistence (experimental; opaque facade, no Qt headers leak here)
 #include "qt/WBQtChromeBridge.h"
 #include "qt/panels/WBQtEntityFinderBridge.h"
+#include "qt/WBQtToast.h"
 #endif
 
 #ifdef _INTERNAL
@@ -590,11 +591,18 @@ BOOL CWorldBuilderApp::InitInstance()
 		MB_ICONEXCLAMATION | MB_OK
 	);
 
+#ifdef RTS_HAS_QT
+	if (!WBQtToast_Show("Press F11 to enter full screen", 5000, 1))
+	{
+#endif
 	CToastDialog* pToast = new CToastDialog(
         _T("Press F11 to enter full screen"),
         5000, true);
     pToast->Create(CToastDialog::IDD);
     pToast->ShowWindow(SW_SHOWNOACTIVATE);
+#ifdef RTS_HAS_QT
+	}
+#endif
 
 
 	// Load GameDirectory

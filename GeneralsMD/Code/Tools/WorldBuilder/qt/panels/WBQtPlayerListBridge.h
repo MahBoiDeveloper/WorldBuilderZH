@@ -80,10 +80,19 @@ void WBQtPlayerList_AddSkirmishPlayers(void);
 // --- the Add-Player sub-dialog's template catalog + commit (== AddPlayerDialog) ---
 int  WBQtAddPlayerData_GetTemplateCount(void);
 void WBQtAddPlayerData_GetTemplateName(int i, char *buf, int cap);
+// Tier 5b: the template's side, for the side-filtered flow (== AddPlayerDialog's m_side
+// filter when object placement auto-adds a player).
+void WBQtAddPlayerData_GetTemplateSide(int i, char *buf, int cap);
 // == AddPlayerDialog::OnOK: adds a player by template to the GLOBAL sides list as its own
 // undoable (quirk preserved: the Player List's later commit supersedes it). Returns 1 if the
 // template exists.
 int  WBQtAddPlayer_Commit(const char *templateName);
+
+// Tier 5b: run the Add-Player dialog standalone (== the object-placement auto-add at
+// ObjectOptions.cpp; onlySide filters the template list like AddPlayerDialog's m_side).
+// addedOut = the committed template name. Returns 1 added, 0 cancelled, -1 Qt unavailable.
+// Implemented in qt/panels/WBQtPlayerListDialog.cpp.
+int  WBQtAddPlayer_Run(void *frameHwnd, const char *onlySide, char *addedOut, int cap);
 
 #ifdef __cplusplus
 }

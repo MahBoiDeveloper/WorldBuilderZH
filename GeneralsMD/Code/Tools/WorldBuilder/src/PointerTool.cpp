@@ -36,6 +36,9 @@
 #include "wbview3d.h"
 #include "ObjectTool.h"
 #include "ToastDialog.h"
+#ifdef RTS_HAS_QT
+#include "qt/WBQtToast.h"
+#endif
 #include "DrawObject.h"
 #include "MinimapDialog.h"	// notifySelectionChanged() updates the selection halos (self-gated)
 
@@ -511,12 +514,23 @@ void PointerTool::mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CWorl
 				m_rotating = true;
 
 				if(!g_PointerToolTip){
+#ifdef RTS_HAS_QT
+					if (WBQtToast_Show("Hold Ctrl to rotate as a group.\nSee Edit tab for rotation options.", 20000, 1))
+					{
+						g_PointerToolTip = true;
+					}
+					else
+					{
+#endif
 					CToastDialog* pToast = new CToastDialog(
 					_T("Hold Ctrl to rotate as a group.\nSee Edit tab for rotation options."),
 					20000, true);
 					pToast->Create(CToastDialog::IDD);
 					pToast->ShowWindow(SW_SHOWNOACTIVATE);
 					g_PointerToolTip = true;
+#ifdef RTS_HAS_QT
+					}
+#endif
 				}
 			}
 		}	else {

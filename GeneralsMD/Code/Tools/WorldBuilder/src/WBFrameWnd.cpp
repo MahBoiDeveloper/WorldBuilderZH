@@ -34,6 +34,7 @@
 #include "qt/panels/WBQtLayersBridge.h"
 #include "qt/WBQtChromeBridge.h"
 #include "qt/panels/WBQtEntityFinderBridge.h"
+#include "qt/WBQtToast.h"
 #endif
 /////////////////////////////////////////////////////////////////////////////
 // CWBFrameWnd
@@ -254,6 +255,12 @@ void CWB3dFrameWnd::EnterFullScreen()
     ::SetWindowPos(m_hWnd, HWND_TOP, 0, 0, screenWidth, screenHeight,
                    SWP_SHOWWINDOW | SWP_FRAMECHANGED);
 
+#ifdef RTS_HAS_QT
+    if (WBQtToast_Show("Press F11 or Escape to exit full screen", 20000, 1))
+    {
+        return;
+    }
+#endif
     CToastDialog* pToast = new CToastDialog(
         _T("Press F11 or Escape to exit full screen"),
         20000, true);

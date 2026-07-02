@@ -54,12 +54,13 @@ private:
 };
 
 // The Add-Player picker (== AddPlayerDialog): a sorted template combo; OK commits the pick and
-// hands the template name back via addedTemplate().
+// hands the template name back via addedTemplate(). onlySide (Tier 5b) filters the list to one
+// side's templates, like AddPlayerDialog's m_side in the object-placement auto-add flow.
 class WBQtAddPlayerDialog : public QDialog
 {
 	Q_OBJECT
 public:
-	explicit WBQtAddPlayerDialog(QWidget *parent = 0);
+	explicit WBQtAddPlayerDialog(QWidget *parent = 0, const QString &onlySide = QString());
 
 	void accept();
 	QString addedTemplate() const { return m_addedTemplate; }

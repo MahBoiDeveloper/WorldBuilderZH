@@ -46,6 +46,7 @@
 #include <list>
 #ifdef RTS_HAS_QT
 #include "qt/WBQtPanelBridge.h"
+#include "qt/panels/WBQtPlayerListBridge.h"
 #endif
 
 #define OBJECT_OPTION_PANEL "ObjectOptionPanel"
@@ -806,6 +807,30 @@ MapObject *ObjectOptions::duplicateCurMapObjectForPlace(const Coord3D* loc, Real
 				found = (si >= 0);
 				if (!found)
 				{
+#ifdef RTS_HAS_QT
+					char qtAdded[256];
+					qtAdded[0] = 0;
+					int qtRc = WBQtAddPlayer_Run(::AfxGetMainWnd() ? ::AfxGetMainWnd()->GetSafeHwnd() : NULL, defPlayerSide.str(), qtAdded, sizeof(qtAdded));
+					if (qtRc >= 0)
+					{
+						if (qtRc == 1)
+						{
+							for (int qi = 0; qi < TheSidesList->getNumSides(); qi++)
+							{
+								AsciiString playerTmplName = TheSidesList->getSideInfo(qi)->getDict()->getAsciiString(TheKey_playerFaction);
+								if (playerTmplName == AsciiString(qtAdded))
+								{
+									m_curOwnerName.set("team");
+									m_curOwnerName.concat(TheSidesList->getSideInfo(qi)->getDict()->getAsciiString(TheKey_playerName));
+									found = true;
+									break;
+								}
+							}
+						}
+					}
+					else
+					{
+#endif
 					AddPlayerDialog addPlyr(pCur->getThingTemplate()->getDefaultOwningSide());
 					if (addPlyr.DoModal() == IDOK) 
 					{
@@ -821,6 +846,9 @@ MapObject *ObjectOptions::duplicateCurMapObjectForPlace(const Coord3D* loc, Real
 							}
 						}
 					}
+#ifdef RTS_HAS_QT
+					}
+#endif
 				}
 			}
 			else

@@ -40,6 +40,9 @@
 #include "Common/WellKnownKeys.h"
 #include "mapobjectprops.h"
 #include "LayersList.h"
+#ifdef RTS_HAS_QT
+#include "qt/panels/WBQtTerrainModalBridge.h"
+#endif
 
 #include "Common/DataChunk.h"
 
@@ -286,6 +289,23 @@ WorldHeightMapEdit::WorldHeightMapEdit(ChunkInputStream *pStrm):
 	// check for missing texture classes.
 	for (i=0; i<m_numTextureClasses; i++) {
 		if (m_textureClasses[i].globalTextureClass < 0) {
+#ifdef RTS_HAS_QT
+			int qtPicked = -1;
+			int qtRc = WBQtTerrainModal_Run(::AfxGetMainWnd() ? ::AfxGetMainWnd()->GetSafeHwnd() : NULL, m_textureClasses[i].name.str(), this, &qtPicked);
+			if (qtRc >= 0) {
+				if (qtRc == 1 && qtPicked >= 0) {
+					m_textureClasses[i].globalTextureClass = qtPicked;
+					m_textureClasses[i].name = m_globalTextureClasses[qtPicked].name;
+					didMajorRemap = true;
+				} else {
+					didCancel = true;
+					for (j=0; j<m_textureClasses[i].numTiles; j++) {
+						REF_PTR_RELEASE(m_sourceTiles[m_textureClasses[i].firstTile+j]);
+					}
+				}
+				continue;
+			}
+#endif
 			TerrainModal modalTerrainDlg(m_textureClasses[i].name, this);	
 			if (IDOK==modalTerrainDlg.DoModal()) {
 				Int globalTex = modalTerrainDlg.getNewNdx();
@@ -331,6 +351,18 @@ Bool WorldHeightMapEdit::remapTextures(void)
 	Int i;
 	Bool anyChanges;
 	for (i=0; i<m_numTextureClasses; i++) {
+#ifdef RTS_HAS_QT
+		int qtPicked = -1;
+		int qtRc = WBQtTerrainModal_Run(::AfxGetMainWnd() ? ::AfxGetMainWnd()->GetSafeHwnd() : NULL, m_textureClasses[i].name.str(), this, &qtPicked);
+		if (qtRc >= 0) {
+			if (qtRc == 1 && qtPicked >= 0) {
+				m_textureClasses[i].globalTextureClass = qtPicked;
+				anyChanges = true;
+				m_textureClasses[i].name = m_globalTextureClasses[qtPicked].name;
+			}
+			continue;
+		}
+#endif
 		TerrainModal modalTerrainDlg(m_textureClasses[i].name, this);	
 		if (IDOK==modalTerrainDlg.DoModal()) {
 			Int globalTex = modalTerrainDlg.getNewNdx();

@@ -132,6 +132,7 @@ set(WORLDBUILDER_SRC
     "src/WBQtPickUnitBridge.cpp"
     "src/WBQtChromeBridge.cpp"
     "src/WBQtEntityFinderBridge.cpp"
+    "src/WBQtTerrainModalBridge.cpp"
     "src/wbview.cpp"
     "src/wbview3d.cpp"
     "src/WHeightMapEdit.cpp"
@@ -327,6 +328,8 @@ if(RTS_ENABLE_WORLDBUILDER_QT)
         "qt/WBQtChrome.cpp"
         "qt/WBQtChrome.h"
         "qt/WBQtChromeBridge.h"
+        "qt/WBQtToast.cpp"
+        "qt/WBQtToast.h"
         "qt/panels/WBQtFeatherPanel.cpp"
         "qt/panels/WBQtFeatherPanel.h"
         "qt/panels/WBQtBrushPanel.cpp"
@@ -401,7 +404,10 @@ if(RTS_ENABLE_WORLDBUILDER_QT)
         "qt/panels/WBQtPickUnitBridge.h"
         "qt/panels/WBQtEntityFinderDialog.cpp"
         "qt/panels/WBQtEntityFinderDialog.h"
-        "qt/panels/WBQtEntityFinderBridge.h")
+        "qt/panels/WBQtEntityFinderBridge.h"
+        "qt/panels/WBQtTerrainModalDialog.cpp"
+        "qt/panels/WBQtTerrainModalDialog.h"
+        "qt/panels/WBQtTerrainModalBridge.h")
 
     set_target_properties(z_worldbuilder_qt PROPERTIES AUTOMOC ON)
 
