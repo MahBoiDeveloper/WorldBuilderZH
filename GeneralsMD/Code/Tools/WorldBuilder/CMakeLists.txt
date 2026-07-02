@@ -330,6 +330,7 @@ if(RTS_ENABLE_WORLDBUILDER_QT)
         "qt/WBQtChromeBridge.h"
         "qt/WBQtToast.cpp"
         "qt/WBQtToast.h"
+        "qt/WBQtPreviewImage.h"
         "qt/panels/WBQtFeatherPanel.cpp"
         "qt/panels/WBQtFeatherPanel.h"
         "qt/panels/WBQtBrushPanel.cpp"

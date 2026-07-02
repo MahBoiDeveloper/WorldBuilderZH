@@ -1,6 +1,7 @@
 // WBQtGrovePanel.cpp -- see WBQtGrovePanel.h.
 #include "WBQtGrovePanel.h"
 #include "WBQtGroveBridge.h"
+#include "WBQtPreviewImage.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -209,23 +210,12 @@ void WBQtGrovePanel::refreshPreview()
 {
 	int w = 128, h = 128;
 	WBQtGrove_GetPreviewSize(&w, &h);
-	QImage img(w, h, QImage::Format_RGB888);
-	// The bridge fills BGR bottom-up (the MFC path relied on GDI's positive-height DIB blit to
-	// flip it); Qt's QImage is top-down, so read source rows bottom-to-top and swap B<->R.
 	QByteArray bgr(w * h * 3, 0);
 	if (WBQtGrove_RenderPreview(reinterpret_cast<unsigned char*>(bgr.data()), bgr.size()))
 	{
-		for (int y = 0; y < h; ++y)
-		{
-			const unsigned char *src = reinterpret_cast<const unsigned char*>(bgr.constData()) + (h - 1 - y) * w * 3;
-			unsigned char *dst = img.scanLine(y);
-			for (int x = 0; x < w; ++x)
-			{
-				dst[x * 3 + 0] = src[x * 3 + 2];	// R <- B
-				dst[x * 3 + 1] = src[x * 3 + 1];	// G
-				dst[x * 3 + 2] = src[x * 3 + 0];	// B <- R
-			}
-		}
+		// Flip + convert + the MFC ObjectPreview center-quarter zoom (shared helper).
+		QImage img = WBQtPreviewImage::fromBridgeBgr(
+			reinterpret_cast<const unsigned char*>(bgr.constData()), w, h);
 		m_preview->setPixmap(QPixmap::fromImage(img).scaled(m_preview->size(),
 			Qt::KeepAspectRatio, Qt::SmoothTransformation));
 	}

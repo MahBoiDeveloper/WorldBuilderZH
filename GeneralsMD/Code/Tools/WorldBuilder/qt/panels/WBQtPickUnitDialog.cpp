@@ -3,6 +3,7 @@
 // label / tree / OK-Cancel / "Continue without replacing...").
 #include "WBQtPickUnitDialog.h"
 #include "WBQtPickUnitBridge.h"
+#include "WBQtPreviewImage.h"
 #include "WBQtTreeStyle.h"
 
 #include <QApplication>
@@ -243,20 +244,9 @@ void WBQtPickUnitDialog::refreshPreview(const QString &name)
 	if (WBQtPickUnit_RenderPreview(nameBytes.constData(),
 			reinterpret_cast<unsigned char*>(bgr.data()), bgr.size()))
 	{
-		// The bridge's BGR buffer is bottom-up (the MFC path relied on GDI's positive-height
-		// DIB blit to flip it); Qt's QImage is top-down, so read source rows bottom-to-top.
-		QImage img(kPreviewW, kPreviewH, QImage::Format_RGB888);
-		for (int y = 0; y < kPreviewH; ++y)
-		{
-			const unsigned char *src = reinterpret_cast<const unsigned char*>(bgr.constData()) + (kPreviewH - 1 - y) * kPreviewW * 3;
-			unsigned char *dst = img.scanLine(y);
-			for (int x = 0; x < kPreviewW; ++x)
-			{
-				dst[x * 3 + 0] = src[x * 3 + 2];	// R <- B
-				dst[x * 3 + 1] = src[x * 3 + 1];	// G
-				dst[x * 3 + 2] = src[x * 3 + 0];	// B <- R
-			}
-		}
+		// Flip + convert + the MFC center-quarter zoom, shared with the other previews.
+		QImage img = WBQtPreviewImage::fromBridgeBgr(
+			reinterpret_cast<const unsigned char*>(bgr.constData()), kPreviewW, kPreviewH);
 		m_preview->setPixmap(QPixmap::fromImage(img).scaled(m_preview->size(),
 			Qt::KeepAspectRatio, Qt::SmoothTransformation));
 	}

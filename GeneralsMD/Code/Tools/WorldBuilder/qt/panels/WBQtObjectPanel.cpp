@@ -1,6 +1,7 @@
 // WBQtObjectPanel.cpp -- see WBQtObjectPanel.h.
 #include "WBQtObjectPanel.h"
 #include "WBQtPanelBridge.h"
+#include "WBQtPreviewImage.h"
 #include "WBQtTreeStyle.h"
 
 #include <QCheckBox>
@@ -258,25 +259,12 @@ void WBQtObjectPanel::refreshPreview()
 {
 	int w = 128, h = 128;
 	WBQtObject_GetPreviewSize(&w, &h);
-	QImage img(w, h, QImage::Format_RGB888);
-	// The bridge fills BGR; render into a temp then swap to RGB. Use a heap buffer sized to
-	// the reported dimensions.
 	QByteArray bgr(w * h * 3, 0);
 	if (WBQtObject_RenderPreview(reinterpret_cast<unsigned char*>(bgr.data()), bgr.size()))
 	{
-		// The bridge's BGR buffer is bottom-up (the MFC path relied on GDI's positive-height
-		// DIB blit to flip it); Qt's QImage is top-down, so read source rows bottom-to-top.
-		for (int y = 0; y < h; ++y)
-		{
-			const unsigned char *src = reinterpret_cast<const unsigned char*>(bgr.constData()) + (h - 1 - y) * w * 3;
-			unsigned char *dst = img.scanLine(y);
-			for (int x = 0; x < w; ++x)
-			{
-				dst[x * 3 + 0] = src[x * 3 + 2];	// R <- B
-				dst[x * 3 + 1] = src[x * 3 + 1];	// G
-				dst[x * 3 + 2] = src[x * 3 + 0];	// B <- R
-			}
-		}
+		// Flip + convert + the MFC ObjectPreview center-quarter zoom (shared helper).
+		QImage img = WBQtPreviewImage::fromBridgeBgr(
+			reinterpret_cast<const unsigned char*>(bgr.constData()), w, h);
 		m_preview->setPixmap(QPixmap::fromImage(img).scaled(m_preview->size(),
 			Qt::KeepAspectRatio, Qt::SmoothTransformation));
 	}
