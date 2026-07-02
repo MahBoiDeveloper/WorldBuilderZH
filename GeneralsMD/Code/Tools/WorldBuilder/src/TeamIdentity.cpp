@@ -29,6 +29,9 @@
 #include "Common/ThingFactory.h"
 #include "Common/ThingSort.h"
 #include "GameLogic/SidesList.h"
+#ifdef RTS_HAS_QT
+#include "qt/panels/WBQtPickUnitBridge.h"
+#endif
 
 static const char* NEUTRAL_NAME_STR = "(neutral)";
 
@@ -583,6 +586,54 @@ void TeamIdentity::OnSelchangeHomeWaypoint()
 
 void TeamIdentity::OnUnitTypeButton(Int idcUnitType) 
 {
+#ifdef RTS_HAS_QT
+	{
+		int allowable[4];
+		allowable[0] = ES_VEHICLE;
+		allowable[1] = ES_INFANTRY;
+		allowable[2] = ES_STRUCTURE;
+		allowable[3] = ES_SYSTEM;
+		char qtPicked[256];
+		qtPicked[0] = 0;
+		int qtRc = WBQtPickUnit_Run(::AfxGetMainWnd()->GetSafeHwnd(), allowable, 4, false, qtPicked, sizeof(qtPicked));
+		if (qtRc >= 0) {
+			if (qtRc == 1) {
+				AsciiString unit(qtPicked);
+				NameKeyType keyUnitType;
+				switch (idcUnitType)
+				{
+					case IDC_UNIT_TYPE1:
+						keyUnitType = TheKey_teamUnitType1;
+						break;
+					case IDC_UNIT_TYPE2:
+						keyUnitType = TheKey_teamUnitType2;
+						break;
+					case IDC_UNIT_TYPE3:
+						keyUnitType = TheKey_teamUnitType3;
+						break;
+					case IDC_UNIT_TYPE4:
+						keyUnitType = TheKey_teamUnitType4;
+						break;
+					case IDC_UNIT_TYPE5:
+						keyUnitType = TheKey_teamUnitType5;
+						break;
+					case IDC_UNIT_TYPE6:
+						keyUnitType = TheKey_teamUnitType6;
+						break;
+					case IDC_UNIT_TYPE7:
+						keyUnitType = TheKey_teamUnitType7;
+						break;
+					default:
+						return;
+				}
+				m_teamDict->setAsciiString(keyUnitType, unit);
+				CComboBox *pCombo = (CComboBox *)GetDlgItem(idcUnitType);
+				pCombo->SelectString(-1, unit.str());
+			}
+			return;
+		}
+	}
+#endif
 	PickUnitDialog dlg;
 	dlg.SetAllowableType(ES_VEHICLE);
 	dlg.SetAllowableType(ES_INFANTRY);

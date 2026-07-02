@@ -65,6 +65,7 @@
 #ifdef RTS_HAS_QT
 #include "qt/panels/WBQtMiscModalsBridge.h"
 #include "qt/panels/WBQtMapFileBridge.h"
+#include "qt/panels/WBQtPickUnitBridge.h"
 #endif
 #include "SaveMap.h"
 #include "ScriptDialog.h"
@@ -1062,6 +1063,38 @@ void CWorldBuilderDoc::validate(void)
 			}
 
 			if (!exists) {
+#ifdef RTS_HAS_QT
+				Bool qtHandled = false;
+				Bool qtIgnored = false;
+				{
+					int allowable[ES_NUM_SORTING_TYPES];
+					int allowCount = 0;
+					for (int i = ES_FIRST; i<ES_NUM_SORTING_TYPES; i++)	{
+						allowable[allowCount++] = i;
+					}
+					char qtPicked[256];
+					qtPicked[0] = 0;
+					int qtRc = WBQtReplaceUnit_Run(::AfxGetMainWnd() ? ::AfxGetMainWnd()->GetSafeHwnd() : NULL, name.str(), allowable, allowCount, false, qtPicked, sizeof(qtPicked));
+					if (qtRc >= 0) {
+						qtHandled = true;
+						if (qtRc == 1) {
+							const ThingTemplate* qtThing = TheThingFactory->findTemplate(AsciiString(qtPicked));
+							if (qtThing) {
+								swapName = qtThing->getName();
+								swapDict.setAsciiString(NAMEKEY(name), swapName);
+							}
+						} else if (qtRc == 2) {
+							// User clicked "Proceed without replace"
+							DEBUG_LOG(("User opted to proceed without replacing unit '%s'\n", name.str()));
+							qtIgnored = true;
+						}
+					}
+				}
+				if (qtIgnored) {
+					break;  // Skip this object and move to the next one
+				}
+				if (!qtHandled) {
+#endif
 				ReplaceUnitDialog dlg;
 				dlg.setMissing(name);
 				for (int i = ES_FIRST; i<ES_NUM_SORTING_TYPES; i++)	{
@@ -1082,6 +1115,9 @@ void CWorldBuilderDoc::validate(void)
 					// Optionally, you can continue to the next object or handle as necessary
 					break;  // Skip this object and move to the next one
 				}
+#ifdef RTS_HAS_QT
+				}
+#endif
 			}
 			swapName = swapDict.getAsciiString(NAMEKEY(name), &exists);
 			if (exists) 

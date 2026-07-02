@@ -46,6 +46,8 @@
 #include "qt/panels/WBQtPlayerListBridge.h"
 #include "qt/panels/WBQtTeamsBridge.h"
 #include "qt/panels/WBQtMiscModalsBridge.h"
+#include "qt/panels/WBQtPickUnitBridge.h"
+#include "Common/ThingFactory.h"
 #endif
 
 #ifdef _INTERNAL
@@ -861,6 +863,35 @@ void WbView::OnEditReplace()
 		}
 	}
 
+#ifdef RTS_HAS_QT
+	{
+		int allowable[ES_NUM_SORTING_TYPES];
+		int allowCount = 0;
+		if (sort == ES_NONE) {
+			for (int i = ES_FIRST; i<ES_NUM_SORTING_TYPES; i++)	{
+				allowable[allowCount++] = i;
+			}
+		} else {
+			allowable[allowCount++] = sort;
+		}
+		char qtPicked[256];
+		qtPicked[0] = 0;
+		int qtRc = WBQtPickUnit_Run(::AfxGetMainWnd()->GetSafeHwnd(), allowable, allowCount, false, qtPicked, sizeof(qtPicked));
+		if (qtRc >= 0) {
+			if (qtRc == 1) {
+				const ThingTemplate* thing = TheThingFactory->findTemplate(AsciiString(qtPicked));
+				if (thing) {
+					CWorldBuilderDoc* pDoc = CWorldBuilderDoc::GetActiveDoc();
+					ModifyObjectUndoable *pUndo = new ModifyObjectUndoable(pDoc);
+					pDoc->AddAndDoUndoable(pUndo);
+					pUndo->SetThingTemplate(thing);
+					REF_PTR_RELEASE(pUndo); // belongs to pDoc now.
+				}
+			}
+			return;
+		}
+	}
+#endif
 	PickUnitDialog dlg;
 	if (sort == ES_NONE) {
 		for (int i = ES_FIRST; i<ES_NUM_SORTING_TYPES; i++)	{
