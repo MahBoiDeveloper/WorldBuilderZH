@@ -107,6 +107,25 @@ public:
 	QCheckBox *m_unsellableCheck;
 };
 
+// New/Resize Height Map (== CNewHeightMap): sizes + border + initial height, and in resize
+// mode the exclusive 3x3 anchor grid (center = no anchors).
+class WBQtNewHeightMapDialog : public QDialog
+{
+	Q_OBJECT
+public:
+	WBQtNewHeightMapDialog(const QString &label, bool forResize,
+		int initialHeight, int xExtent, int yExtent, int borderWidth, QWidget *parent = 0);
+
+	QLineEdit *m_xEdit;
+	QLineEdit *m_yEdit;
+	QLineEdit *m_borderEdit;
+	QLineEdit *m_heightEdit;
+	QPushButton *m_anchors[9];	// row-major 3x3; NULL when !forResize
+
+	// anchor flags from the checked grid cell (center -> all false)
+	void anchorsOut(int *top, int *bottom, int *left, int *right) const;
+};
+
 // Export Scripts Options: the six export flags + the all/selected radio.
 class WBQtExportScriptsDialog : public QDialog
 {

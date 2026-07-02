@@ -411,6 +411,99 @@ WBQtBaseBuildPropsDialog::WBQtBaseBuildPropsDialog(const QString &name, const QS
 	resize(340, 190);
 }
 
+// ===================== WBQtNewHeightMapDialog =====================
+
+WBQtNewHeightMapDialog::WBQtNewHeightMapDialog(const QString &label, bool forResize,
+	int initialHeight, int xExtent, int yExtent, int borderWidth, QWidget *parent)
+	: QDialog(parent)
+{
+	setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
+	setWindowTitle(label.isEmpty() ? QString("New Height Map") : label);
+
+	QVBoxLayout *root = new QVBoxLayout(this);
+	QGridLayout *grid = new QGridLayout();
+	grid->addWidget(new QLabel("Horz (x) size:", this), 0, 0);
+	m_xEdit = new QLineEdit(QString::number(xExtent), this);
+	m_xEdit->setFixedWidth(60);
+	grid->addWidget(m_xEdit, 0, 1, Qt::AlignLeft);
+	grid->addWidget(new QLabel("Vert (y) size:", this), 1, 0);
+	m_yEdit = new QLineEdit(QString::number(yExtent), this);
+	m_yEdit->setFixedWidth(60);
+	grid->addWidget(m_yEdit, 1, 1, Qt::AlignLeft);
+	grid->addWidget(new QLabel("Border size:", this), 2, 0);
+	m_borderEdit = new QLineEdit(QString::number(borderWidth), this);
+	m_borderEdit->setFixedWidth(60);
+	grid->addWidget(m_borderEdit, 2, 1, Qt::AlignLeft);
+	grid->addWidget(new QLabel("Initial height (0-255):", this), 3, 0);
+	m_heightEdit = new QLineEdit(QString::number(initialHeight), this);
+	m_heightEdit->setFixedWidth(60);
+	grid->addWidget(m_heightEdit, 3, 1, Qt::AlignLeft);
+	root->addLayout(grid);
+
+	for (int i = 0; i < 9; i++)
+	{
+		m_anchors[i] = NULL;
+	}
+	if (forResize)
+	{
+		// == the 3x3 BS_PUSHLIKE anchor grid: exclusive, center = grow evenly (no anchors).
+		root->addWidget(new QLabel("Anchor:", this));
+		QGridLayout *anchorGrid = new QGridLayout();
+		anchorGrid->setSpacing(0);
+		for (int i = 0; i < 9; i++)
+		{
+			QPushButton *cell = new QPushButton(this);
+			cell->setCheckable(true);
+			cell->setAutoDefault(false);
+			cell->setFixedSize(34, 30);
+			m_anchors[i] = cell;
+			anchorGrid->addWidget(cell, i / 3, i % 3);
+			connect(cell, &QPushButton::clicked, cell, [this, i]()
+			{
+				for (int j = 0; j < 9; j++)
+				{
+					m_anchors[j]->setChecked(j == i);
+				}
+			});
+		}
+		QHBoxLayout *anchorRow = new QHBoxLayout();
+		anchorRow->addLayout(anchorGrid);
+		anchorRow->addStretch(1);
+		root->addLayout(anchorRow);
+		m_anchors[4]->setChecked(true);	// center, == OnInitDialog's default
+	}
+
+	addOkCancel(root, this, true);
+	resize(260, forResize ? 300 : 180);
+}
+
+void WBQtNewHeightMapDialog::anchorsOut(int *top, int *bottom, int *left, int *right) const
+{
+	*top = 0;
+	*bottom = 0;
+	*left = 0;
+	*right = 0;
+	if (m_anchors[0] == NULL)
+	{
+		return;
+	}
+	int checked = 4;
+	for (int i = 0; i < 9; i++)
+	{
+		if (m_anchors[i]->isChecked())
+		{
+			checked = i;
+			break;
+		}
+	}
+	int row = checked / 3;
+	int col = checked % 3;
+	*top = (row == 0) ? 1 : 0;
+	*bottom = (row == 2) ? 1 : 0;
+	*left = (col == 0) ? 1 : 0;
+	*right = (col == 2) ? 1 : 0;
+}
+
 // ===================== WBQtExportScriptsDialog =====================
 
 WBQtExportScriptsDialog::WBQtExportScriptsDialog(QWidget *parent)
@@ -526,6 +619,25 @@ extern "C" int WBQtExportScriptsOptions_Run(void *frameHwnd)
 {
 	WBQtExportScriptsDialog dlg;
 	return runModal(dlg, frameHwnd);
+}
+
+extern "C" int WBQtNewHeightMap_Run(void *frameHwnd, const char *label, int forResize,
+	int *initialHeight, int *xExtent, int *yExtent, int *borderWidth,
+	int *anchorTop, int *anchorBottom, int *anchorLeft, int *anchorRight)
+{
+	WBQtNewHeightMapDialog dlg(QString::fromLocal8Bit(label ? label : ""), forResize != 0,
+		*initialHeight, *xExtent, *yExtent, *borderWidth);
+	if (runModal(dlg, frameHwnd) == 0)
+	{
+		return 0;
+	}
+	// == CNewHeightMap::OnOK (atoi semantics: garbage parses to 0, matching MFC).
+	*initialHeight = dlg.m_heightEdit->text().toInt();
+	*xExtent = dlg.m_xEdit->text().toInt();
+	*yExtent = dlg.m_yEdit->text().toInt();
+	*borderWidth = dlg.m_borderEdit->text().toInt();
+	dlg.anchorsOut(anchorTop, anchorBottom, anchorLeft, anchorRight);
+	return 1;
 }
 
 extern "C" int WBQtFixTeamOwner_Run(void *teamsInfo, void *sidesList, void *frameHwnd, char *ownerOut, int cap)

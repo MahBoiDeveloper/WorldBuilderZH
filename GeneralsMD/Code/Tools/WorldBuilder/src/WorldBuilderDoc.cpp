@@ -62,6 +62,9 @@
 #include "MainFrm.h"
 #include "MinimapDialog.h"
 #include "NewHeightMap.h"
+#ifdef RTS_HAS_QT
+#include "qt/panels/WBQtMiscModalsBridge.h"
+#endif
 #include "SaveMap.h"
 #include "ScriptDialog.h"
 #include "TerrainMaterial.h"
@@ -1946,12 +1949,38 @@ void CWorldBuilderDoc::OnFileResize()
 	hi.forResize = true;
 	CString label;
 	label.LoadString(IDS_RESIZE);
+#ifdef RTS_HAS_QT
+	{
+		int qtHeight = hi.initialHeight;
+		int qtX = hi.xExtent;
+		int qtY = hi.yExtent;
+		int qtBorder = hi.borderWidth;
+		int qtTop = 0;
+		int qtBottom = 0;
+		int qtLeft = 0;
+		int qtRight = 0;
+		if (WBQtNewHeightMap_Run(::AfxGetMainWnd()->GetSafeHwnd(), (LPCTSTR)label, 1,
+				&qtHeight, &qtX, &qtY, &qtBorder, &qtTop, &qtBottom, &qtLeft, &qtRight) == 0)
+		{
+			return;
+		}
+		hi.initialHeight = qtHeight;
+		hi.xExtent = qtX;
+		hi.yExtent = qtY;
+		hi.borderWidth = qtBorder;
+		hi.anchorTop = (qtTop != 0);
+		hi.anchorBottom = (qtBottom != 0);
+		hi.anchorLeft = (qtLeft != 0);
+		hi.anchorRight = (qtRight != 0);
+	}
+#else
 	CNewHeightMap htDialog(&hi, label);
 	if (IDOK == htDialog.DoModal()) {
 		htDialog.GetHeightInfo(&hi);
 	} else {
 		return;
 	}
+#endif
 
 	WorldHeightMapEdit *htMapEditCopy = GetHeightMap()->duplicate();
 	if (htMapEditCopy == NULL) return;
@@ -2118,9 +2147,26 @@ BOOL CWorldBuilderDoc::OnNewDocument()
 	if (!firstTime) {
 		CString label;
 		label.LoadString(IDS_NEW);
+#ifdef RTS_HAS_QT
+		int qtHeight = hi.initialHeight;
+		int qtX = hi.xExtent;
+		int qtY = hi.yExtent;
+		int qtBorder = hi.borderWidth;
+		int qtTop = 0;
+		int qtBottom = 0;
+		int qtLeft = 0;
+		int qtRight = 0;
+		if (WBQtNewHeightMap_Run(::AfxGetMainWnd()->GetSafeHwnd(), (LPCTSTR)label, 0,
+				&qtHeight, &qtX, &qtY, &qtBorder, &qtTop, &qtBottom, &qtLeft, &qtRight) != 0) {
+			hi.initialHeight = qtHeight;
+			hi.xExtent = qtX;
+			hi.yExtent = qtY;
+			hi.borderWidth = qtBorder;
+#else
 		CNewHeightMap htDialog(&hi, label);
 		if (IDOK == htDialog.DoModal()) {
 			htDialog.GetHeightInfo(&hi);
+#endif
 			AfxGetApp()->WriteProfileInt("GameOptions", "Default Map Height", hi.initialHeight);
 			AfxGetApp()->WriteProfileInt("GameOptions", "Default Map X-size", hi.xExtent);
 			AfxGetApp()->WriteProfileInt("GameOptions", "Default Map Y-size", hi.yExtent);

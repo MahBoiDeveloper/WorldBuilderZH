@@ -77,6 +77,13 @@ void WBQtFixOwnerData_GetInternal(void *sidesList, int i, char *buf, int cap);
 int WBQtBaseBuildProps_Run(void *frameHwnd, const char *name, const char *script, int health, int unsellable,
 	char *nameOut, int nameCap, char *scriptOut, int scriptCap, int *healthOut, int *unsellableOut);
 
+// --- New/Resize Height Map (== CNewHeightMap): sizes/border/height in-out; when forResize
+// is non-zero the 3x3 anchor grid shows and the anchor flags are written back. Pure value
+// passing, no MFC state; returns 1 on OK. ---
+int WBQtNewHeightMap_Run(void *frameHwnd, const char *label, int forResize,
+	int *initialHeight, int *xExtent, int *yExtent, int *borderWidth,
+	int *anchorTop, int *anchorBottom, int *anchorLeft, int *anchorRight);
+
 #ifdef __cplusplus
 }
 #endif
