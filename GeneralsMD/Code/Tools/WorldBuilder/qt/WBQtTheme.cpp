@@ -14,6 +14,7 @@
 #include <QStyle>
 #include <QStyleFactory>
 #include <QString>
+#include <QTimer>
 #include <QVariant>
 #include <QWidget>
 #include <QWidgetList>
@@ -153,6 +154,27 @@ namespace
 		}
 
 	protected:
+		// True for windows that embed a native (non-Qt) child HWND -- the QWinWidget
+		// hosts themselves (viewport chrome / owner bridges) and any window holding a
+		// QWinHost (e.g. the adopted minimap). Layered-window transparency around
+		// native children is not worth the risk; they are excluded from the fade.
+		static bool embedsNativeChild(const QWidget *w)
+		{
+			if (w->inherits("QWinWidget"))
+			{
+				return true;
+			}
+			const QList<QWidget *> kids = w->findChildren<QWidget *>();
+			for (int i = 0; i < kids.size(); ++i)
+			{
+				if (kids.at(i)->inherits("QWinHost"))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
 		virtual bool eventFilter(QObject *obj, QEvent *event)
 		{
 			if (event->type() == QEvent::Show && obj->isWidgetType())
@@ -163,6 +185,37 @@ namespace
 					w->setProperty("wbTitleBarThemed", true);
 					setWindowDarkTitleBar(reinterpret_cast<HWND>(w->winId()),
 						WBQtTheme::effectiveDark());
+
+					// Anti-flash: a freshly created top-level maps as an UNPAINTED
+					// (white) surface until its first paint flushes -- a bright flash
+					// against the dark theme, worst on big panels whose first paint
+					// is slow (e.g. Object Properties). Show it fully transparent and
+					// restore opacity right after the first paint, with a timeout
+					// safety net in case a window never paints.
+					if (WBQtTheme::effectiveDark() && !embedsNativeChild(w))
+					{
+						w->setProperty("wbShowFadePending", true);
+						w->setWindowOpacity(0.0);
+						QWidget *shown = w;
+						QTimer::singleShot(250, shown, [shown]() {
+							shown->setProperty("wbShowFadePending", QVariant());
+							shown->setWindowOpacity(1.0);
+						});
+					}
+				}
+			}
+			else if (event->type() == QEvent::Paint && obj->isWidgetType())
+			{
+				QWidget *w = static_cast<QWidget *>(obj);
+				if (w->isWindow() && w->property("wbShowFadePending").toBool())
+				{
+					// The first paint has landed in the backing store; flip the window
+					// visible on the next event-loop turn, after that paint flushes.
+					w->setProperty("wbShowFadePending", QVariant());
+					QWidget *painted = w;
+					QTimer::singleShot(0, painted, [painted]() {
+						painted->setWindowOpacity(1.0);
+					});
 				}
 			}
 			return QObject::eventFilter(obj, event);
