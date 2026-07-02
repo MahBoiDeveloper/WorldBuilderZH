@@ -72,6 +72,26 @@ protected:
 	void populatePackedBigList();         ///< scan cwd for *.big, list them
 	void populatePackedMapList( const CString &bigPath ); ///< open a .big, list the maps inside
 	Bool extractPackedMap( const CString &bigPath, const CString &archiveMapPath, CString &outMapPath ); ///< extract a map folder to temp; outMapPath = extracted .map
+#ifdef RTS_HAS_QT
+// Qt seam (Tier 3d): the Qt Open Map dialog drives THIS dialog created hidden -- the
+// system/user/packed-.big population, search filter and the OnOK resolution/extraction
+// are reused verbatim. Definitions live in src/WBQtMapFileBridge.cpp.
+public:
+	static OpenMap *qtOpen(void);
+	static void qtClose(void);
+	static OpenMap *qtInstance(void);
+	int  qtListCount(void);
+	void qtListItem(int i, char *buf, int cap);
+	int  qtListCurSel(void);
+	int  qtOkEnabled(void);
+	int  qtGetMode(void);
+	void qtSetMode(int mode);
+	void qtSearch(const char *text);
+	void qtResetSearch(void);
+	int  qtPick(int row);
+	int  qtBrowsePick(void);
+#endif
+
 protected:
 
 	// Generated message map functions

@@ -25,6 +25,9 @@
 #include "MainFrm.h"
 #include "DialogFont.h"
 #include "OpenMap.h"
+#ifdef RTS_HAS_QT
+#include "qt/panels/WBQtMapFileBridge.h"
+#endif
 #include "SplashScreen.h"
 #include "textureloader.h"
 #include "WorldBuilderDoc.h"
@@ -1470,6 +1473,25 @@ void CWorldBuilderApp::OnResetWindows()
 void CWorldBuilderApp::OnFileOpen() 
 {
 #ifdef DO_MAPS_IN_DIRECTORIES
+#ifdef RTS_HAS_QT
+	{
+		char qtFilename[_MAX_PATH];
+		int qtBrowse = 0;
+		if (WBQtOpenMap_Run(::AfxGetMainWnd()->GetSafeHwnd(), qtFilename, sizeof(qtFilename), &qtBrowse) != 0)
+		{
+			if (!qtBrowse)
+			{
+				OpenDocumentFile(qtFilename);
+				return;
+			}
+		}
+		else
+		{
+			// cancelled so return.
+			return;
+		}
+	}
+#else
 	TOpenMapInfo info;
 	OpenMap mapDlg(&info);
 	if (mapDlg.DoModal() == IDOK) {
@@ -1481,6 +1503,7 @@ void CWorldBuilderApp::OnFileOpen()
 		// cancelled so return.
 		return;
 	}
+#endif
 #endif
 
 	CFileStatus status;

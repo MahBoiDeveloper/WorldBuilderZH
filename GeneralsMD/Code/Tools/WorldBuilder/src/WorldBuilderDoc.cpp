@@ -64,6 +64,7 @@
 #include "NewHeightMap.h"
 #ifdef RTS_HAS_QT
 #include "qt/panels/WBQtMiscModalsBridge.h"
+#include "qt/panels/WBQtMapFileBridge.h"
 #endif
 #include "SaveMap.h"
 #include "ScriptDialog.h"
@@ -1536,12 +1537,30 @@ BOOL CWorldBuilderDoc::DoSave(LPCTSTR lpszPathName, BOOL bReplace)
 			}
 		}
 
+#ifdef RTS_HAS_QT
+		TSaveMapInfo info;
+		info.filename = newName;
+		{
+			char qtFilename[_MAX_PATH];
+			int qtBrowse = 0;
+			int qtSystemDir = 0;
+			if (WBQtSaveMap_Run(::AfxGetMainWnd()->GetSafeHwnd(), (LPCTSTR)info.filename,
+					qtFilename, sizeof(qtFilename), &qtBrowse, &qtSystemDir) == 0)
+			{
+				return FALSE;
+			}
+			info.filename = qtFilename;
+			info.browse = (qtBrowse != 0);
+			info.usingSystemDir = (qtSystemDir != 0);
+		}
+#else
 		TSaveMapInfo info;
 		info.filename = newName;
 		SaveMap saveDlg(&info);
 		if (saveDlg.DoModal() == IDCANCEL) {
 			return FALSE;
 		}
+#endif
 		if (info.browse) {
 			if (!AfxGetApp()->DoPromptFileName(newName,
 				bReplace ? AFX_IDS_SAVEFILE : AFX_IDS_SAVEFILECOPY,
