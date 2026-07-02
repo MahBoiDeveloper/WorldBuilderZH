@@ -155,6 +155,13 @@ public:
 
 	CDocTemplate *Get3dTemplate() { return m_3dtemplate; }
 
+#ifdef RTS_HAS_QT
+	// Tier 4a: MRU access for the Qt File menu (m_pRecentFileList is protected in
+	// CWinApp). Defined in src/WBQtChromeBridge.cpp.
+	int qtGetMruCount(void);
+	void qtGetMruPath(int i, CString &out);
+#endif
+
 	/// Set the brush tool as the active tool.
 	void selectBrushTool(void) { setActiveTool(&m_brushTool); }
 

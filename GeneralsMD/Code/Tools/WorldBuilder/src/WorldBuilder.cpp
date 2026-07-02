@@ -95,6 +95,7 @@
 
 #ifdef RTS_HAS_QT
 #include "qt/WBQtBridge.h"		// Phase 1 MFC -> Qt coexistence (experimental; opaque facade, no Qt headers leak here)
+#include "qt/WBQtChromeBridge.h"
 #endif
 
 #ifdef _INTERNAL
@@ -541,7 +542,18 @@ BOOL CWorldBuilderApp::InitInstance()
 		{
 			pFrame->m_qtViewportHost = (HWND)WBQt_HostViewport(pFrame->GetSafeHwnd(), p3d->GetSafeHwnd());
 			pFrame->positionQtViewportHost();
+			// Tier 4a: the Qt menu bar replaces the MFC menu -- walk the live menu into
+			// the chrome, then detach it. The Theme popup is appended natively by the
+			// chrome, so addQtThemeMenu is skipped on this path.
+			if (WBQtChrome_InstallMenuBar(pFrame->GetSafeHwnd(), ::GetMenu(pFrame->GetSafeHwnd())))
+			{
+				::SetMenu(pFrame->GetSafeHwnd(), NULL);
+				pFrame->positionQtViewportHost();
+			}
+			else
+			{
 			pFrame->addQtThemeMenu();
+			}
 		}
 	}
 #endif

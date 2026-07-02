@@ -116,6 +116,13 @@ void *WBQt_HostViewport(void *frameHwnd, void *viewHwnd)
 	return reinterpret_cast<void *>(g_wbViewportHost->winId());
 }
 
+// Tier 4a: the chrome (WBQtChrome.cpp) inserts the Qt menu bar into this host's layout,
+// turning the Phase-2 viewport host into the full chrome column.
+QWidget *WBQt_GetViewportHostWidget(void)
+{
+	return g_wbViewportHost;
+}
+
 void WBQt_SetViewportHostGeometry(int x, int y, int width, int height)
 {
 	if (g_wbViewportHost != NULL)

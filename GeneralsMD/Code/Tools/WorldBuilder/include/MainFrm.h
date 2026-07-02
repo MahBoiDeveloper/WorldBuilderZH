@@ -118,6 +118,9 @@ public:
 	void addQtThemeMenu(void);
 	afx_msg void OnQtTheme(UINT nID);
 	afx_msg void OnUpdateQtTheme(CCmdUI *pCmdUI);
+	// Tier 4a: once the Qt menu bar is installed, keep CFrameWnd from re-attaching
+	// the detached MFC menu. Defined in src/WBQtChromeBridge.cpp.
+	virtual void OnUpdateFrameMenu(HMENU hMenuAlt);
 #endif
 
 protected:  // control bar embedded members

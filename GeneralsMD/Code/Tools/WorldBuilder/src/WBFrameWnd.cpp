@@ -32,6 +32,7 @@
 #include "qt/panels/WBQtGlobalLightBridge.h"
 #include "qt/panels/WBQtCameraBridge.h"
 #include "qt/panels/WBQtLayersBridge.h"
+#include "qt/WBQtChromeBridge.h"
 #endif
 /////////////////////////////////////////////////////////////////////////////
 // CWBFrameWnd
@@ -158,6 +159,14 @@ void CWB3dFrameWnd::OnMove(int x, int y)
 BOOL CWB3dFrameWnd::PreTranslateMessage(MSG* pMsg)
 {
 #ifdef RTS_HAS_QT
+	// While a Qt chrome menu popup is open, every key must reach Qt (menu
+	// navigation) -- otherwise the accelerator table below fires tool hotkeys
+	// mid-menu, and the ESC handling would exit fullscreen instead of closing the
+	// menu.
+	if (WBQtChrome_PopupActive())
+	{
+		return CWnd::PreTranslateMessage(pMsg);
+	}
 	// When the Qt Script editor owns the keyboard focus, skip the frame's accelerator
 	// translation (CFrameWnd::PreTranslateMessage) -- otherwise single-key tool shortcuts
 	// swallow keystrokes meant for the script editor's search / rename fields. Route
