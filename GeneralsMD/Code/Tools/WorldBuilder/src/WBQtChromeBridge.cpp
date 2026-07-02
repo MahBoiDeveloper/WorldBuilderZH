@@ -73,7 +73,26 @@ void CWorldBuilderApp::qtGetMruPath(int i, CString &out)
 	out.Empty();
 	if (m_pRecentFileList != NULL && i >= 0 && i < m_pRecentFileList->GetSize())
 	{
-		out = (*m_pRecentFileList)[i];
+		// == CRecentFileList::UpdateMenu: show the condensed display name (just the file
+		// name when the entry is under the current directory, otherwise the
+		// AbbreviateName'd path), not the raw full path the list stores.
+		TCHAR szCurDir[_MAX_PATH];
+		DWORD dwDirLen = ::GetCurrentDirectory(_MAX_PATH, szCurDir);
+		int nCurDir = 0;
+		if (dwDirLen > 0 && dwDirLen < _MAX_PATH - 1)
+		{
+			nCurDir = (int)dwDirLen;
+			szCurDir[nCurDir++] = '\\';
+			szCurDir[nCurDir] = '\0';
+		}
+		else
+		{
+			szCurDir[0] = '\0';
+		}
+		if (!m_pRecentFileList->GetDisplayName(out, i, szCurDir, nCurDir, TRUE))
+		{
+			out = (*m_pRecentFileList)[i];
+		}
 	}
 }
 
