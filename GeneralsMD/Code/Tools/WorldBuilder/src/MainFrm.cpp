@@ -487,10 +487,16 @@ void CMainFrame::adjustWindowSize(Bool forcedResolution, Bool dynamicResolution)
 
 #ifdef RTS_HAS_QT
 	// When the viewport is hosted in Qt, the Qt host owns the on-screen pixel area and its
-	// resizeEvent drives the device (WBQt_OnViewportHostResized). Don't snap the frame to a
-	// registry resolution or push a competing device size here. Keep m_3dViewWidth current
-	// so the resolution-menu checkmark stays consistent.
+	// resizeEvent drives the device (WBQt_OnViewportHostResized). Don't push a competing
+	// device size here, and don't snap the frame for incidental callers (startup, dynamic
+	// resize bookkeeping). An EXPLICIT resolution pick (View > resolution menu, Entity
+	// Finder viewport combo -- the forcedResolution callers) still resizes the frame; the
+	// host's resizeEvent cascade then drives the device from the real pane area. Keep
+	// m_3dViewWidth current so the resolution-menu checkmark stays consistent.
 	if (m_qtViewportHost != NULL) {
+		if (forcedResolution) {
+			this->SetWindowPos(NULL, 0, 0, newWidth, newHeight, SWP_NOMOVE|SWP_NOZORDER);
+		}
 		m_3dViewWidth = newWidth;
 		return;
 	}
