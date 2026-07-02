@@ -27,8 +27,8 @@ namespace
 {
 	const int kLeafRole = Qt::UserRole;
 	const int kNameCap = 256;
-	const int kPreviewW = 128;
-	const int kPreviewH = 128;
+	const int kPreviewW = 256;	// the 2x Qt render (see WBQT_PREVIEW_W in the bridge)
+	const int kPreviewH = 256;
 }
 
 WBQtPickUnitDialog::WBQtPickUnitDialog(bool replaceMode, const QString &missingName, QWidget *parent)

@@ -34,13 +34,14 @@ namespace WBQtPreviewImage
 		return img.copy(w / 4, h / 4, w / 2, h / 2);
 	}
 
-	// Fit the cropped image into the preview label. The crop is 64x64 and the labels are
-	// bigger, so this is an UPSCALE: use nearest-neighbour like the MFC StretchDIBits
-	// (its default COLORONCOLOR mode) -- bilinear smoothing turns the model into a blur.
+	// Fit the cropped image into the preview label. Upscales use nearest-neighbour like
+	// the MFC StretchDIBits (bilinear smoothing turns an upscaled model into a blur);
+	// downscales keep the smooth filter (nearest downscaling drops pixels and shimmers).
 	inline QPixmap toLabelPixmap(const QImage &img, const QSize &labelSize)
 	{
-		return QPixmap::fromImage(img).scaled(labelSize,
-			Qt::KeepAspectRatio, Qt::FastTransformation);
+		const bool upscale = (labelSize.width() > img.width() || labelSize.height() > img.height());
+		return QPixmap::fromImage(img).scaled(labelSize, Qt::KeepAspectRatio,
+			upscale ? Qt::FastTransformation : Qt::SmoothTransformation);
 	}
 }
 

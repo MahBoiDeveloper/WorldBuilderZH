@@ -133,7 +133,7 @@ static UnsignedByte * saveSurface(IDirect3DSurface8 *surface)
 
 #else
 
-	static UnsignedByte bgraImage[3*PREVIEW_WIDTH*PREVIEW_HEIGHT];
+	static UnsignedByte bgraImage[3*(2*PREVIEW_WIDTH)*(2*PREVIEW_HEIGHT)];	// sized for the 2x Qt render
 	//bmp is same byte order
 	for (y=0; y<height; y++)
 	{
@@ -181,7 +181,7 @@ static UnsignedByte * saveSurface(IDirect3DSurface8 *surface)
 }
 
 // return an array of BGRA pixels
-static UnsignedByte * generatePreview( const ThingTemplate *tt )
+static UnsignedByte * generatePreview( const ThingTemplate *tt, Int renderSize = PREVIEW_WIDTH )
 {
 	// find the default model to preview
 	RenderObjClass *model = NULL;
@@ -214,7 +214,7 @@ static UnsignedByte * generatePreview( const ThingTemplate *tt )
 			// between render target and depth surface cause D3D8 to fail).
 			TextureClass *objectTexture = NULL;
 			ZTextureClass *objectDepth = NULL;
-			DX8Wrapper::Create_Render_Target(PREVIEW_WIDTH, PREVIEW_HEIGHT,
+			DX8Wrapper::Create_Render_Target(renderSize, renderSize,
 				WW3D_FORMAT_X8R8G8B8, WW3D_ZFORMAT_D16, &objectTexture, &objectDepth);
 			if (!objectTexture)
 			{
@@ -275,7 +275,10 @@ static UnsignedByte * generatePreview( const ThingTemplate *tt )
 // Qt Object panel entry point: reuse generatePreview() (the exact MFC render path).
 const UnsignedByte *ObjectPreview::qtRenderTemplatePreview(const ThingTemplate *tTempl)
 {
-	return generatePreview(tTempl);
+	// 2x the MFC render: the Qt preview labels are larger than the old 85x78 control,
+	// so the center-quarter crop needs the extra pixels to stay sharp (same camera and
+	// framing -- the crop is proportional).
+	return generatePreview(tTempl, 2*PREVIEW_WIDTH);
 }
 #endif
 

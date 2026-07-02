@@ -873,8 +873,8 @@ static const int kGrovePerIDs[TREES_PER_SET] = {
 
 // The MFC preview is a fixed 128x128 BGR image (see the PREVIEW dimensions in ObjectPreview.cpp,
 // which are file-scope there, so mirror the literals here like the other Qt bridges do).
-#define WBQT_GROVE_PREVIEW_W 128
-#define WBQT_GROVE_PREVIEW_H 128
+#define WBQT_GROVE_PREVIEW_W 256	// the 2x Qt render (see ObjectPreview::qtRenderTemplatePreview)
+#define WBQT_GROVE_PREVIEW_H 256
 
 // Which tree-type combo last drove the preview (1..11), 0 == none. Only one GroveOptions
 // instance ever exists (TheGroveOptions), so a file-scope latch is sufficient and avoids

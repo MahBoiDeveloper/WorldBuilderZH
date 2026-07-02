@@ -26,8 +26,8 @@
 #ifdef RTS_HAS_QT
 
 // The MFC preview is a fixed 128x128 BGR image (see PREVIEW_WIDTH/HEIGHT in ObjectPreview.cpp).
-#define WBQT_PREVIEW_W 128
-#define WBQT_PREVIEW_H 128
+#define WBQT_PREVIEW_W 256	// the 2x Qt render (see ObjectPreview::qtRenderTemplatePreview)
+#define WBQT_PREVIEW_H 256
 
 //----------------------------------------------------------------------------------------
 // ObjectOptions Qt-support statics (declared in ObjectOptions.h; defined here so they can
