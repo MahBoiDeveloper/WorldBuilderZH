@@ -23,6 +23,7 @@
 #include <QLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QSizePolicy>
 #include <QMenu>
 #include <QMenuBar>
 #include <QPixmap>
@@ -322,6 +323,10 @@ bool WBQtChromeController::installStatusBar()
 		return true;
 	}
 	m_statusRow = new QWidget(m_host);
+	// Cap the row at its natural one-line height: the column's leftover vertical space
+	// must all go to the viewport pane, not get split with this row (which otherwise
+	// stretches into a giant status bar -- QWidget/QLabel default to growable).
+	m_statusRow->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 	QHBoxLayout *row = new QHBoxLayout(m_statusRow);
 	row->setContentsMargins(6, 2, 6, 2);
 	row->setSpacing(10);
