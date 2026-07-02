@@ -105,6 +105,7 @@
 #include "qt/panels/WBQtLayersBridge.h"
 #include "qt/panels/WBQtMinimapBridge.h"
 #include "qt/panels/WBQtMiscModalsBridge.h"
+#include "qt/panels/WBQtTracingOverlayBridge.h"
 #endif
 #include "MinimapDialog.h"
 #include "ImpassableOptions.h"
@@ -5514,12 +5515,24 @@ void WbView3d::OnViewShowTracingOverlay()
 		// fly) as the user drags the slider or changes the combo.
 		if (m_showTracingOverlay)
 		{
+#ifdef RTS_HAS_QT
+			// Qt mode: the native Qt settings window; falls back to the MFC dialog only
+			// when Qt is not up yet (returns 0).
+			if (!WBQtTracingOverlay_Open(::AfxGetMainWnd()->GetSafeHwnd()))
+			{
+				TracingOverlayOptions::showDialog(this);
+			}
+#else
 			TracingOverlayOptions::showDialog(this);
+#endif
 		}
 	}
 	else
 	{
 		// Overlay turned off -- close the settings dialog if it is open.
+#ifdef RTS_HAS_QT
+		WBQtTracingOverlay_Close();
+#endif
 		TracingOverlayOptions::closeDialog();
 	}
 

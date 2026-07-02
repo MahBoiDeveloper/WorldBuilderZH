@@ -97,6 +97,13 @@ public:
 	static void showDialog(CWnd *pParent);
 	// Close the dialog if it is open (e.g. when the overlay is turned off).
 	static void closeDialog(void);
+
+#ifdef RTS_HAS_QT
+	// Qt Tracing Overlay window seam (defined in src/WBQtTracingOverlayBridge.cpp):
+	// push the Qt UI's values into the statics + DrawObject, optionally persisting
+	// the [Appearance] profile keys.
+	static void qtSetFromUi(Int opacityPct, Int filter, Bool persist);
+#endif
 };
 
 //{{AFX_INSERT_LOCATION}}

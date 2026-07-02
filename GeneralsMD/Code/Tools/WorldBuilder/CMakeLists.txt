@@ -133,6 +133,7 @@ set(WORLDBUILDER_SRC
     "src/WBQtChromeBridge.cpp"
     "src/WBQtEntityFinderBridge.cpp"
     "src/WBQtTerrainModalBridge.cpp"
+    "src/WBQtTracingOverlayBridge.cpp"
     "src/wbview.cpp"
     "src/wbview3d.cpp"
     "src/WHeightMapEdit.cpp"
@@ -406,7 +407,10 @@ if(RTS_ENABLE_WORLDBUILDER_QT)
         "qt/panels/WBQtEntityFinderBridge.h"
         "qt/panels/WBQtTerrainModalDialog.cpp"
         "qt/panels/WBQtTerrainModalDialog.h"
-        "qt/panels/WBQtTerrainModalBridge.h")
+        "qt/panels/WBQtTerrainModalBridge.h"
+        "qt/panels/WBQtTracingOverlayWindow.cpp"
+        "qt/panels/WBQtTracingOverlayWindow.h"
+        "qt/panels/WBQtTracingOverlayBridge.h")
 
     set_target_properties(z_worldbuilder_qt PROPERTIES AUTOMOC ON)
 
