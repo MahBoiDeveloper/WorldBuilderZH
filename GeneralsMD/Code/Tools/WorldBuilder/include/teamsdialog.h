@@ -78,6 +78,10 @@ public:
 	void qtExportTeams(void);
 	void qtImportTeams(void);
 	void qtCommit(void);
+	// Tier 3b-3: the Qt team property sheet binds hidden Team* pages to the current team.
+	void *qtCurTeamDict(void);
+	void *qtSides(void);
+	int  qtCurTeamIsDefault(void);
 #endif
 
 // Implementation

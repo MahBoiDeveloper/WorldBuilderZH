@@ -383,7 +383,9 @@ if(RTS_ENABLE_WORLDBUILDER_QT)
         "qt/panels/WBQtPlayerListBridge.h"
         "qt/panels/WBQtTeamsDialog.cpp"
         "qt/panels/WBQtTeamsDialog.h"
-        "qt/panels/WBQtTeamsBridge.h")
+        "qt/panels/WBQtTeamsBridge.h"
+        "qt/panels/WBQtTeamSheetDialog.cpp"
+        "qt/panels/WBQtTeamSheetDialog.h")
 
     set_target_properties(z_worldbuilder_qt PROPERTIES AUTOMOC ON)
 

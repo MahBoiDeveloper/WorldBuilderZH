@@ -33,6 +33,7 @@ private slots:
 
 private:
 	void refreshAll();
+	void runTeamSheet();
 
 	bool m_updating;
 	QListWidget *m_players;

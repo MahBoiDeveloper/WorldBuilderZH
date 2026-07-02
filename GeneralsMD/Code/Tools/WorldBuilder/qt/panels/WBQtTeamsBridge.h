@@ -44,8 +44,9 @@ int  WBQtTeamsData_GetDeleteEnabled(void);
 int  WBQtTeamsData_GetCopyEnabled(void);
 int  WBQtTeamsData_GetMoveEnabled(void);
 
-// actions (each runs the real handler; New/Edit pop the MFC team property sheet,
-// Delete may pop the in-use confirmation, Export/Import pop MFC file dialogs)
+// actions (each runs the real handler; Delete may pop the in-use confirmation,
+// Export/Import pop MFC file dialogs). NewTeam only creates+selects the team -- the Qt side
+// opens the Qt team sheet on it afterwards.
 void WBQtTeams_NewTeam(void);
 void WBQtTeams_DeleteTeam(void);
 void WBQtTeams_CopyTeam(void);
@@ -55,6 +56,36 @@ void WBQtTeams_MoveUpTeam(void);
 void WBQtTeams_MoveDownTeam(void);
 void WBQtTeams_ExportTeams(void);
 void WBQtTeams_ImportTeams(void);
+
+// --- the Qt team property sheet (Tier 3b-3): four HIDDEN Team* pages bound to the current
+// team; the Qt sheet drives their real controls and sends the real WM_COMMAND notifications,
+// so every page handler (live dict writes, rename validation, the PickUnitDialog pops) is
+// reused verbatim ---
+
+#define WB_QT_TEAMPAGE_IDENTITY			0
+#define WB_QT_TEAMPAGE_REINFORCEMENT	1
+#define WB_QT_TEAMPAGE_BEHAVIOR			2
+#define WB_QT_TEAMPAGE_GENERIC			3
+
+#define WB_QT_TEAMNOTIFY_NONE		0
+#define WB_QT_TEAMNOTIFY_CHANGE		1	// EN_CHANGE (edits)
+#define WB_QT_TEAMNOTIFY_KILLFOCUS	2	// EN_KILLFOCUS (the team-name commit)
+#define WB_QT_TEAMNOTIFY_SELCHANGE	1	// CBN_SELCHANGE (combos)
+#define WB_QT_TEAMNOTIFY_SELENDOK	2	// CBN_SELENDOK (the owner combo)
+
+// Bind the hidden pages to the CURRENT team (1 on success; 0 if none/default team/already open).
+int  WBQtTeamSheet_Open(void);
+void WBQtTeamSheet_Close(void);
+
+void WBQtTeamPage_GetText(int page, int ctrlId, char *buf, int cap);
+void WBQtTeamPage_SetText(int page, int ctrlId, const char *text, int notify);
+int  WBQtTeamPage_GetCheck(int page, int ctrlId);
+void WBQtTeamPage_SetCheck(int page, int ctrlId, int check);
+int  WBQtTeamPage_IsEnabled(int page, int ctrlId);
+int  WBQtTeamPage_ComboCount(int page, int ctrlId);
+void WBQtTeamPage_ComboItem(int page, int ctrlId, int i, char *buf, int cap);
+void WBQtTeamPage_ComboSelectText(int page, int ctrlId, const char *text, int notify);
+void WBQtTeamPage_ClickButton(int page, int ctrlId);
 
 #ifdef __cplusplus
 }

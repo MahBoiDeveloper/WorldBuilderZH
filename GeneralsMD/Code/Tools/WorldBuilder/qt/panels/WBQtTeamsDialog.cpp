@@ -4,6 +4,7 @@
 // are synchronous). The Expand/Shrink button is dropped -- the Qt dialog resizes natively.
 #include "WBQtTeamsDialog.h"
 #include "WBQtTeamsBridge.h"
+#include "WBQtTeamSheetDialog.h"
 
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -186,6 +187,17 @@ void WBQtTeamsDialog::onTeamRowChanged()
 	}
 }
 
+void WBQtTeamsDialog::runTeamSheet()
+{
+	// Binds the four hidden Team* pages to the current team; refuses default teams.
+	if (WBQtTeamSheet_Open() != 0)
+	{
+		WBQtTeamSheetDialog dlg(this);
+		dlg.exec();
+		WBQtTeamSheet_Close();
+	}
+}
+
 void WBQtTeamsDialog::onTeamDoubleClicked(QTreeWidgetItem *item, int column)
 {
 	Q_UNUSED(column);
@@ -193,14 +205,15 @@ void WBQtTeamsDialog::onTeamDoubleClicked(QTreeWidgetItem *item, int column)
 	if (row >= 0)
 	{
 		WBQtTeams_SelectTeamRow(row);
-		WBQtTeams_EditTeam();	// pops the MFC team property sheet (guarded for default teams)
+		runTeamSheet();		// the Qt team template sheet (== OnEditTemplate)
 		refreshAll();
 	}
 }
 
 void WBQtTeamsDialog::onNewTeam()
 {
-	WBQtTeams_NewTeam();	// pops the MFC team property sheet for the new team
+	WBQtTeams_NewTeam();	// creates + selects the team (no sheet pop)
+	runTeamSheet();			// == OnNewteam's OnEditTemplate on the fresh team
 	refreshAll();
 }
 
