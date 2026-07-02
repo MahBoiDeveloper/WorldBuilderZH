@@ -177,12 +177,15 @@ void CTeamsDialog::qtSelectTeamRow(int row)
 	{
 		return;
 	}
-	// == a click on the row: make it the only selected item, then run the click handler
-	// (which reads the selection and sets m_curTeam from the row's item data).
+	// == a click on the row: make it the only selected item, then do what OnClickTeamsList
+	// does MINUS its updateUI(REBUILD_ALL) -- selecting a row changes no list content, and
+	// the full DeleteAllItems+refill of the hidden list made every Qt team click O(teams)
+	// on both sides. Keep the m_curTeam update and the validate + button-enable pass
+	// (updateUI with no rebuild bits).
 	pList->SetItemState(-1, 0, LVIS_SELECTED);
 	pList->SetItemState(row, LVIS_SELECTED, LVIS_SELECTED);
-	LRESULT result = 0;
-	OnClickTeamsList(NULL, &result);
+	m_curTeam = pList->GetItemData(row);
+	updateUI(0);
 }
 
 int CTeamsDialog::qtIsCtrlEnabled(int ctrlId)

@@ -33,6 +33,9 @@ private slots:
 
 private:
 	void refreshAll();
+	void refreshPlayers();
+	void refreshTeamsTable();
+	void refreshButtons();
 	void runTeamSheet();
 
 	bool m_updating;

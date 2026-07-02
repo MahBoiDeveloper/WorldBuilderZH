@@ -112,6 +112,13 @@ WBQtTeamsDialog::WBQtTeamsDialog(QWidget *parent)
 
 void WBQtTeamsDialog::refreshAll()
 {
+	refreshPlayers();
+	refreshTeamsTable();
+	refreshButtons();
+}
+
+void WBQtTeamsDialog::refreshPlayers()
+{
 	m_updating = true;
 
 	// players (rows == side indices)
@@ -130,7 +137,15 @@ void WBQtTeamsDialog::refreshAll()
 		m_players->setCurrentRow(curPlayer);
 	}
 
+	m_updating = false;
+}
+
+void WBQtTeamsDialog::refreshTeamsTable()
+{
+	m_updating = true;
+
 	// the teams table (rows mirror the hidden list control)
+	char buf[kTextCap];
 	m_teams->clear();
 	int rowCount = WBQtTeamsData_GetTeamRowCount();
 	QTreeWidgetItem *selected = NULL;
@@ -154,13 +169,16 @@ void WBQtTeamsDialog::refreshAll()
 		m_teams->scrollToItem(selected);
 	}
 
+	m_updating = false;
+}
+
+void WBQtTeamsDialog::refreshButtons()
+{
 	m_newButton->setEnabled(WBQtTeamsData_GetNewEnabled() != 0);
 	m_copyButton->setEnabled(WBQtTeamsData_GetCopyEnabled() != 0);
 	m_deleteButton->setEnabled(WBQtTeamsData_GetDeleteEnabled() != 0);
 	m_moveUpButton->setEnabled(WBQtTeamsData_GetMoveEnabled() != 0);
 	m_moveDownButton->setEnabled(WBQtTeamsData_GetMoveEnabled() != 0);
-
-	m_updating = false;
 }
 
 void WBQtTeamsDialog::onPlayerRowChanged(int row)
@@ -170,7 +188,10 @@ void WBQtTeamsDialog::onPlayerRowChanged(int row)
 		return;
 	}
 	WBQtTeams_SelectPlayer(row);
-	refreshAll();
+	// The player names don't change from selecting one -- rebuilding m_players mid-click
+	// (as refreshAll did) is wasted work; only the teams table content follows the player.
+	refreshTeamsTable();
+	refreshButtons();
 }
 
 void WBQtTeamsDialog::onTeamRowChanged()
@@ -183,7 +204,10 @@ void WBQtTeamsDialog::onTeamRowChanged()
 	if (row >= 0)
 	{
 		WBQtTeams_SelectTeamRow(row);
-		refreshAll();	// enables depend on whether the row is a default team
+		// Selecting a row changes no table content -- refreshAll here rebuilt the whole
+		// mirror on every click (O(teams) cell read-backs); only the button enables
+		// depend on whether the row is a default team.
+		refreshButtons();
 	}
 }
 
