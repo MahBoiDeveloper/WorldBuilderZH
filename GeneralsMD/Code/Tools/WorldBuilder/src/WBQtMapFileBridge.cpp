@@ -11,7 +11,12 @@
 #include "OpenMap.h"
 #include "SaveMap.h"
 #include "Common/GlobalData.h"
+#include "Common/ArchiveFile.h"
+#include "Common/ArchiveFileSystem.h"
+#include "Common/File.h"
+#include "Common/FileSystem.h"
 #include "qt/panels/WBQtMapFileBridge.h"
+#include <vector>
 
 #ifdef RTS_HAS_QT
 
@@ -40,6 +45,12 @@ extern "C" int WBQtMapFileData_RadiosVisible(void)
 static OpenMap *s_qtOpenMap = NULL;
 static TOpenMapInfo s_qtOpenInfo;
 
+// De-bridged view model (qt-debridge): the rows the hidden listbox used to hold, plus the
+// selection and the OK-enable state the MFC populate*/EnableWindow calls used to encode.
+static std::vector<CString> s_qtView;
+static int s_qtViewSel = -1;
+static Bool s_qtOkEnabled = TRUE;
+
 OpenMap *OpenMap::qtInstance(void)
 {
 	return s_qtOpenMap;
@@ -52,9 +63,13 @@ OpenMap *OpenMap::qtOpen(void)
 		s_qtOpenInfo.filename = "";
 		s_qtOpenInfo.browse = false;
 		s_qtOpenMap = new OpenMap(&s_qtOpenInfo);
-		// Create() runs OnInitDialog (radio seed + initial population); no WS_VISIBLE in the
-		// template, so the dialog stays hidden.
-		s_qtOpenMap->Create(OpenMap::IDD, AfxGetMainWnd());
+		// De-bridged (qt-debridge): the dialog window is never Create()d -- the object only
+		// carries the mode/list/sentinel state and the qtM* fills own the view model (the
+		// MFC populate* handlers early-return without their controls).
+		s_qtView.clear();
+		s_qtViewSel = -1;
+		s_qtOkEnabled = TRUE;
+		s_qtOpenMap->qtMPopulateMain(s_qtOpenMap->m_usingSystemDir);
 	}
 	return s_qtOpenMap;
 }
@@ -63,16 +78,196 @@ void OpenMap::qtClose(void)
 {
 	if (s_qtOpenMap != NULL)
 	{
-		s_qtOpenMap->DestroyWindow();
+		s_qtOpenMap->DestroyWindow();	// harmless no-op: the window was never Create()d
 		delete s_qtOpenMap;
 		s_qtOpenMap = NULL;
 	}
 }
 
+// == populateMapListbox minus the listbox: the Maps\<name>\<name>.map directory walk fills
+// the full list + the view. Like the MFC path, an empty result disables OK without ever
+// re-enabling it (bug-compatible).
+void OpenMap::qtMPopulateMain(Bool systemMaps)
+{
+	m_usingSystemDir = systemMaps;
+#if defined(_DEBUG) || defined(_INTERNAL)
+	::AfxGetApp()->WriteProfileInt(MAP_OPENSAVE_PANEL_SECTION, "UseSystemDir", m_usingSystemDir);
+#endif
+
+	HANDLE hFindFile = 0;
+	WIN32_FIND_DATA findData;
+	char dirBuf[_MAX_PATH];
+	char findBuf[_MAX_PATH];
+	char fileBuf[_MAX_PATH];
+
+	if (systemMaps)
+	{
+		strcpy(dirBuf, "Maps\\");
+	}
+	else
+	{
+		strcpy(dirBuf, TheGlobalData->getPath_UserData().str());
+		strcat(dirBuf, "Maps\\");
+	}
+	int len = strlen(dirBuf);
+	if (len > 0 && dirBuf[len - 1] != '\\')
+	{
+		dirBuf[len++] = '\\';
+		dirBuf[len] = 0;
+	}
+	s_qtView.clear();
+	strcpy(findBuf, dirBuf);
+	strcat(findBuf, "*.*");
+
+	m_fullMapList.RemoveAll();
+	Bool found = false;
+
+	hFindFile = FindFirstFile(findBuf, &findData);
+	if (hFindFile != INVALID_HANDLE_VALUE)
+	{
+		do {
+			if (strcmp(findData.cFileName, ".") == 0 || strcmp(findData.cFileName, "..") == 0)
+			{
+				continue;
+			}
+			if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
+			{
+				continue;
+			}
+			strcpy(fileBuf, dirBuf);
+			strcat(fileBuf, findData.cFileName);
+			strcat(fileBuf, "\\");
+			strcat(fileBuf, findData.cFileName);
+			strcat(fileBuf, ".map");
+			try {
+				CFileStatus status;
+				if (CFile::GetStatus(fileBuf, status))
+				{
+					if (!(status.m_attribute & CFile::directory))
+					{
+						s_qtView.push_back(CString(findData.cFileName));
+						m_fullMapList.Add(findData.cFileName);
+						found = true;
+					}
+				}
+			} catch(...) {}
+		} while (FindNextFile(hFindFile, &findData));
+		if (hFindFile)
+		{
+			FindClose(hFindFile);
+		}
+	}
+	if (found)
+	{
+		s_qtViewSel = 0;
+	}
+	else
+	{
+		s_qtViewSel = -1;
+		s_qtOkEnabled = FALSE;
+	}
+}
+
+// == populatePackedBigList minus the listbox.
+void OpenMap::qtMPopulateBigs(void)
+{
+	m_packedMode = PM_LIST_BIGS;
+	m_currentBig.Empty();
+	s_qtView.clear();
+	m_fullMapList.RemoveAll();
+	m_packedMapPaths.RemoveAll();
+
+	HANDLE hFind;
+	WIN32_FIND_DATA fd;
+	Bool found = false;
+	hFind = FindFirstFile("*.big", &fd);
+	if (hFind != INVALID_HANDLE_VALUE)
+	{
+		do {
+			if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+			{
+				continue;
+			}
+			s_qtView.push_back(CString(fd.cFileName));
+			m_fullMapList.Add(fd.cFileName);
+			found = true;
+		} while (FindNextFile(hFind, &fd));
+		FindClose(hFind);
+	}
+	if (found)
+	{
+		s_qtViewSel = 0;
+		s_qtOkEnabled = TRUE;
+	}
+	else
+	{
+		::AfxMessageBox("No .big archives found in the WorldBuilder directory.");
+		s_qtViewSel = -1;
+		s_qtOkEnabled = FALSE;
+	}
+}
+
+// == populatePackedMapList minus the listbox: archive walk + display-name extraction; the
+// paths stay parallel to m_fullMapList for the pick-time resolve.
+void OpenMap::qtMPopulateMapsInBig(const CString &bigPath)
+{
+	ArchiveFile *pArchive = TheArchiveFileSystem
+		? TheArchiveFileSystem->openArchiveFile((const char *)bigPath) : NULL;
+	if (!pArchive)
+	{
+		::AfxMessageBox("Could not open the selected .big archive.");
+		return;
+	}
+	FilenameList maps;
+	pArchive->getFileListInDirectory(AsciiString(""), AsciiString(""), AsciiString("*.map"), maps, TRUE);
+
+	s_qtView.clear();
+	m_fullMapList.RemoveAll();
+	m_packedMapPaths.RemoveAll();
+
+	Bool found = false;
+	for (FilenameListIter it = maps.begin(); it != maps.end(); ++it)
+	{
+		AsciiString fullPath = *it;
+		AsciiString display = fullPath;
+		const char *slash = strrchr(display.str(), '\\');
+		if (!slash)
+		{
+			slash = strrchr(display.str(), '/');
+		}
+		CString name = slash ? (slash + 1) : display.str();
+		int dot = name.ReverseFind('.');
+		if (dot > 0)
+		{
+			name = name.Left(dot);
+		}
+		s_qtView.push_back(name);
+		m_fullMapList.Add(name);
+		m_packedMapPaths.Add(CString(fullPath.str()));
+		found = true;
+	}
+	pArchive->close();
+	delete pArchive;
+
+	m_packedMode = PM_LIST_MAPS_IN_BIG;
+	m_currentBig = bigPath;
+
+	if (found)
+	{
+		s_qtViewSel = 0;
+		s_qtOkEnabled = TRUE;
+	}
+	else
+	{
+		::AfxMessageBox("No maps found inside this .big archive.");
+		s_qtViewSel = -1;
+		s_qtOkEnabled = FALSE;
+	}
+}
+
 int OpenMap::qtListCount(void)
 {
-	CListBox *pList = (CListBox *)GetDlgItem(IDC_OPEN_LIST);
-	return (pList != NULL) ? pList->GetCount() : 0;
+	return (int)s_qtView.size();
 }
 
 void OpenMap::qtListItem(int i, char *buf, int cap)
@@ -81,25 +276,24 @@ void OpenMap::qtListItem(int i, char *buf, int cap)
 	{
 		buf[0] = 0;
 	}
-	CListBox *pList = (CListBox *)GetDlgItem(IDC_OPEN_LIST);
-	if (pList != NULL && i >= 0 && i < pList->GetCount())
+	if (i >= 0 && i < (int)s_qtView.size())
 	{
-		CString text;
-		pList->GetText(i, text);
-		copyOut((LPCTSTR)text, buf, cap);
+		copyOut((LPCTSTR)s_qtView[i], buf, cap);
 	}
 }
 
 int OpenMap::qtListCurSel(void)
 {
-	CListBox *pList = (CListBox *)GetDlgItem(IDC_OPEN_LIST);
-	return (pList != NULL) ? pList->GetCurSel() : -1;
+	if (s_qtViewSel < 0 || s_qtViewSel >= (int)s_qtView.size())
+	{
+		return -1;
+	}
+	return s_qtViewSel;
 }
 
 int OpenMap::qtOkEnabled(void)
 {
-	CWnd *pOk = GetDlgItem(IDOK);
-	return (pOk != NULL && pOk->IsWindowEnabled()) ? 1 : 0;
+	return s_qtOkEnabled ? 1 : 0;
 }
 
 int OpenMap::qtGetMode(void)
@@ -113,77 +307,174 @@ int OpenMap::qtGetMode(void)
 
 void OpenMap::qtSetMode(int mode)
 {
-	CButton *pSystem = (CButton *)GetDlgItem(IDC_SYSTEMMAPS);
-	CButton *pUser = (CButton *)GetDlgItem(IDC_USERMAPS);
-	CButton *pPacked = (CButton *)GetDlgItem(IDC_PACKED_MAPS);
-	if (pSystem != NULL)
-	{
-		pSystem->SetCheck(mode == WB_QT_MAPMODE_SYSTEM ? 1 : 0);
-	}
-	if (pUser != NULL)
-	{
-		pUser->SetCheck(mode == WB_QT_MAPMODE_USER ? 1 : 0);
-	}
-	if (pPacked != NULL)
-	{
-		pPacked->SetCheck(mode == WB_QT_MAPMODE_PACKED ? 1 : 0);
-	}
+	// De-bridged: no radio controls to mirror; run the model-only fills directly
+	// (== OnSystemMaps / OnUserMaps / OnPackedMaps).
 	switch (mode)
 	{
 		case WB_QT_MAPMODE_SYSTEM:
-			OnSystemMaps();
+			m_packedMode = PM_OFF;
+			qtMPopulateMain(TRUE);
 			break;
 		case WB_QT_MAPMODE_PACKED:
-			OnPackedMaps();
+			qtMPopulateBigs();
 			break;
 		default:
-			OnUserMaps();
+			m_packedMode = PM_OFF;
+			qtMPopulateMain(FALSE);
 			break;
 	}
 }
 
 void OpenMap::qtSearch(const char *text)
 {
-	CWnd *pEdit = GetDlgItem(IDC_MAP_SEARCH_EDIT);
-	if (pEdit != NULL)
+	// == OnSearchMap minus the edit/listbox: filter m_fullMapList into the view. A no-match
+	// search beeps and leaves the view empty, like the MFC listbox.
+	CString search(text ? text : "");
+	search.MakeLower();
+
+	s_qtView.clear();
+	if (search.IsEmpty())
 	{
-		pEdit->SetWindowText(text ? text : "");
+		for (int i = 0; i < m_fullMapList.GetSize(); i++)
+		{
+			s_qtView.push_back(m_fullMapList[i]);
+		}
+		s_qtViewSel = s_qtView.empty() ? -1 : 0;
+		return;
 	}
-	OnSearchMap();
+	bool found = false;
+	for (int i = 0; i < m_fullMapList.GetSize(); i++)
+	{
+		CString name = m_fullMapList[i];
+		CString lower = name;
+		lower.MakeLower();
+		if (lower.Find(search) != -1)
+		{
+			s_qtView.push_back(name);
+			found = true;
+		}
+	}
+	if (!found)
+	{
+		::MessageBeep(MB_ICONEXCLAMATION); // no matches
+		s_qtViewSel = -1;
+	}
+	else
+	{
+		s_qtViewSel = 0;
+	}
 }
 
 void OpenMap::qtResetSearch(void)
 {
-	CWnd *pEdit = GetDlgItem(IDC_MAP_SEARCH_EDIT);
-	if (pEdit != NULL)
+	// == OnResetSearch minus the edit/listbox.
+	s_qtView.clear();
+	for (int i = 0; i < m_fullMapList.GetSize(); i++)
 	{
-		pEdit->SetWindowText("");
+		s_qtView.push_back(m_fullMapList[i]);
 	}
-	OnResetSearch();
+	s_qtViewSel = (m_fullMapList.GetSize() > 0) ? 0 : -1;
 }
 
 int OpenMap::qtPick(int row)
 {
-	CListBox *pList = (CListBox *)GetDlgItem(IDC_OPEN_LIST);
-	if (pList != NULL)
-	{
-		pList->SetCurSel(row);
-	}
-	// Sentinel: every COMPLETING path in OnOK sets a filename or the browse flag; the packed
+	s_qtViewSel = row;
+	// Sentinel: every COMPLETING path sets a filename or the browse flag; the packed
 	// drill-into-archive path touches neither (it relists and stays open).
 	s_qtOpenInfo.filename = "";
 	s_qtOpenInfo.browse = false;
-	OnOK();
+
+	// == OnOK minus the listbox/focus reads, keyed by the view row.
+	Bool rowValid = (row >= 0 && row < (int)s_qtView.size());
+
+	if (m_packedMode == PM_LIST_BIGS)
+	{
+		if (rowValid)
+		{
+			qtMPopulateMapsInBig(s_qtView[row]);	// descend into the archive; stay open
+		}
+	}
+	else if (m_packedMode == PM_LIST_MAPS_IN_BIG)
+	{
+		if (rowValid)
+		{
+			// The view is filtered/sorted independently of m_packedMapPaths, so resolve the
+			// archive path by matching the display name against m_fullMapList (parallel
+			// arrays in archive-enumeration order) -- same as OnOK.
+			CString selName = s_qtView[row];
+			CString archiveMapPath;
+			for (int i = 0; i < m_fullMapList.GetSize(); ++i)
+			{
+				if (m_fullMapList[i].CompareNoCase(selName) == 0)
+				{
+					archiveMapPath = m_packedMapPaths[i];
+					break;
+				}
+			}
+			if (archiveMapPath.IsEmpty())
+			{
+				::AfxMessageBox("Could not resolve the selected packed map.");
+			}
+			else
+			{
+				CString extracted;
+				if (!extractPackedMap(m_currentBig, archiveMapPath, extracted))
+				{
+					::AfxMessageBox("Failed to extract the selected map from the archive.");
+				}
+				else
+				{
+					m_pInfo->filename = extracted;
+				}
+			}
+		}
+	}
+	else
+	{
+		if (!rowValid)
+		{
+			m_pInfo->browse = true;
+		}
+		else
+		{
+			CString newName = s_qtView[row];
+			if (m_usingSystemDir)
+			{
+				m_pInfo->filename = ".\\Maps\\" + newName + "\\" + newName + ".map";
+			}
+			else
+			{
+				m_pInfo->filename = TheGlobalData->getPath_UserData().str();
+				m_pInfo->filename = m_pInfo->filename + "Maps\\" + newName + "\\" + newName + ".map";
+			}
+		}
+	}
 	return (s_qtOpenInfo.browse || !s_qtOpenInfo.filename.IsEmpty()) ? 1 : 0;
 }
 
 int OpenMap::qtBrowsePick(void)
 {
-	// == OnBrowse: packed mode pops the .big chooser (owner = the active Qt dialog) then
-	// relists -- not a completion; normal mode completes with the browse fallback.
+	// == OnBrowse minus the window: packed mode pops the .big chooser (owner = the active
+	// window) then relists -- not a completion; normal mode completes with the browse
+	// fallback.
 	s_qtOpenInfo.filename = "";
 	s_qtOpenInfo.browse = false;
-	OnBrowse();
+	if (m_packedMode != PM_OFF)
+	{
+		CFileDialog dlg(TRUE, "big", NULL,
+			OFN_HIDEREADONLY | OFN_FILEMUSTEXIST,
+			"BIG archives (*.big)|*.big|All files (*.*)|*.*||", this);
+		dlg.m_ofn.lpstrTitle = "Select a .big archive";
+		if (dlg.DoModal() == IDOK)
+		{
+			CString bigPath = dlg.GetPathName();
+			qtMPopulateMapsInBig(bigPath);
+		}
+	}
+	else
+	{
+		m_pInfo->browse = true;
+	}
 	return (s_qtOpenInfo.browse || !s_qtOpenInfo.filename.IsEmpty()) ? 1 : 0;
 }
 

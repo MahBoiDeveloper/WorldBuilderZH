@@ -90,6 +90,12 @@ public:
 	void qtResetSearch(void);
 	int  qtPick(int row);
 	int  qtBrowsePick(void);
+	// De-bridged (windowless) fills -- branch qt-debridge. The dialog window is never
+	// Create()d; the view model (rows/selection/ok state) lives in WBQtMapFileBridge.cpp
+	// and these replicate the populate* handlers' enumeration minus the listbox.
+	void qtMPopulateMain(Bool systemMaps);
+	void qtMPopulateBigs(void);
+	void qtMPopulateMapsInBig(const CString &bigPath);
 #endif
 
 protected:
