@@ -47,10 +47,6 @@ void WBQtLayers_PushRefresh(void);
 void WBQtLayers_Open(void *frameHwnd);
 void WBQtLayers_Close(void);
 
-// Non-zero when the Qt window (or a child, e.g. the inline rename editor) holds the Win32
-// keyboard focus (frame accelerator skip).
-int  WBQtLayers_OwnsFocus(void);
-
 #ifdef __cplusplus
 }
 #endif

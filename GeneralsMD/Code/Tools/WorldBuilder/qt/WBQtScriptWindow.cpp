@@ -758,23 +758,3 @@ extern "C" void WBQtScript_Close(void)
 		win->hide();
 	}
 }
-
-extern "C" int WBQtScript_OwnsFocus(void)
-{
-	WBQtScriptWindow *win = WBQtScriptWindow::instance();
-	if (win == NULL || !win->isVisible())
-	{
-		return 0;
-	}
-	HWND focus = ::GetFocus();
-	HWND winHwnd = reinterpret_cast<HWND>(win->winId());
-	if (focus == NULL || winHwnd == NULL)
-	{
-		return 0;
-	}
-	if (focus == winHwnd || ::IsChild(winHwnd, focus))
-	{
-		return 1;
-	}
-	return 0;
-}

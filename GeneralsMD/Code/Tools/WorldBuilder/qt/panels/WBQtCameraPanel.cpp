@@ -164,22 +164,3 @@ extern "C" void WBQtCamera_Open(void *frameHwnd)
 	panel->raise();
 }
 
-extern "C" int WBQtCamera_OwnsFocus(void)
-{
-	WBQtCameraPanel *panel = WBQtCameraPanel::instance();
-	if (panel == NULL || !panel->isVisible())
-	{
-		return 0;
-	}
-	HWND focus = ::GetFocus();
-	HWND panelHwnd = reinterpret_cast<HWND>(panel->winId());
-	if (focus == NULL || panelHwnd == NULL)
-	{
-		return 0;
-	}
-	if (focus == panelHwnd || ::IsChild(panelHwnd, focus))
-	{
-		return 1;
-	}
-	return 0;
-}

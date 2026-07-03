@@ -30,9 +30,6 @@ void WBQtCamera_PushRefresh(void);
 // Open the Qt window (from CMainFrame::OnEditCameraoptions in Qt mode).
 void WBQtCamera_Open(void *frameHwnd);
 
-// Non-zero when the Qt window (or a child) holds the Win32 keyboard focus (frame accelerator skip).
-int  WBQtCamera_OwnsFocus(void);
-
 #ifdef __cplusplus
 }
 #endif

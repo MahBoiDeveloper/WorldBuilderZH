@@ -20,10 +20,6 @@ int WBQtEntityFinder_Open(void *frameHwnd);
 // Reset Window Positions support: move the window if it is open (no-op otherwise).
 void WBQtEntityFinder_MoveTo(int left, int top);
 
-// True while the window holds Win32 keyboard focus -- the frame's PreTranslateMessage
-// guard (typing in the search box / finder combos must not fire tool hotkeys).
-int WBQtEntityFinder_OwnsFocus(void);
-
 // ====== Qt -> MFC (implemented in src/WBQtEntityFinderBridge.cpp) ======
 
 // The formatted hotkey list (mirrors OnAppAbout's table; CRLF line ends). Returns length.

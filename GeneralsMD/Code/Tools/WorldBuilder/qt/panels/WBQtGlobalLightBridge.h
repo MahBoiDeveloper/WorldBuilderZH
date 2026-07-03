@@ -47,11 +47,6 @@ void WBQtGlobalLight_FeedbackOff(void);
 // Open is called from CMainFrame::OnEditGloballightoptions in Qt mode (frameHwnd = the MFC frame).
 void WBQtGlobalLight_Open(void *frameHwnd);
 
-// Non-zero when the Qt window (or a child control) holds the Win32 keyboard focus -- the frame's
-// PreTranslateMessage checks this so tool-hotkey accelerators don't eat digits typed into the
-// angle/color fields.
-int  WBQtGlobalLight_OwnsFocus(void);
-
 #ifdef __cplusplus
 }
 #endif

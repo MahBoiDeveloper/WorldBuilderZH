@@ -573,9 +573,3 @@ extern "C" void WBQtEntityFinder_MoveTo(int left, int top)
 		dlg->move(left, top);
 	}
 }
-
-extern "C" int WBQtEntityFinder_OwnsFocus(void)
-{
-	WBQtEntityFinderDialog *dlg = WBQtEntityFinderDialog::instance();
-	return (dlg != NULL && dlg->isVisible() && dlg->ownsWin32Focus()) ? 1 : 0;
-}

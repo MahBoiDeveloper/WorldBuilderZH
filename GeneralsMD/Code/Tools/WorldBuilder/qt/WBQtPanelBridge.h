@@ -16,10 +16,6 @@ extern "C" {
 // other Qt panel, and return non-zero. Otherwise return 0 (caller shows the MFC panel).
 int  WBQt_ShowOptionsPanel(void *frameHwnd, int dialogID, int x, int y, int w, int h);
 void WBQt_HideOptionsPanel(void);
-// Non-zero when the current Qt option panel (or a child control, e.g. a search box) holds the
-// Win32 keyboard focus -- the frame's PreTranslateMessage ORs this so tool-hotkey accelerators
-// don't swallow keystrokes typed into a panel's text field.
-int  WBQt_OptionPanelOwnsFocus(void);
 // Reverse (MFC-side, src/WBQtHostBridge.cpp): persist the shared option-panel Top/Left the
 // way COptionsPanel::OnMove did, so a dragged Qt panel's position survives a restart.
 void WBQtPanels_SaveWindowPos(int top, int left);
@@ -264,11 +260,6 @@ void WBQtScript_SaveNow(void);
 // the window rooted in frameHwnd. WBQtScript_Close tears it down.
 void WBQtScript_Open(void *frameHwnd, int x, int y);
 void WBQtScript_Close(void);
-
-// Non-zero when the Qt Script window (or one of its child controls) has the Win32 keyboard
-// focus. The MFC frame's PreTranslateMessage checks this and SKIPS accelerator translation
-// so single-key tool shortcuts don't eat keystrokes meant for the script editor's fields.
-int  WBQtScript_OwnsFocus(void);
 
 #ifdef __cplusplus
 }
