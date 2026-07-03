@@ -306,6 +306,30 @@ public:
 	static void qtMSetPosition(const char *text);
 	static void qtMSetZOffset(double z);
 	static void qtMSetAngle(double deg);
+	// Sound sub-panel: the combo catalog and all customize/looping/none gating derive
+	// from the dict + AudioEventInfo defaults instead of the seeded hidden controls.
+	static void qtMSoundEnsureCatalog(void);
+	static void qtMSoundRefreshDefault(void);
+	static int  qtMSoundCurIndex(void);
+	static void qtMCurSoundName(AsciiString &nameOut, Bool &isNoneOut);
+	static void qtMStopSoundPreview(void);
+	static int  qtMGetSoundCount(void);
+	static int  qtMGetSoundItem(int i, char *out, int cap);
+	static int  qtMGetSoundCurSel(void);
+	static void qtMSetSoundCurSel(int i);
+	static void qtMToggleSoundPreview(void);
+	static int  qtMGetSoundFlag(int which);
+	static int  qtMGetSoundFlagEnabled(int which);
+	static void qtMSetSoundFlag(int which, int checked);
+	static int  qtMGetSoundInt(int which, int *outEnabled);
+	static void qtMSetSoundInt(int which, int value);
+	static int  qtMGetSoundPriority(int *outEnabled);
+	static void qtMSetSoundPriority(int i);
+	static int  qtMGetUpgradeCount(void);
+	static int  qtMGetUpgradeItem(int i, char *out, int cap);
+	static int  qtMGetUpgradeSelected(int i);
+	static void qtMSetUpgradeSelected(int i, int on);
+	static void qtMCommitUpgrades(void);
 #endif
   
 private:
