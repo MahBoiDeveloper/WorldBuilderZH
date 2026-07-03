@@ -594,6 +594,10 @@ BOOL CWorldBuilderApp::InitInstance()
 					WBQt_SetMainWindowTitle((LPCTSTR)frameTitle);
 				}
 				WBQt_ShowMainWindow();
+				// The Qt main window (the tool-window owner) now exists and the doc is loaded,
+				// so reopen the Layers List / Minimap Qt windows if they were open last session
+				// (deferred from CMainFrame::OnCreate, where the owner did not exist yet).
+				p3d->qtRestoreStartupWindows();
 				inverted = true;
 			}
 		}

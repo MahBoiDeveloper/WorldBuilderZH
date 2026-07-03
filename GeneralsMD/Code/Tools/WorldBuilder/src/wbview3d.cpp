@@ -5262,6 +5262,39 @@ void WbView3d::OnUpdateViewMinimap(CCmdUI* pCmdUI)
 	pCmdUI->SetCheck(TheMinimapDialog && TheMinimapDialog->IsWindowVisible() ? 1 : 0);
 }
 
+#ifdef RTS_HAS_QT
+// Startup restore (Qt mode): reopen the Layers List / Minimap Qt tool windows if they were
+// open when WB last closed. In MFC mode CMainFrame::OnCreate did this via ShowWindow from
+// the saved ShowLayersList / ShowMinimap flags, but the Qt windows need the Qt main window
+// as their owner and it does not exist that early -- so the open is deferred here, called
+// once from InitInstance's tail after the main window + doc exist. Open-only (no toggle):
+// mirrors the open branch of OnViewLayersList / OnViewMinimap without flipping any state.
+void WbView3d::qtRestoreStartupWindows()
+{
+	CWnd *mainWnd = AfxGetMainWnd();
+	if (mainWnd == NULL)
+	{
+		return;
+	}
+
+	// Layers List: m_showLayersList was seeded from the profile at view init.
+	if (m_showLayersList && TheLayersList)
+	{
+		WBQtLayers_Open(mainWnd->GetSafeHwnd());
+		TheLayersList->enableUpdates();
+	}
+
+	// Minimap: keyed off the same ShowMinimap profile flag the toggle writes.
+	if (TheMinimapDialog
+		&& AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowMinimap", 0)
+		&& !WBQtMinimap_IsOpen())
+	{
+		WBQtMinimap_Open(mainWnd->GetSafeHwnd(), TheMinimapDialog->GetSafeHwnd());
+		TheMinimapDialog->rebuildTerrain();
+	}
+}
+#endif
+
 // --- Minimap submenu: Show Objects ------------------------------------------
 void WbView3d::OnMinimapShowObjects()
 {

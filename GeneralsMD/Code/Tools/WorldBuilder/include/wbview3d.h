@@ -157,6 +157,14 @@ protected:
 	afx_msg void OnUpdateViewLayersList(CCmdUI* pCmdUI);
 	afx_msg void OnViewMinimap();
 	afx_msg void OnUpdateViewMinimap(CCmdUI* pCmdUI);
+#ifdef RTS_HAS_QT
+public:
+	// Startup restore: reopen the Qt Layers / Minimap tool windows if they were open last
+	// session (== the old MFC OnCreate ShowWindow-from-profile, deferred to InitInstance's
+	// tail where the Qt owner window exists). Open-only, no toggle.
+	void qtRestoreStartupWindows();
+protected:
+#endif
 	afx_msg void OnMinimapShowObjects();
 	afx_msg void OnUpdateMinimapShowObjects(CCmdUI* pCmdUI);
 	afx_msg void OnMinimapShowRoads();
