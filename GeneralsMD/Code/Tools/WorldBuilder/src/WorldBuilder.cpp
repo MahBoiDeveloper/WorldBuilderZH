@@ -510,6 +510,16 @@ BOOL CWorldBuilderApp::InitInstance()
 
 	AddDocTemplate(m_3dtemplate);
 
+#ifdef RTS_HAS_QT
+	// Stage 3: bring up Qt (QApplication + theme) BEFORE ProcessShellCommand opens any
+	// command-line / double-clicked map. That map's validation runs the missing-unit and
+	// missing-texture pickers; with qApp already alive they take the native Qt path
+	// (WBQtPickUnitDialog / WBQtTerrainModalDialog) instead of the MFC DoModal fallback.
+	// Qt is pumped from inside MFC's CWinApp::Run() (QMfcApp::pluginInstance), so MFC still
+	// owns the loop; the QMainWindow itself is created later, after the doc/view exist.
+	WBQt_Startup();
+#endif
+
 #ifdef MDI
 	CMainFrame* pMainFrame = new CMainFrame; 
 	if (!pMainFrame->LoadFrame(IDR_MAPDOC)) 
@@ -542,10 +552,6 @@ BOOL CWorldBuilderApp::InitInstance()
 #endif
 
 #ifdef RTS_HAS_QT
-	// Bring up the Qt event loop now that the MFC main window exists. Qt is pumped from
-	// inside MFC's CWinApp::Run() (QMfcApp::pluginInstance), so MFC keeps owning the loop.
-	WBQt_Startup();
-
 	// Stage 1 inversion: a Qt QMainWindow becomes the visible top-level (native chrome +
 	// the viewport as its central widget); the MFC frame stays alive but HIDDEN as the
 	// command-routing hub (menu/toolbar actions still post WM_COMMAND to it). If the
