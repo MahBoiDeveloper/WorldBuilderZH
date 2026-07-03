@@ -16,13 +16,156 @@
 #include "TeamBehavior.h"
 #include "TeamGeneric.h"
 #include "Common/WellKnownKeys.h"
+#include "Common/DataChunk.h"
+#include "Common/FileSystem.h"
 #include "GameLogic/SidesList.h"
 #include "qt/panels/WBQtTeamsBridge.h"
+#include <vector>
 
 #ifdef RTS_HAS_QT
 
 static CTeamsDialog *s_qtDlg = NULL;
-static Int s_qtPrevCurTeam = 0;	// remembers the selected team across sessions (== thePrevCurTeam)
+static Int s_qtPrevCurTeam = 0;
+
+// ================= De-bridged (windowless) view model -- branch qt-debridge =================
+// The Teams dialog window is never Create()d; these statics mirror what updateUI /
+// UpdateTeamsList seeded into the hidden player listbox, teams CListCtrl and command buttons,
+// rebuilt from m_sides by qtMRefresh(). Copies of the teamsdialog.cpp file-static helpers.
+
+static const char *QTM_NEUTRAL_NAME_STR = "(neutral)";
+static const Int QTM_K_LOCAL_TEAMS_VERSION_1 = 1;
+
+namespace
+{
+	AsciiString qtmPlayerNameForUI(SidesList &sides, int i)
+	{
+		AsciiString b = sides.getSideInfo(i)->getDict()->getAsciiString(TheKey_playerName);
+		if (b.isEmpty())
+		{
+			b = QTM_NEUTRAL_NAME_STR;
+		}
+		return b;
+	}
+
+	AsciiString qtmTeamNameForUI(SidesList &sides, int i)
+	{
+		TeamsInfo *ti = sides.getTeamInfo(i);
+		if (sides.isPlayerDefaultTeam(ti))
+		{
+			AsciiString n;
+			n.format("(default team)");
+			return n;
+		}
+		return ti->getDict()->getAsciiString(TheKey_teamName);
+	}
+
+	Bool qtmIsPlayerDefaultTeamIndex(SidesList &sides, Int i)
+	{
+		return sides.isPlayerDefaultTeam(sides.getTeamInfo(i));
+	}
+
+	// == the file-local stream wrapper teamsdialog.cpp uses for the export chunk writer.
+	class QtmMFCFileOutputStream : public OutputStream
+	{
+	protected:
+		CFile *m_file;
+	public:
+		QtmMFCFileOutputStream(CFile *pFile) : m_file(pFile) {}
+		virtual Int write(const void *pData, Int numBytes)
+		{
+			Int numBytesWritten = 0;
+			try {
+				m_file->Write(pData, numBytes);
+				numBytesWritten = numBytes;
+			} catch(...) {
+			}
+			return numBytesWritten;
+		}
+	};
+}
+
+struct QtmTeamRow { AsciiString cols[6]; int teamIndex; int selected; };
+static int s_qtCurPlayer = -1;	// == the hidden IDC_PLAYER_LIST GetCurSel (starts unselected)
+static std::vector<AsciiString> s_qtPlayerNames;
+static std::vector<QtmTeamRow> s_qtTeamRows;
+static Bool s_qtNewEnabled = false, s_qtDeleteEnabled = false, s_qtCopyEnabled = false, s_qtMoveEnabled = false;
+
+// == updateUI minus the controls: validate + clamp, optionally rebuild the row model
+// (REBUILD_TEAMS == UpdateTeamsList's derivation), then the derived button enables.
+void CTeamsDialog::qtMRefresh(int rebuildRows)
+{
+	m_sides.validateSides();
+
+	if (m_curTeam < 0)
+	{
+		m_curTeam = 0;
+	}
+	if (m_curTeam >= m_sides.getNumTeams())
+	{
+		m_curTeam = m_sides.getNumTeams() - 1;
+	}
+
+	if (rebuildRows)
+	{
+		s_qtPlayerNames.clear();
+		Int p;
+		for (p = 0; p < m_sides.getNumSides(); p++)
+		{
+			s_qtPlayerNames.push_back(qtmPlayerNameForUI(m_sides, p));
+		}
+
+		s_qtTeamRows.clear();
+		if (s_qtCurPlayer >= 0 && s_qtCurPlayer < m_sides.getNumSides())
+		{
+			AsciiString playerName = qtmPlayerNameForUI(m_sides, s_qtCurPlayer);
+			Bool selected = false;
+			Int i;
+			for (i = 0; i < m_sides.getNumTeams(); i++)
+			{
+				TeamsInfo *ti = m_sides.getTeamInfo(i);
+				if (ti->getDict()->getAsciiString(TheKey_teamOwner) == playerName.str())
+				{
+					QtmTeamRow row;
+					Bool exists;
+					row.cols[0] = qtmTeamNameForUI(m_sides, i);
+					row.cols[1] = ti->getDict()->getAsciiString(TheKey_teamOnCreateScript, &exists);
+					row.cols[2] = ti->getDict()->getAsciiString(TheKey_teamProductionCondition, &exists);
+					row.cols[3].format("%d", ti->getDict()->getInt(TheKey_teamProductionPriority, &exists));
+					row.cols[4] = ti->getDict()->getAsciiString(TheKey_teamHome, &exists);
+					row.cols[5].format("%d", i);
+					row.teamIndex = i;
+					row.selected = 0;
+					if (m_curTeam == i)
+					{
+						selected = true;
+						row.selected = 1;
+					}
+					s_qtTeamRows.push_back(row);
+				}
+			}
+			if (!selected)
+			{
+				m_curTeam = -1;
+				if (!s_qtTeamRows.empty())
+				{
+					m_curTeam = s_qtTeamRows[0].teamIndex;
+					s_qtTeamRows[0].selected = 1;
+				}
+			}
+		}
+	}
+
+	// == updateUI's button-enable pass (derived; there are no controls to disable).
+	Bool isDefault = true;
+	if (m_curTeam >= 0)
+	{
+		isDefault = qtmIsPlayerDefaultTeamIndex(m_sides, m_curTeam);
+	}
+	s_qtDeleteEnabled = !isDefault;
+	s_qtCopyEnabled = !isDefault;
+	s_qtMoveEnabled = !isDefault;
+	s_qtNewEnabled = (s_qtCurPlayer > 0);
+}	// remembers the selected team across sessions (== thePrevCurTeam)
 
 static void copyOut(const char *str, char *buf, int cap)
 {
@@ -46,14 +189,17 @@ CTeamsDialog *CTeamsDialog::qtOpen(void)
 	if (s_qtDlg == NULL)
 	{
 		s_qtDlg = new CTeamsDialog();
-		// Create() runs OnInitDialog (m_sides copy, columns, player list, the fix-owner
-		// validation -- which may pop modals); the template has no WS_VISIBLE, so the dialog
-		// stays hidden.
-		s_qtDlg->Create(CTeamsDialog::IDD, AfxGetMainWnd());
-		// Restore the last-selected team (the MFC static that does this is file-local to
-		// teamsdialog.cpp, so the Qt path keeps its own).
+		// De-bridged (qt-debridge): never Create() the window. Seed the model like
+		// OnInitDialog (m_sides copy, fix-owner validation -- which may pop the Qt-seamed
+		// modals) and build the view model directly. The player list starts unselected,
+		// exactly like the hidden listbox did.
+		s_qtDlg->m_updating = 0;
+		s_qtDlg->m_sides = *TheSidesList;
 		s_qtDlg->m_curTeam = s_qtPrevCurTeam;
-		s_qtDlg->updateUI(REBUILD_ALL);
+		s_qtDlg->m_expanded = TRUE;
+		s_qtCurPlayer = -1;
+		s_qtDlg->validateTeamOwners();
+		s_qtDlg->qtMRefresh(1);
 	}
 	return s_qtDlg;
 }
@@ -105,8 +251,7 @@ void CTeamsDialog::qtCommit(void)
 
 int CTeamsDialog::qtPlayerCount(void)
 {
-	CListBox *players = (CListBox *)GetDlgItem(IDC_PLAYER_LIST);
-	return (players != NULL) ? players->GetCount() : 0;
+	return (int)s_qtPlayerNames.size();
 }
 
 void CTeamsDialog::qtPlayerName(int i, char *buf, int cap)
@@ -115,35 +260,27 @@ void CTeamsDialog::qtPlayerName(int i, char *buf, int cap)
 	{
 		buf[0] = 0;
 	}
-	CListBox *players = (CListBox *)GetDlgItem(IDC_PLAYER_LIST);
-	if (players != NULL && i >= 0 && i < players->GetCount())
+	if (i >= 0 && i < (int)s_qtPlayerNames.size())
 	{
-		CString text;
-		players->GetText(i, text);
-		copyOut((LPCTSTR)text, buf, cap);
+		copyOut(s_qtPlayerNames[i].str(), buf, cap);
 	}
 }
 
 int CTeamsDialog::qtPlayerCurSel(void)
 {
-	CListBox *players = (CListBox *)GetDlgItem(IDC_PLAYER_LIST);
-	return (players != NULL) ? players->GetCurSel() : -1;
+	return s_qtCurPlayer;
 }
 
 void CTeamsDialog::qtSelectPlayer(int i)
 {
-	CListBox *players = (CListBox *)GetDlgItem(IDC_PLAYER_LIST);
-	if (players != NULL)
-	{
-		players->SetCurSel(i);
-	}
-	OnSelchangePlayerList();
+	// == OnSelchangePlayerList minus the listbox: refilter the team rows for this player.
+	s_qtCurPlayer = i;
+	qtMRefresh(1);
 }
 
 int CTeamsDialog::qtTeamRowCount(void)
 {
-	CListCtrl *pList = (CListCtrl *)GetDlgItem(IDC_TEAMS_LIST);
-	return (pList != NULL) ? pList->GetItemCount() : 0;
+	return (int)s_qtTeamRows.size();
 }
 
 void CTeamsDialog::qtTeamRowText(int row, int col, char *buf, int cap)
@@ -152,46 +289,49 @@ void CTeamsDialog::qtTeamRowText(int row, int col, char *buf, int cap)
 	{
 		buf[0] = 0;
 	}
-	CListCtrl *pList = (CListCtrl *)GetDlgItem(IDC_TEAMS_LIST);
-	if (pList != NULL && row >= 0 && row < pList->GetItemCount())
+	if (row >= 0 && row < (int)s_qtTeamRows.size() && col >= 0 && col < 6)
 	{
-		CString text = pList->GetItemText(row, col);
-		copyOut((LPCTSTR)text, buf, cap);
+		copyOut(s_qtTeamRows[row].cols[col].str(), buf, cap);
 	}
 }
 
 int CTeamsDialog::qtTeamRowSelected(int row)
 {
-	CListCtrl *pList = (CListCtrl *)GetDlgItem(IDC_TEAMS_LIST);
-	if (pList != NULL && row >= 0 && row < pList->GetItemCount())
+	if (row >= 0 && row < (int)s_qtTeamRows.size())
 	{
-		return (pList->GetItemState(row, LVIS_SELECTED) & LVIS_SELECTED) ? 1 : 0;
+		return s_qtTeamRows[row].selected;
 	}
 	return 0;
 }
 
 void CTeamsDialog::qtSelectTeamRow(int row)
 {
-	CListCtrl *pList = (CListCtrl *)GetDlgItem(IDC_TEAMS_LIST);
-	if (pList == NULL || row < 0 || row >= pList->GetItemCount())
+	if (row < 0 || row >= (int)s_qtTeamRows.size())
 	{
 		return;
 	}
-	// == a click on the row: make it the only selected item, then do what OnClickTeamsList
-	// does MINUS its updateUI(REBUILD_ALL) -- selecting a row changes no list content, and
-	// the full DeleteAllItems+refill of the hidden list made every Qt team click O(teams)
-	// on both sides. Keep the m_curTeam update and the validate + button-enable pass
-	// (updateUI with no rebuild bits).
-	pList->SetItemState(-1, 0, LVIS_SELECTED);
-	pList->SetItemState(row, LVIS_SELECTED, LVIS_SELECTED);
-	m_curTeam = pList->GetItemData(row);
-	updateUI(0);
+	// == a click on the row: only the selection + button enables change (the per-click
+	// light path from the Teams-lag fix, now fully model-side).
+	for (size_t i = 0; i < s_qtTeamRows.size(); i++)
+	{
+		s_qtTeamRows[i].selected = 0;
+	}
+	s_qtTeamRows[row].selected = 1;
+	m_curTeam = s_qtTeamRows[row].teamIndex;
+	qtMRefresh(0);
 }
 
 int CTeamsDialog::qtIsCtrlEnabled(int ctrlId)
 {
-	CWnd *ctrl = GetDlgItem(ctrlId);
-	return (ctrl != NULL && ctrl->IsWindowEnabled()) ? 1 : 0;
+	switch (ctrlId)
+	{
+		case IDC_NEWTEAM:      return s_qtNewEnabled ? 1 : 0;
+		case IDC_DELETETEAM:   return s_qtDeleteEnabled ? 1 : 0;
+		case IDC_COPYTEAM:     return s_qtCopyEnabled ? 1 : 0;
+		case IDC_MOVEUPTEAM:
+		case IDC_MOVEDOWNTEAM: return s_qtMoveEnabled ? 1 : 0;
+		default:               return 1;
+	}
 }
 
 void CTeamsDialog::qtNewTeam(void)
@@ -218,7 +358,7 @@ void CTeamsDialog::qtNewTeam(void)
 	if (m_sides.findTeamInfo(tname, &i)) {
 		m_curTeam = i;
 	}
-	updateUI(REBUILD_ALL);
+	qtMRefresh(1);
 }
 
 void *CTeamsDialog::qtCurTeamDict(void)
@@ -246,46 +386,216 @@ int CTeamsDialog::qtCurTeamIsDefault(void)
 
 void CTeamsDialog::qtDeleteTeam(void)
 {
-	OnDeleteteam();
+	// == OnDeleteteam minus the updateUI tail.
+	if (m_curTeam < 0)
+	{
+		return;
+	}
+	if (qtmIsPlayerDefaultTeamIndex(m_sides, m_curTeam))
+	{
+		return;	// should not be allowed (button disabled)
+	}
+	AsciiString tname = m_sides.getTeamInfo(m_curTeam)->getDict()->getAsciiString(TheKey_teamName);
+	Int count = MapObject::countMapObjectsWithOwner(tname);
+	if (count > 0)
+	{
+		CString msg;
+		msg.Format(IDS_REMOVING_INUSE_TEAM, count);
+		if (::AfxMessageBox(msg, MB_YESNO) == IDNO)
+		{
+			return;
+		}
+	}
+	m_sides.removeTeam(m_curTeam);
+	qtMRefresh(1);
 }
 
 void CTeamsDialog::qtCopyTeam(void)
 {
-	OnCopyteam();
+	// == OnCopyteam minus the updateUI tail.
+	Dict d = *m_sides.getTeamInfo(m_curTeam)->getDict();
+	AsciiString origName = d.getAsciiString(TheKey_teamName);
+	Int num = 1;
+	AsciiString tname;
+	do
+	{
+		tname.format("%s.%2d", origName.str(), num++);
+	}
+	while (m_sides.findTeamInfo(tname));
+	d.setAsciiString(TheKey_teamName, tname);
+	m_sides.addTeam(&d);
+	qtMRefresh(1);
 }
 
 void CTeamsDialog::qtEditTeam(void)
 {
-	// Guard like OnDblclkTeamsList: the default team has no editable template.
-	if (m_curTeam >= 0 && !m_sides.isPlayerDefaultTeam(m_sides.getTeamInfo(m_curTeam)))
-	{
-		OnEditTemplate();
-	}
+	// De-bridged: the Qt team sheet (WBQtTeamSheet_Open) IS the editor now; the MFC
+	// property-sheet path would need the window. This facade entry is unused by the Qt
+	// dialog and intentionally does nothing.
 }
 
 void CTeamsDialog::qtSelectTeamMembers(void)
 {
-	OnSelectTeamMembers();
+	OnSelectTeamMembers();	// pure m_sides + map walk + info box; no controls
 }
 
 void CTeamsDialog::qtMoveUpTeam(void)
 {
-	OnMoveUpTeam();
+	// == OnMoveUpTeam with findPrevTeamIndex resolved against the view rows instead of the
+	// hidden list's col-5 walk (the rows carry the same real team indexes).
+	if (m_curTeam <= 0)
+	{
+		return;
+	}
+	int prevIndex = -1;
+	for (size_t i = 1; i < s_qtTeamRows.size(); i++)
+	{
+		if (s_qtTeamRows[i].teamIndex == m_curTeam)
+		{
+			prevIndex = s_qtTeamRows[i - 1].teamIndex;
+			break;
+		}
+	}
+	if (prevIndex < 0)
+	{
+		return;
+	}
+	Dict *currentTeam = m_sides.getTeamInfo(m_curTeam)->getDict();
+	Dict *prevTeam = m_sides.getTeamInfo(prevIndex)->getDict();
+	std::swap(*currentTeam, *prevTeam);
+	m_curTeam = prevIndex;
+	qtMRefresh(1);
 }
 
 void CTeamsDialog::qtMoveDownTeam(void)
 {
-	OnMoveDownTeam();
+	// == OnMoveDownTeam, view-row resolved.
+	if (m_curTeam >= m_sides.getNumTeams() - 1)
+	{
+		return;
+	}
+	int nextIndex = -1;
+	for (size_t i = 0; i + 1 < s_qtTeamRows.size(); i++)
+	{
+		if (s_qtTeamRows[i].teamIndex == m_curTeam)
+		{
+			nextIndex = s_qtTeamRows[i + 1].teamIndex;
+			break;
+		}
+	}
+	if (nextIndex < 0 || nextIndex >= m_sides.getNumTeams())
+	{
+		return;
+	}
+	Dict *currentTeam = m_sides.getTeamInfo(m_curTeam)->getDict();
+	Dict *nextTeam = m_sides.getTeamInfo(nextIndex)->getDict();
+	std::swap(*currentTeam, *nextTeam);
+	m_curTeam = nextIndex;
+	qtMRefresh(1);
 }
 
 void CTeamsDialog::qtExportTeams(void)
 {
-	OnExportTeams();
+	// == OnExportTeams minus the player-listbox read (the view model holds the selection).
+	Int selectedPlayer = s_qtCurPlayer;
+	if (selectedPlayer < 1)
+	{
+		AfxMessageBox("Please select a valid player first!", MB_OK | MB_ICONWARNING);
+		return;
+	}
+	AsciiString selectedPlayerName = qtmPlayerNameForUI(m_sides, selectedPlayer);
+
+	CFileDialog dlg(FALSE, ".teams", "exportedteams.teams",
+		OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
+		"Team Export (*.teams)|*.teams||");
+	if (dlg.DoModal() == IDCANCEL)
+	{
+		return;
+	}
+	CString path = dlg.GetPathName();
+	try {
+		CFile f(path,
+			CFile::modeCreate | CFile::modeWrite |
+			CFile::shareDenyWrite | CFile::typeBinary);
+		QtmMFCFileOutputStream stream(&f);
+		DataChunkOutput out(&stream);
+		out.openDataChunk("ScriptTeams", QTM_K_LOCAL_TEAMS_VERSION_1);
+		int exportedCount = 0;
+		for (int i = 0; i < m_sides.getNumTeams(); i++)
+		{
+			TeamsInfo *ti = m_sides.getTeamInfo(i);
+			if (!ti) { continue; }
+			if (m_sides.isPlayerDefaultTeam(ti)) { continue; }
+			Dict *d = ti->getDict();
+			if (!d) { continue; }
+			AsciiString teamOwner = d->getAsciiString(TheKey_teamOwner);
+			if (teamOwner == selectedPlayerName.str())
+			{
+				out.writeDict(*d);
+				exportedCount++;
+			}
+		}
+		out.closeDataChunk();
+		if (exportedCount == 0)
+		{
+			AfxMessageBox("No teams found for the selected player!", MB_OK | MB_ICONWARNING);
+		}
+		else
+		{
+			CString msg;
+			msg.Format("Successfully exported %d team(s) from player '%s' to:\n%s",
+				exportedCount, selectedPlayerName.str(), path);
+			AfxMessageBox(msg, MB_OK | MB_ICONINFORMATION);
+		}
+	} catch(...) {
+		AfxMessageBox("Error writing team export file!", MB_OK | MB_ICONERROR);
+	}
 }
 
 void CTeamsDialog::qtImportTeams(void)
 {
-	OnImportTeams();
+	// == OnImportTeams minus the player-listbox read and the updateUI tail.
+	Int selectedPlayer = s_qtCurPlayer;
+	if (selectedPlayer < 1)
+	{
+		AfxMessageBox("Please select a valid player first!", MB_OK | MB_ICONWARNING);
+		return;
+	}
+	m_importTargetPlayer = qtmPlayerNameForUI(m_sides, selectedPlayer);
+
+	CFileDialog dlg(TRUE, ".teams", NULL,
+		OFN_FILEMUSTEXIST | OFN_HIDEREADONLY,
+		"Team Export (*.teams)|*.teams||");
+	if (dlg.DoModal() == IDCANCEL)
+	{
+		return;
+	}
+	CString path = dlg.GetPathName();
+	try {
+		CachedFileInputStream in;
+		if (!in.open(AsciiString(path)))
+		{
+			AfxMessageBox("Could not open team file!", MB_OK | MB_ICONERROR);
+			return;
+		}
+		DataChunkInput reader(&in);
+		reader.registerParser(
+			AsciiString("ScriptTeams"),
+			AsciiString::TheEmptyString,
+			ParseTeamsDataChunk
+		);
+		if (!reader.parse(this))
+		{
+			AfxMessageBox("Error parsing team export file!\nFile may be corrupt or incompatible.",
+				MB_OK | MB_ICONERROR);
+			return;
+		}
+		validateTeamOwners();
+		qtMRefresh(1);
+		AfxMessageBox("Teams imported successfully!", MB_OK | MB_ICONINFORMATION);
+	} catch(...) {
+		AfxMessageBox("Exception occurred while importing teams!", MB_OK | MB_ICONERROR);
+	}
 }
 
 // ================= the C facade =================
@@ -512,19 +822,19 @@ extern "C" int WBQtTeamSheet_Open(void)
 	s_qtPageIdentity = new TeamIdentity();
 	s_qtPageIdentity->setTeamDict(teamDict);
 	s_qtPageIdentity->setSidesList(sides);
-	s_qtPageIdentity->Create(TeamIdentity::IDD, dlg);
+	s_qtPageIdentity->Create(TeamIdentity::IDD, AfxGetMainWnd());	// hidden child of the frame (the Teams dialog is windowless now)
 
 	s_qtPageReinforcement = new TeamReinforcement();
 	s_qtPageReinforcement->setTeamDict(teamDict);
-	s_qtPageReinforcement->Create(TeamReinforcement::IDD, dlg);
+	s_qtPageReinforcement->Create(TeamReinforcement::IDD, AfxGetMainWnd());
 
 	s_qtPageBehavior = new TeamBehavior();
 	s_qtPageBehavior->setTeamDict(teamDict);
-	s_qtPageBehavior->Create(TeamBehavior::IDD, dlg);
+	s_qtPageBehavior->Create(TeamBehavior::IDD, AfxGetMainWnd());
 
 	s_qtPageGeneric = new TeamGeneric();
 	s_qtPageGeneric->setTeamDict(teamDict);
-	s_qtPageGeneric->Create(TeamGeneric::IDD, dlg);
+	s_qtPageGeneric->Create(TeamGeneric::IDD, AfxGetMainWnd());
 
 	return 1;
 }

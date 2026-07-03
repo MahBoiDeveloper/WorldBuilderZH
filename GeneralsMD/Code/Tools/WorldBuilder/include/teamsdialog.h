@@ -82,6 +82,9 @@ public:
 	void *qtCurTeamDict(void);
 	void *qtSides(void);
 	int  qtCurTeamIsDefault(void);
+	// De-bridged (windowless) refresh of the bridge-side view model from m_sides (== updateUI
+	// minus the controls; rebuildRows == the REBUILD_TEAMS bit). Defined in WBQtTeamsBridge.cpp.
+	void qtMRefresh(int rebuildRows);
 #endif
 
 // Implementation
