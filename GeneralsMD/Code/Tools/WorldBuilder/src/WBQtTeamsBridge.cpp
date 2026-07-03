@@ -11,10 +11,12 @@
 #include "WorldBuilderDoc.h"
 #include "CUndoable.h"
 #include "teamsdialog.h"
-#include "TeamIdentity.h"
-#include "TeamReinforcement.h"
-#include "TeamBehavior.h"
-#include "TeamGeneric.h"
+#include "Common/ThingTemplate.h"
+#include "Common/ThingFactory.h"
+#include "Common/ThingSort.h"
+#include "GameLogic/AI.h"
+#include "GameLogic/Scripts.h"
+#include "qt/panels/WBQtPickUnitBridge.h"
 #include "Common/WellKnownKeys.h"
 #include "Common/DataChunk.h"
 #include "Common/FileSystem.h"
@@ -782,27 +784,345 @@ extern "C" void WBQtTeams_ImportTeams(void)
 // real WM_COMMAND notification -- the page's own message map dispatches to the right handler.
 // The unit-pick "..." buttons still pop the MFC PickUnitDialog (owner = the active Qt sheet).
 
-static TeamIdentity *s_qtPageIdentity = NULL;
-static TeamReinforcement *s_qtPageReinforcement = NULL;
-static TeamBehavior *s_qtPageBehavior = NULL;
-static TeamGeneric *s_qtPageGeneric = NULL;
+//----------------------------------------------------------------------------------------
+// The team property sheet, de-bridged (T3) -- branch qt-debridge. The four hidden Team*
+// page windows are GONE: WBQtTeamSheet_Open captures the current team's working-copy Dict
+// (+ the sides list for rename validation), builds the combo catalogs model-side (the same
+// enumerations the pages' OnInitDialog ran through EditParameter::load*), and the
+// WBQtTeamPage_* facade below is a table-driven dict layer keyed by ctrlId: gets derive
+// from the dict exactly like the pages' seeds, sets replicate the handlers' dict writes.
+// The Qt sheet (WBQtTeamSheetDialog.cpp) is unchanged. Deliberate deviations from MFC
+// bugs: selecting a "[???] x" placeholder re-writes the ORIGINAL value (the MFC handlers
+// stored the prefixed text), and picking <none> for a unit type clears the key (MFC stored
+// the literal "<none>").
+//----------------------------------------------------------------------------------------
 
-static CDialog *qtTeamPage(int page)
+static Dict *s_qtSheetDict = NULL;
+static SidesList *s_qtSheetSides = NULL;
+static Bool s_qtSheetDeployBy = false;	// the reinforcement transport gate
+
+static std::vector<AsciiString> s_qtCatWaypointsId;	// Identity home-waypoint combo
+static std::vector<AsciiString> s_qtCatWaypointsRe;	// Reinforcement combo ("Waypoint" RC pre-item)
+static std::vector<AsciiString> s_qtCatScripts;		// subroutine scripts + <none>, sorted
+static std::vector<AsciiString> s_qtCatScriptsGen;	// TeamGeneric: <none> FIRST, then sorted
+static std::vector<AsciiString> s_qtCatOwners;		// player display names, sorted
+static std::vector<AsciiString> s_qtCatUnits;		// every template + <none>, sorted
+static std::vector<AsciiString> s_qtCatTransports;	// "Helicopter" RC pre-item + transports + <none>
+static std::vector<AsciiString> s_qtCatVeterancy;	// fixed RC items
+static std::vector<AsciiString> s_qtCatInteractions;	// fixed RC items
+
+namespace
 {
-	switch (page)
+	bool qtmStrLess(const AsciiString &a, const AsciiString &b)
 	{
-		case WB_QT_TEAMPAGE_IDENTITY:		return s_qtPageIdentity;
-		case WB_QT_TEAMPAGE_REINFORCEMENT:	return s_qtPageReinforcement;
-		case WB_QT_TEAMPAGE_BEHAVIOR:		return s_qtPageBehavior;
-		case WB_QT_TEAMPAGE_GENERIC:		return s_qtPageGeneric;
-		default:							return NULL;
+		return _stricmp(a.str(), b.str()) < 0;	// == the CBS_SORT order
+	}
+
+	int qtmCatFind(const std::vector<AsciiString> &v, const AsciiString &s)
+	{
+		for (size_t i = 0; i < v.size(); i++)
+		{
+			if (v[i] == s)
+			{
+				return (int)i;
+			}
+		}
+		return -1;
+	}
+
+	// == EditParameter::loadWaypoints' walk (the loader fills a CComboBox).
+	void qtmCollectWaypoints(std::vector<AsciiString> &out)
+	{
+		for (MapObject *pMapObj = MapObject::getFirstMapObject(); pMapObj; pMapObj = pMapObj->getNext())
+		{
+			if (pMapObj->isWaypoint())
+			{
+				AsciiString wayName = pMapObj->getWaypointName();
+				if (qtmCatFind(out, wayName) < 0)
+				{
+					out.push_back(wayName);
+				}
+			}
+		}
+	}
+
+	// == EditParameter::loadScripts(pCombo, true)'s walk (subroutines only; the sheet opens
+	// with the script editor closed, so the source is TheSidesList like the loader's default).
+	void qtmCollectSubroutineScripts(std::vector<AsciiString> &out)
+	{
+		SidesList *sides = TheSidesList;
+		for (Int i = 0; i < sides->getNumSides(); i++)
+		{
+			ScriptList *pSL = sides->getSideInfo(i)->getScriptList();
+			if (pSL == NULL)
+			{
+				continue;
+			}
+			Script *pScr;
+			for (pScr = pSL->getScript(); pScr; pScr = pScr->getNext())
+			{
+				if (!pScr->isSubroutine())
+				{
+					continue;
+				}
+				out.push_back(pScr->getName());
+			}
+			ScriptGroup *pGroup;
+			for (pGroup = pSL->getScriptGroup(); pGroup; pGroup = pGroup->getNext())
+			{
+				if (pGroup->isSubroutine())
+				{
+					out.push_back(pGroup->getName());
+				}
+				for (pScr = pGroup->getScript(); pScr; pScr = pScr->getNext())
+				{
+					if (!pScr->isSubroutine())
+					{
+						continue;
+					}
+					out.push_back(pScr->getName());
+				}
+			}
+		}
+	}
+
+	// The ctrlId -> dict key tables.
+	// NOTE: the RC reuses control-id VALUES across the four page templates (e.g.
+	// IDC_TEAM_NAME == IDC_BASE_DEFENSE), so every lookup dispatches on the PAGE first.
+	NameKeyType qtmCheckKey(int page, int ctrlId)
+	{
+		if (page == WB_QT_TEAMPAGE_IDENTITY)
+		{
+			switch (ctrlId)
+			{
+				case IDC_AUTO_REINFORCE:            return TheKey_teamAutoReinforce;
+				case IDC_AI_RECRUITABLE:            return TheKey_teamIsAIRecruitable;
+				case IDC_TEAM_SINGLETON:            return TheKey_teamIsSingleton;
+				case IDC_PRODUCTION_EXECUTEACTIONS: return TheKey_teamExecutesActionsOnCreate;
+				default:                            break;
+			}
+		}
+		else if (page == WB_QT_TEAMPAGE_REINFORCEMENT)
+		{
+			switch (ctrlId)
+			{
+				case IDC_TEAM_STARTS_FULL: return TheKey_teamStartsFull;
+				case IDC_TRANSPORTS_EXIT:  return TheKey_teamTransportsExit;
+				default:                   break;
+			}
+		}
+		else if (page == WB_QT_TEAMPAGE_BEHAVIOR)
+		{
+			switch (ctrlId)
+			{
+				case IDC_TRANSPORTS_RETURN:    return TheKey_teamTransportsReturn;
+				case IDC_AVOID_THREATS:        return TheKey_teamAvoidThreats;
+				case IDC_PERIMETER_DEFENSE:    return TheKey_teamIsPerimeterDefense;
+				case IDC_BASE_DEFENSE:         return TheKey_teamIsBaseDefense;
+				case IDC_ATTACK_COMMON_TARGET: return TheKey_teamAttackCommonTarget;
+				default:                       break;
+			}
+		}
+		return NAMEKEY_INVALID;
+	}
+
+	// string combos whose <none> row maps to an EMPTY dict value (== the page handlers).
+	NameKeyType qtmNoneComboKey(int page, int ctrlId)
+	{
+		if (page == WB_QT_TEAMPAGE_IDENTITY)
+		{
+			switch (ctrlId)
+			{
+				case IDC_HOME_WAYPOINT:        return TheKey_teamHome;
+				case IDC_PRODUCTION_CONDITION: return TheKey_teamProductionCondition;
+				default:                       break;
+			}
+		}
+		else if (page == WB_QT_TEAMPAGE_REINFORCEMENT)
+		{
+			switch (ctrlId)
+			{
+				case IDC_TRANSPORT_COMBO: return TheKey_teamTransport;
+				case IDC_WAYPOINT_COMBO:  return TheKey_teamReinforcementOrigin;
+				default:                  break;
+			}
+		}
+		else if (page == WB_QT_TEAMPAGE_BEHAVIOR)
+		{
+			switch (ctrlId)
+			{
+				case IDC_ON_CREATE_SCRIPT:         return TheKey_teamOnCreateScript;
+				case IDC_ON_IDLE_SCRIPT:           return TheKey_teamOnIdleScript;
+				case IDC_ON_ENEMY_SIGHTED:         return TheKey_teamEnemySightedScript;
+				case IDC_ON_DESTROYED:             return TheKey_teamOnDestroyedScript;
+				case IDC_ON_ALL_CLEAR:             return TheKey_teamAllClearScript;
+				case IDC_ON_UNIT_DESTROYED_SCRIPT: return TheKey_teamOnUnitDestroyedScript;
+				default:                           break;
+			}
+		}
+		return NAMEKEY_INVALID;
+	}
+
+	int qtmUnitSlot(int ctrlId)	// unit-type combo -> slot 0..6, else -1
+	{
+		switch (ctrlId)
+		{
+			case IDC_UNIT_TYPE1: return 0;
+			case IDC_UNIT_TYPE2: return 1;
+			case IDC_UNIT_TYPE3: return 2;
+			case IDC_UNIT_TYPE4: return 3;
+			case IDC_UNIT_TYPE5: return 4;
+			case IDC_UNIT_TYPE6: return 5;
+			case IDC_UNIT_TYPE7: return 6;
+			default:             return -1;
+		}
+	}
+
+	int qtmUnitButtonSlot(int ctrlId)
+	{
+		switch (ctrlId)
+		{
+			case IDC_UNIT_TYPE1_BUTTON: return 0;
+			case IDC_UNIT_TYPE2_BUTTON: return 1;
+			case IDC_UNIT_TYPE3_BUTTON: return 2;
+			case IDC_UNIT_TYPE4_BUTTON: return 3;
+			case IDC_UNIT_TYPE5_BUTTON: return 4;
+			case IDC_UNIT_TYPE6_BUTTON: return 5;
+			case IDC_UNIT_TYPE7_BUTTON: return 6;
+			default:                    return -1;
+		}
+	}
+
+	NameKeyType qtmUnitTypeKey(int slot)
+	{
+		switch (slot)
+		{
+			case 0:  return TheKey_teamUnitType1;
+			case 1:  return TheKey_teamUnitType2;
+			case 2:  return TheKey_teamUnitType3;
+			case 3:  return TheKey_teamUnitType4;
+			case 4:  return TheKey_teamUnitType5;
+			case 5:  return TheKey_teamUnitType6;
+			default: return TheKey_teamUnitType7;
+		}
+	}
+
+	int qtmCountSlot(int ctrlId, NameKeyType *keyOut)	// min/max unit-count edits
+	{
+		switch (ctrlId)
+		{
+			case IDC_MIN_UNIT1: *keyOut = TheKey_teamUnitMinCount1; return 1;
+			case IDC_MAX_UNIT1: *keyOut = TheKey_teamUnitMaxCount1; return 1;
+			case IDC_MIN_UNIT2: *keyOut = TheKey_teamUnitMinCount2; return 1;
+			case IDC_MAX_UNIT2: *keyOut = TheKey_teamUnitMaxCount2; return 1;
+			case IDC_MIN_UNIT3: *keyOut = TheKey_teamUnitMinCount3; return 1;
+			case IDC_MAX_UNIT3: *keyOut = TheKey_teamUnitMaxCount3; return 1;
+			case IDC_MIN_UNIT4: *keyOut = TheKey_teamUnitMinCount4; return 1;
+			case IDC_MAX_UNIT4: *keyOut = TheKey_teamUnitMaxCount4; return 1;
+			case IDC_MIN_UNIT5: *keyOut = TheKey_teamUnitMinCount5; return 1;
+			case IDC_MAX_UNIT5: *keyOut = TheKey_teamUnitMaxCount5; return 1;
+			case IDC_MIN_UNIT6: *keyOut = TheKey_teamUnitMinCount6; return 1;
+			case IDC_MAX_UNIT6: *keyOut = TheKey_teamUnitMaxCount6; return 1;
+			case IDC_MIN_UNIT7: *keyOut = TheKey_teamUnitMinCount7; return 1;
+			case IDC_MAX_UNIT7: *keyOut = TheKey_teamUnitMaxCount7; return 1;
+			default: return 0;
+		}
+	}
+
+	int qtmGenericSlot(int ctrlId)	// TeamGeneric script combo -> slot 0..15, else -1
+	{
+		static const int ids[16] = {
+			IDC_TeamGeneric_Script1, IDC_TeamGeneric_Script2, IDC_TeamGeneric_Script3,
+			IDC_TeamGeneric_Script4, IDC_TeamGeneric_Script5, IDC_TeamGeneric_Script6,
+			IDC_TeamGeneric_Script7, IDC_TeamGeneric_Script8, IDC_TeamGeneric_Script9,
+			IDC_TeamGeneric_Script10, IDC_TeamGeneric_Script11, IDC_TeamGeneric_Script12,
+			IDC_TeamGeneric_Script13, IDC_TeamGeneric_Script14, IDC_TeamGeneric_Script15,
+			IDC_TeamGeneric_Script16 };
+		for (int i = 0; i < 16; i++)
+		{
+			if (ids[i] == ctrlId)
+			{
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	AsciiString qtmGenericHookKeyName(int slot)
+	{
+		AsciiString keyName;
+		keyName.format("%s%d", TheNameKeyGenerator->keyToName(TheKey_teamGenericScriptHook).str(), slot);
+		return keyName;
+	}
+
+	// TeamGeneric writes rebuild the whole compacted hook chain (== _scriptsToDict): keep the
+	// 16 slot values here, seeded at sheet-open.
+	AsciiString s_qtGenericSlots[16];
+
+	void qtmGenericRebuildDict(void)
+	{
+		int scriptNum = 0;
+		int i;
+		for (i = 0; i < 16; i++)
+		{
+			AsciiString keyName = qtmGenericHookKeyName(scriptNum);
+			if (s_qtGenericSlots[i].isEmpty())
+			{
+				continue;
+			}
+			s_qtSheetDict->setAsciiString(NAMEKEY(keyName), s_qtGenericSlots[i]);
+			++scriptNum;
+		}
+		for ( ; scriptNum < 16; ++scriptNum)
+		{
+			AsciiString keyName = qtmGenericHookKeyName(scriptNum);
+			if (s_qtSheetDict->known(NAMEKEY(keyName), Dict::DICT_ASCIISTRING))
+			{
+				s_qtSheetDict->remove(NAMEKEY(keyName));
+			}
+		}
+	}
+
+	// The displayed text for a none-mapped string combo (== what the seeded hidden combo's
+	// selection read back): dict value; empty/absent -> <none>; not in catalog -> "[???] v".
+	void qtmComboDisplay(const std::vector<AsciiString> &cat, const AsciiString &value, char *buf, int cap)
+	{
+		if (value.isEmpty())
+		{
+			copyOut(NONE_STRING, buf, cap);
+			return;
+		}
+		if (qtmCatFind(cat, value) >= 0)
+		{
+			copyOut(value.str(), buf, cap);
+			return;
+		}
+		AsciiString missing;
+		missing.format("[???] %s", value.str());
+		copyOut(missing.str(), buf, cap);
+	}
+
+	// Resolve an incoming combo selection back to the raw value ("<none>" -> empty,
+	// "[???] x" -> x).
+	AsciiString qtmComboValueFromText(const char *text)
+	{
+		AsciiString v(text ? text : "");
+		if (v == NONE_STRING)
+		{
+			v.clear();
+		}
+		else if (strncmp(v.str(), "[???] ", 6) == 0)
+		{
+			v = AsciiString(v.str() + 6);
+		}
+		return v;
 	}
 }
 
 extern "C" int WBQtTeamSheet_Open(void)
 {
 	CTeamsDialog *dlg = CTeamsDialog::qtInstance();
-	if (dlg == NULL || s_qtPageIdentity != NULL)
+	if (dlg == NULL || s_qtSheetDict != NULL)
 	{
 		return 0;
 	}
@@ -817,24 +1137,127 @@ extern "C" int WBQtTeamSheet_Open(void)
 		return 0;
 	}
 
-	// == OnEditTemplate's page setup, but Create()'d hidden (children of the hidden Teams
-	// dialog; the page templates are WS_CHILD with no WS_VISIBLE).
-	s_qtPageIdentity = new TeamIdentity();
-	s_qtPageIdentity->setTeamDict(teamDict);
-	s_qtPageIdentity->setSidesList(sides);
-	s_qtPageIdentity->Create(TeamIdentity::IDD, AfxGetMainWnd());	// hidden child of the frame (the Teams dialog is windowless now)
+	// De-bridged (T3): no page windows -- capture the dict + sides and build the catalogs
+	// the pages' OnInitDialog used to load into their combos.
+	s_qtSheetDict = teamDict;
+	s_qtSheetSides = sides;
 
-	s_qtPageReinforcement = new TeamReinforcement();
-	s_qtPageReinforcement->setTeamDict(teamDict);
-	s_qtPageReinforcement->Create(TeamReinforcement::IDD, AfxGetMainWnd());
+	Bool exists;
 
-	s_qtPageBehavior = new TeamBehavior();
-	s_qtPageBehavior->setTeamDict(teamDict);
-	s_qtPageBehavior->Create(TeamBehavior::IDD, AfxGetMainWnd());
+	s_qtCatWaypointsId.clear();
+	qtmCollectWaypoints(s_qtCatWaypointsId);
+	s_qtCatWaypointsId.push_back(AsciiString(NONE_STRING));
+	std::sort(s_qtCatWaypointsId.begin(), s_qtCatWaypointsId.end(), qtmStrLess);
 
-	s_qtPageGeneric = new TeamGeneric();
-	s_qtPageGeneric->setTeamDict(teamDict);
-	s_qtPageGeneric->Create(TeamGeneric::IDD, AfxGetMainWnd());
+	s_qtCatWaypointsRe.clear();
+	s_qtCatWaypointsRe.push_back(AsciiString("Waypoint"));	// the RC template pre-item
+	qtmCollectWaypoints(s_qtCatWaypointsRe);
+	s_qtCatWaypointsRe.push_back(AsciiString(NONE_STRING));
+	std::sort(s_qtCatWaypointsRe.begin(), s_qtCatWaypointsRe.end(), qtmStrLess);
+
+	s_qtCatScripts.clear();
+	qtmCollectSubroutineScripts(s_qtCatScripts);
+	s_qtCatScripts.push_back(AsciiString(NONE_STRING));
+	std::sort(s_qtCatScripts.begin(), s_qtCatScripts.end(), qtmStrLess);
+
+	// TeamGeneric inserted <none> at row 0 (InsertString bypasses the sort).
+	s_qtCatScriptsGen.clear();
+	qtmCollectSubroutineScripts(s_qtCatScriptsGen);
+	std::sort(s_qtCatScriptsGen.begin(), s_qtCatScriptsGen.end(), qtmStrLess);
+	s_qtCatScriptsGen.insert(s_qtCatScriptsGen.begin(), AsciiString(NONE_STRING));
+
+	s_qtCatOwners.clear();
+	{
+		for (Int i = 0; i < TheSidesList->getNumSides(); i++)
+		{
+			AsciiString name = TheSidesList->getSideInfo(i)->getDict()->getAsciiString(TheKey_playerName);
+			if (name.isEmpty())
+			{
+				name = QTM_NEUTRAL_NAME_STR;
+			}
+			s_qtCatOwners.push_back(name);
+		}
+		std::sort(s_qtCatOwners.begin(), s_qtCatOwners.end(), qtmStrLess);
+	}
+
+	s_qtCatUnits.clear();
+	{
+		const ThingTemplate *tTemplate;
+		for (tTemplate = TheThingFactory->firstTemplate();
+				tTemplate;
+				tTemplate = tTemplate->friend_getNextTemplate())
+		{
+			s_qtCatUnits.push_back(tTemplate->getName());
+		}
+		s_qtCatUnits.push_back(AsciiString(NONE_STRING));
+		std::sort(s_qtCatUnits.begin(), s_qtCatUnits.end(), qtmStrLess);
+	}
+
+	s_qtCatTransports.clear();
+	{
+		s_qtCatTransports.push_back(AsciiString("Helicopter"));	// the RC template pre-item
+		const ThingTemplate *tTemplate;
+		for (tTemplate = TheThingFactory->firstTemplate();
+				tTemplate;
+				tTemplate = tTemplate->friend_getNextTemplate())
+		{
+			if (tTemplate->isKindOf(KINDOF_TRANSPORT))
+			{
+				s_qtCatTransports.push_back(tTemplate->getName());
+			}
+		}
+		s_qtCatTransports.push_back(AsciiString(NONE_STRING));
+		std::sort(s_qtCatTransports.begin(), s_qtCatTransports.end(), qtmStrLess);
+	}
+
+	s_qtCatVeterancy.clear();
+	s_qtCatVeterancy.push_back(AsciiString("Normal"));
+	s_qtCatVeterancy.push_back(AsciiString("Veteran"));
+	s_qtCatVeterancy.push_back(AsciiString("Elite"));
+	s_qtCatVeterancy.push_back(AsciiString("Heroic"));
+
+	s_qtCatInteractions.clear();
+	s_qtCatInteractions.push_back(AsciiString("Sleep"));
+	s_qtCatInteractions.push_back(AsciiString("Passive"));
+	s_qtCatInteractions.push_back(AsciiString("Normal"));
+	s_qtCatInteractions.push_back(AsciiString("Alert"));
+	s_qtCatInteractions.push_back(AsciiString("Aggressive"));
+
+	// == TeamReinforcement::OnInitDialog's gate seed: transport combo + exit enabled iff a
+	// transport is set (deploy-by starts checked in that case).
+	{
+		AsciiString transport = s_qtSheetDict->getAsciiString(TheKey_teamTransport, &exists);
+		s_qtSheetDeployBy = (exists && !transport.isEmpty());
+	}
+
+	// == TeamIdentity::OnInitDialog: an absent teamExecutesActionsOnCreate is written false.
+	{
+		Bool executeActions = s_qtSheetDict->getBool(TheKey_teamExecutesActionsOnCreate, &exists);
+		(void)executeActions;
+		if (!exists)
+		{
+			s_qtSheetDict->setBool(TheKey_teamExecutesActionsOnCreate, false);
+		}
+	}
+
+	// == TeamGeneric::_dictToScripts' seed: the existing hook chain into the slot buffer.
+	{
+		int i;
+		for (i = 0; i < 16; i++)
+		{
+			s_qtGenericSlots[i].clear();
+		}
+		for (i = 0; i < 16; i++)
+		{
+			AsciiString keyName = qtmGenericHookKeyName(i);
+			AsciiString v = s_qtSheetDict->getAsciiString(NAMEKEY(keyName), &exists);
+			if (!exists)
+			{
+				break;
+			}
+			s_qtGenericSlots[i] = v;
+		}
+	}
 
 	return 1;
 }
@@ -842,47 +1265,14 @@ extern "C" int WBQtTeamSheet_Open(void)
 extern "C" void WBQtTeamSheet_Close(void)
 {
 	// Page edits already landed in the working copy live (the MFC sheet behaved the same:
-	// its DoModal result was ignored); just tear the hidden pages down. The Teams dialog
-	// refreshes its list after (the Qt side calls updateUI via a selection re-push).
-	if (s_qtPageIdentity != NULL)
-	{
-		s_qtPageIdentity->DestroyWindow();
-		delete s_qtPageIdentity;
-		s_qtPageIdentity = NULL;
-	}
-	if (s_qtPageReinforcement != NULL)
-	{
-		s_qtPageReinforcement->DestroyWindow();
-		delete s_qtPageReinforcement;
-		s_qtPageReinforcement = NULL;
-	}
-	if (s_qtPageBehavior != NULL)
-	{
-		s_qtPageBehavior->DestroyWindow();
-		delete s_qtPageBehavior;
-		s_qtPageBehavior = NULL;
-	}
-	if (s_qtPageGeneric != NULL)
-	{
-		s_qtPageGeneric->DestroyWindow();
-		delete s_qtPageGeneric;
-		s_qtPageGeneric = NULL;
-	}
+	// its DoModal result was ignored). Drop the captured state; the Teams dialog refreshes
+	// its rows after (the Qt side re-pushes the player selection).
+	s_qtSheetDict = NULL;
+	s_qtSheetSides = NULL;
 	CTeamsDialog *dlg = CTeamsDialog::qtInstance();
 	if (dlg != NULL)
 	{
-		// Rebuild the hidden teams list (the sheet may have renamed/re-owned the team):
-		// re-pushing the player selection runs updateUI(REBUILD_ALL).
 		dlg->qtSelectPlayer(dlg->qtPlayerCurSel());
-	}
-}
-
-static void qtPageNotify(CDialog *page, int ctrlId, int code)
-{
-	CWnd *ctrl = page->GetDlgItem(ctrlId);
-	if (ctrl != NULL)
-	{
-		page->SendMessage(WM_COMMAND, MAKEWPARAM(ctrlId, code), (LPARAM)ctrl->GetSafeHwnd());
 	}
 }
 
@@ -892,88 +1282,350 @@ extern "C" void WBQtTeamPage_GetText(int page, int ctrlId, char *buf, int cap)
 	{
 		buf[0] = 0;
 	}
-	CDialog *pPage = qtTeamPage(page);
-	if (pPage != NULL)
+	if (s_qtSheetDict == NULL)
 	{
-		CWnd *ctrl = pPage->GetDlgItem(ctrlId);
-		if (ctrl != NULL)
+		return;
+	}
+	Bool exists;
+	AsciiString text;
+
+	if (page == WB_QT_TEAMPAGE_GENERIC)
+	{
+		int slot = qtmGenericSlot(ctrlId);
+		if (slot >= 0)
 		{
-			CString text;
-			ctrl->GetWindowText(text);
-			copyOut((LPCTSTR)text, buf, cap);
+			qtmComboDisplay(s_qtCatScriptsGen, s_qtGenericSlots[slot], buf, cap);
+		}
+		return;
+	}
+	if (page == WB_QT_TEAMPAGE_REINFORCEMENT)
+	{
+		if (ctrlId == IDC_VETERANCY)
+		{
+			Int v = s_qtSheetDict->getInt(TheKey_teamVeterancy, &exists);
+			if (v >= 0 && v < (int)s_qtCatVeterancy.size())
+			{
+				copyOut(s_qtCatVeterancy[v].str(), buf, cap);
+			}
+			return;
+		}
+		NameKeyType key = qtmNoneComboKey(page, ctrlId);
+		if (key != NAMEKEY_INVALID)
+		{
+			AsciiString value = s_qtSheetDict->getAsciiString(key, &exists);
+			qtmComboDisplay((ctrlId == IDC_TRANSPORT_COMBO) ? s_qtCatTransports : s_qtCatWaypointsRe, value, buf, cap);
+		}
+		return;
+	}
+	if (page == WB_QT_TEAMPAGE_BEHAVIOR)
+	{
+		if (ctrlId == IDC_PERCENT_DESTROYED)
+		{
+			// == TeamBehavior::OnInitDialog: rounded percent, 0.5 default.
+			Real threshold = s_qtSheetDict->getReal(TheKey_teamDestroyedThreshold, &exists);
+			if (!exists) { threshold = 0.5f; }
+			Int percent = floor((threshold * 100) + 0.5);
+			text.format("%d", percent);
+			copyOut(text.str(), buf, cap);
+			return;
+		}
+		if (ctrlId == IDC_ENEMY_INTERACTIONS)
+		{
+			Int v = s_qtSheetDict->getInt(TheKey_teamAggressiveness, &exists) - ATTITUDE_SLEEP;
+			if (v >= 0 && v < (int)s_qtCatInteractions.size())
+			{
+				copyOut(s_qtCatInteractions[v].str(), buf, cap);
+			}
+			return;
+		}
+		NameKeyType key = qtmNoneComboKey(page, ctrlId);
+		if (key != NAMEKEY_INVALID)
+		{
+			AsciiString value = s_qtSheetDict->getAsciiString(key, &exists);
+			qtmComboDisplay(s_qtCatScripts, value, buf, cap);
+		}
+		return;
+	}
+
+	// --- Identity (seeds == TeamIdentity::OnInitDialog) ---
+	switch (ctrlId)
+	{
+		case IDC_TEAM_NAME:
+			copyOut(s_qtSheetDict->getAsciiString(TheKey_teamName, &exists).str(), buf, cap);
+			return;
+		case IDC_DESCRIPTION:
+			copyOut(s_qtSheetDict->getAsciiString(TheKey_teamDescription, &exists).str(), buf, cap);
+			return;
+		case IDC_MAX:
+		{
+			Int maxInstances = s_qtSheetDict->getInt(TheKey_teamMaxInstances, &exists);
+			if (!exists) { maxInstances = 1; }
+			text.format("%d", maxInstances);
+			copyOut(text.str(), buf, cap);
+			return;
+		}
+		case IDC_PRODUCTION_PRIORITY:
+			text.format("%d", s_qtSheetDict->getInt(TheKey_teamProductionPriority, &exists));
+			copyOut(text.str(), buf, cap);
+			return;
+		case IDC_PRIORITY_INCREASE:
+			text.format("%d", s_qtSheetDict->getInt(TheKey_teamProductionPrioritySuccessIncrease, &exists));
+			copyOut(text.str(), buf, cap);
+			return;
+		case IDC_PRIORITY_DECREASE:
+			text.format("%d", s_qtSheetDict->getInt(TheKey_teamProductionPriorityFailureDecrease, &exists));
+			copyOut(text.str(), buf, cap);
+			return;
+		case IDC_TEAM_BUILD_FRAMES:
+			text.format("%d", s_qtSheetDict->getInt(TheKey_teamInitialIdleFrames, &exists));
+			copyOut(text.str(), buf, cap);
+			return;
+		case IDC_TEAMOWNER:
+		{
+			AsciiString oname = s_qtSheetDict->getAsciiString(TheKey_teamOwner, &exists);
+			if (oname.isEmpty())
+			{
+				oname = QTM_NEUTRAL_NAME_STR;
+			}
+			copyOut(oname.str(), buf, cap);
+			return;
+		}
+		default:
+			break;
+	}
+
+	// --- identity's none-mapped string combos ---
+	{
+		NameKeyType key = qtmNoneComboKey(page, ctrlId);
+		if (key != NAMEKEY_INVALID)
+		{
+			AsciiString value = s_qtSheetDict->getAsciiString(key, &exists);
+			qtmComboDisplay((ctrlId == IDC_HOME_WAYPOINT) ? s_qtCatWaypointsId : s_qtCatScripts, value, buf, cap);
+			return;
 		}
 	}
+
+	// --- unit-type combos ---
+	{
+		int slot = qtmUnitSlot(ctrlId);
+		if (slot >= 0)
+		{
+			AsciiString value = s_qtSheetDict->getAsciiString(qtmUnitTypeKey(slot), &exists);
+			qtmComboDisplay(s_qtCatUnits, value, buf, cap);
+			return;
+		}
+	}
+
+	// --- unit min/max count edits ---
+	{
+		NameKeyType key;
+		if (qtmCountSlot(ctrlId, &key))
+		{
+			text.format("%d", s_qtSheetDict->getInt(key, &exists));
+			copyOut(text.str(), buf, cap);
+			return;
+		}
+	}
+
 }
 
 extern "C" void WBQtTeamPage_SetText(int page, int ctrlId, const char *text, int notify)
 {
-	CDialog *pPage = qtTeamPage(page);
-	if (pPage == NULL)
+	(void)notify;
+	if (s_qtSheetDict == NULL)
 	{
 		return;
 	}
-	CWnd *ctrl = pPage->GetDlgItem(ctrlId);
-	if (ctrl == NULL)
+	AsciiString value(text ? text : "");
+
+	if (page == WB_QT_TEAMPAGE_BEHAVIOR)
+	{
+		if (ctrlId == IDC_PERCENT_DESTROYED)
+		{
+			// == TeamBehavior::OnChangePercentDestroyed.
+			s_qtSheetDict->setReal(TheKey_teamDestroyedThreshold, atoi(value.str()) / 100.0f);
+		}
+		return;
+	}
+	if (page != WB_QT_TEAMPAGE_IDENTITY)
 	{
 		return;
 	}
-	ctrl->SetWindowText(text ? text : "");
-	if (notify == WB_QT_TEAMNOTIFY_CHANGE)
+
+	switch (ctrlId)
 	{
-		qtPageNotify(pPage, ctrlId, EN_CHANGE);
+		case IDC_TEAM_NAME:
+		{
+			// == TeamIdentity::OnKillfocusTeamName: rename validation against the WORKING
+			// sides copy + the in-use prompt; a rejected rename leaves the dict unchanged
+			// (the Qt sheet reads the name back to detect that).
+			AsciiString tnamenew = value;
+			AsciiString tnamecur = s_qtSheetDict->getAsciiString(TheKey_teamName);
+			Bool set = true;
+			if (tnamecur != tnamenew)
+			{
+				if (s_qtSheetSides->findTeamInfo(tnamenew) || s_qtSheetSides->findSideInfo(tnamenew))
+				{
+					::AfxMessageBox(IDS_NAME_IN_USE);
+					set = false;
+				}
+				else
+				{
+					Int count = MapObject::countMapObjectsWithOwner(tnamecur);
+					if (count > 0)
+					{
+						set = false;
+						CString msg;
+						msg.Format(IDS_RENAMING_INUSE_TEAM, count);
+						if (::AfxMessageBox(msg, MB_YESNO) == IDYES)
+						{
+							set = true;
+						}
+					}
+				}
+			}
+			if (set)
+			{
+				s_qtSheetDict->setAsciiString(TheKey_teamName, tnamenew);
+			}
+			return;
+		}
+		case IDC_DESCRIPTION:
+			s_qtSheetDict->setAsciiString(TheKey_teamDescription, value);
+			return;
+		case IDC_MAX:
+			s_qtSheetDict->setInt(TheKey_teamMaxInstances, atoi(value.str()));
+			return;
+		case IDC_PRODUCTION_PRIORITY:
+			s_qtSheetDict->setInt(TheKey_teamProductionPriority, atoi(value.str()));
+			return;
+		case IDC_PRIORITY_INCREASE:
+			s_qtSheetDict->setInt(TheKey_teamProductionPrioritySuccessIncrease, atoi(value.str()));
+			return;
+		case IDC_PRIORITY_DECREASE:
+			s_qtSheetDict->setInt(TheKey_teamProductionPriorityFailureDecrease, atoi(value.str()));
+			return;
+		case IDC_TEAM_BUILD_FRAMES:
+			s_qtSheetDict->setInt(TheKey_teamInitialIdleFrames, atoi(value.str()));
+			return;
+		default:
+			break;
 	}
-	else if (notify == WB_QT_TEAMNOTIFY_KILLFOCUS)
+
+	// unit min/max count edits (== TeamIdentity::OnCommand EN_CHANGE: sscanf-gated).
 	{
-		qtPageNotify(pPage, ctrlId, EN_KILLFOCUS);
+		NameKeyType key;
+		if (qtmCountSlot(ctrlId, &key))
+		{
+			Int theInt;
+			if (1 == sscanf(value.str(), "%d", &theInt))
+			{
+				s_qtSheetDict->setInt(key, theInt);
+			}
+			return;
+		}
 	}
 }
 
 extern "C" int WBQtTeamPage_GetCheck(int page, int ctrlId)
 {
-	CDialog *pPage = qtTeamPage(page);
-	if (pPage != NULL)
+	if (s_qtSheetDict == NULL)
 	{
-		CButton *button = (CButton *)pPage->GetDlgItem(ctrlId);
-		return (button != NULL && button->GetCheck() == 1) ? 1 : 0;
+		return 0;
 	}
-	return 0;
+	if (page == WB_QT_TEAMPAGE_REINFORCEMENT && ctrlId == IDC_DEPLOY_BY)
+	{
+		return s_qtSheetDeployBy ? 1 : 0;
+	}
+	NameKeyType key = qtmCheckKey(page, ctrlId);
+	if (key == NAMEKEY_INVALID)
+	{
+		return 0;
+	}
+	Bool exists;
+	return s_qtSheetDict->getBool(key, &exists) ? 1 : 0;
 }
 
 extern "C" void WBQtTeamPage_SetCheck(int page, int ctrlId, int check)
 {
-	CDialog *pPage = qtTeamPage(page);
-	if (pPage == NULL)
+	if (s_qtSheetDict == NULL)
 	{
 		return;
 	}
-	CButton *button = (CButton *)pPage->GetDlgItem(ctrlId);
-	if (button != NULL)
+	if (page == WB_QT_TEAMPAGE_REINFORCEMENT && ctrlId == IDC_DEPLOY_BY)
 	{
-		button->SetCheck(check ? 1 : 0);
-		qtPageNotify(pPage, ctrlId, BN_CLICKED);
+		// == TeamReinforcement::OnDeployBy: unchecking clears the transport; checking only
+		// enables the transport controls (no dict write until a transport is picked).
+		s_qtSheetDeployBy = (check != 0);
+		if (check == 0)
+		{
+			s_qtSheetDict->setAsciiString(TheKey_teamTransport, AsciiString::TheEmptyString);
+		}
+		return;
+	}
+	NameKeyType key = qtmCheckKey(page, ctrlId);
+	if (key == NAMEKEY_INVALID)
+	{
+		return;
+	}
+	s_qtSheetDict->setBool(key, check != 0);
+	// == TeamBehavior: base defense and perimeter defense are mutually exclusive.
+	if (page == WB_QT_TEAMPAGE_BEHAVIOR && check != 0 && ctrlId == IDC_PERIMETER_DEFENSE)
+	{
+		s_qtSheetDict->setBool(TheKey_teamIsBaseDefense, false);
+	}
+	else if (page == WB_QT_TEAMPAGE_BEHAVIOR && check != 0 && ctrlId == IDC_BASE_DEFENSE)
+	{
+		s_qtSheetDict->setBool(TheKey_teamIsPerimeterDefense, false);
 	}
 }
 
 extern "C" int WBQtTeamPage_IsEnabled(int page, int ctrlId)
 {
-	CDialog *pPage = qtTeamPage(page);
-	if (pPage != NULL)
+	if (s_qtSheetDict == NULL)
 	{
-		CWnd *ctrl = pPage->GetDlgItem(ctrlId);
-		return (ctrl != NULL && ctrl->IsWindowEnabled()) ? 1 : 0;
+		return 0;
 	}
-	return 0;
+	// == TeamReinforcement's gate: transport combo + exit follow the deploy-by state.
+	if (page == WB_QT_TEAMPAGE_REINFORCEMENT &&
+		(ctrlId == IDC_TRANSPORT_COMBO || ctrlId == IDC_TRANSPORTS_EXIT))
+	{
+		return s_qtSheetDeployBy ? 1 : 0;
+	}
+	return 1;
+}
+
+static const std::vector<AsciiString> *qtmSheetCatalog(int page, int ctrlId)
+{
+	if (page == WB_QT_TEAMPAGE_IDENTITY)
+	{
+		if (ctrlId == IDC_HOME_WAYPOINT)        { return &s_qtCatWaypointsId; }
+		if (ctrlId == IDC_PRODUCTION_CONDITION) { return &s_qtCatScripts; }
+		if (ctrlId == IDC_TEAMOWNER)            { return &s_qtCatOwners; }
+		if (qtmUnitSlot(ctrlId) >= 0)           { return &s_qtCatUnits; }
+	}
+	else if (page == WB_QT_TEAMPAGE_REINFORCEMENT)
+	{
+		if (ctrlId == IDC_WAYPOINT_COMBO)  { return &s_qtCatWaypointsRe; }
+		if (ctrlId == IDC_TRANSPORT_COMBO) { return &s_qtCatTransports; }
+		if (ctrlId == IDC_VETERANCY)       { return &s_qtCatVeterancy; }
+	}
+	else if (page == WB_QT_TEAMPAGE_BEHAVIOR)
+	{
+		if (ctrlId == IDC_ENEMY_INTERACTIONS) { return &s_qtCatInteractions; }
+		if (qtmNoneComboKey(page, ctrlId) != NAMEKEY_INVALID) { return &s_qtCatScripts; }
+	}
+	else if (page == WB_QT_TEAMPAGE_GENERIC)
+	{
+		if (qtmGenericSlot(ctrlId) >= 0) { return &s_qtCatScriptsGen; }
+	}
+	return NULL;
 }
 
 extern "C" int WBQtTeamPage_ComboCount(int page, int ctrlId)
 {
-	CDialog *pPage = qtTeamPage(page);
-	if (pPage != NULL)
-	{
-		CComboBox *combo = (CComboBox *)pPage->GetDlgItem(ctrlId);
-		return (combo != NULL) ? combo->GetCount() : 0;
-	}
-	return 0;
+	const std::vector<AsciiString> *cat = qtmSheetCatalog(page, ctrlId);
+	return (cat != NULL) ? (int)cat->size() : 0;
 }
 
 extern "C" void WBQtTeamPage_ComboItem(int page, int ctrlId, int i, char *buf, int cap)
@@ -982,48 +1634,103 @@ extern "C" void WBQtTeamPage_ComboItem(int page, int ctrlId, int i, char *buf, i
 	{
 		buf[0] = 0;
 	}
-	CDialog *pPage = qtTeamPage(page);
-	if (pPage != NULL)
+	const std::vector<AsciiString> *cat = qtmSheetCatalog(page, ctrlId);
+	if (cat != NULL && i >= 0 && i < (int)cat->size())
 	{
-		CComboBox *combo = (CComboBox *)pPage->GetDlgItem(ctrlId);
-		if (combo != NULL && i >= 0 && i < combo->GetCount())
-		{
-			CString text;
-			combo->GetLBText(i, text);
-			copyOut((LPCTSTR)text, buf, cap);
-		}
+		copyOut((*cat)[i].str(), buf, cap);
 	}
 }
 
 extern "C" void WBQtTeamPage_ComboSelectText(int page, int ctrlId, const char *text, int notify)
 {
-	CDialog *pPage = qtTeamPage(page);
-	if (pPage == NULL)
+	(void)notify;
+	if (s_qtSheetDict == NULL)
 	{
 		return;
 	}
-	CComboBox *combo = (CComboBox *)pPage->GetDlgItem(ctrlId);
-	if (combo == NULL)
+
+	// == TeamReinforcement::OnSelchangeVeterancy: the INDEX is the stored value.
+	if (page == WB_QT_TEAMPAGE_REINFORCEMENT && ctrlId == IDC_VETERANCY)
 	{
+		int idx = qtmCatFind(s_qtCatVeterancy, AsciiString(text ? text : ""));
+		if (idx >= 0)
+		{
+			s_qtSheetDict->setInt(TheKey_teamVeterancy, idx);
+		}
 		return;
 	}
-	combo->SelectString(-1, text ? text : "");
-	if (notify == WB_QT_TEAMNOTIFY_SELCHANGE)
+	// == TeamBehavior::OnSelchangeEnemyInteractions.
+	if (page == WB_QT_TEAMPAGE_BEHAVIOR && ctrlId == IDC_ENEMY_INTERACTIONS)
 	{
-		qtPageNotify(pPage, ctrlId, CBN_SELCHANGE);
+		int idx = qtmCatFind(s_qtCatInteractions, AsciiString(text ? text : ""));
+		if (idx >= 0)
+		{
+			s_qtSheetDict->setInt(TheKey_teamAggressiveness, idx + ATTITUDE_SLEEP);
+		}
+		return;
 	}
-	else if (notify == WB_QT_TEAMNOTIFY_SELENDOK)
+	// == TeamIdentity::OnSelendokTeamowner: the display text is stored verbatim (the
+	// teams-list filter matches owners by the same display convention).
+	if (page == WB_QT_TEAMPAGE_IDENTITY && ctrlId == IDC_TEAMOWNER)
 	{
-		qtPageNotify(pPage, ctrlId, CBN_SELENDOK);
+		s_qtSheetDict->setAsciiString(TheKey_teamOwner, AsciiString(text ? text : ""));
+		return;
+	}
+	// unit-type combos (<none> clears; the MFC handler stored the literal text).
+	if (page == WB_QT_TEAMPAGE_IDENTITY)
+	{
+		int slot = qtmUnitSlot(ctrlId);
+		if (slot >= 0)
+		{
+			s_qtSheetDict->setAsciiString(qtmUnitTypeKey(slot), qtmComboValueFromText(text));
+			return;
+		}
+	}
+	// TeamGeneric slots: update the buffer then rebuild the compacted hook chain.
+	if (page == WB_QT_TEAMPAGE_GENERIC)
+	{
+		int slot = qtmGenericSlot(ctrlId);
+		if (slot >= 0)
+		{
+			s_qtGenericSlots[slot] = qtmComboValueFromText(text);
+			qtmGenericRebuildDict();
+			return;
+		}
+	}
+	// none-mapped string combos.
+	{
+		NameKeyType key = qtmNoneComboKey(page, ctrlId);
+		if (key != NAMEKEY_INVALID)
+		{
+			s_qtSheetDict->setAsciiString(key, qtmComboValueFromText(text));
+			return;
+		}
 	}
 }
 
 extern "C" void WBQtTeamPage_ClickButton(int page, int ctrlId)
 {
-	CDialog *pPage = qtTeamPage(page);
-	if (pPage != NULL)
+	if (page != WB_QT_TEAMPAGE_IDENTITY || s_qtSheetDict == NULL)
 	{
-		qtPageNotify(pPage, ctrlId, BN_CLICKED);
+		return;
+	}
+	// == TeamIdentity::OnUnitTypeButton: pop the Qt unit picker and store the pick.
+	int slot = qtmUnitButtonSlot(ctrlId);
+	if (slot < 0)
+	{
+		return;
+	}
+	int allowable[4];
+	allowable[0] = ES_VEHICLE;
+	allowable[1] = ES_INFANTRY;
+	allowable[2] = ES_STRUCTURE;
+	allowable[3] = ES_SYSTEM;
+	char qtPicked[256];
+	qtPicked[0] = 0;
+	int qtRc = WBQtPickUnit_Run(::AfxGetMainWnd()->GetSafeHwnd(), allowable, 4, false, qtPicked, sizeof(qtPicked));
+	if (qtRc == 1)
+	{
+		s_qtSheetDict->setAsciiString(qtmUnitTypeKey(slot), AsciiString(qtPicked));
 	}
 }
 
