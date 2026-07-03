@@ -18,6 +18,7 @@
 #include "qwinhost.h"
 #include "WBQtMainWindow.h"
 #include "WBQtTheme.h"
+#include "WBQtChromeBridge.h"
 
 #include <QApplication>
 #include <QResizeEvent>
@@ -292,6 +293,10 @@ void WBQt_Startup(void)
 
 	// Apply dark-mode support before any Qt window is created so it inherits the theme.
 	WBQtTheme::applyApplicationTheme();
+
+	// Give every Qt top-level (main window + all dialogs / tool windows) the app's title-bar
+	// icon, from the same IDR_MAINFRAME the MFC frame used. App-wide, before any window shows.
+	WBQtChrome_SetAppIcon();
 }
 
 void WBQt_Shutdown(void)

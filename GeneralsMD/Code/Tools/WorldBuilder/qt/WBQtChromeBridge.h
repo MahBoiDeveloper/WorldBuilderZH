@@ -11,6 +11,12 @@ extern "C" {
 
 // ============ MFC -> Qt (implemented in qt/WBQtChrome.cpp) ============
 
+// Set the application-wide Qt window icon from the exe's IDR_MAINFRAME icon (WorldBuilder.ico
+// -- the same icon the MFC frame used). Every Qt top-level (the main window and every dialog /
+// tool window) inherits it in its title bar. Call once at startup, after the QApplication
+// exists. No-op if qApp is not up or the icon can't be loaded.
+void WBQtChrome_SetAppIcon(void);
+
 // Walk the frame's live menu bar (hMenuBar = the HMENU, walked recursively) and build the
 // Qt menu bar at the top of the viewport-host column; appends the native Theme menu.
 // Returns 1 on success (the caller then detaches the MFC menu via SetMenu(NULL)), 0 when

@@ -19,6 +19,7 @@
 #include <QApplication>
 #include <QBoxLayout>
 #include <QEvent>
+#include <QIcon>
 #include <QImage>
 #include <QLayout>
 #include <QHBoxLayout>
@@ -790,6 +791,91 @@ void WBQtChromeController::rebuildMruSection()
 }
 
 // ===================== the C entry points =====================
+
+// Convert one HICON to a QPixmap (32bpp, straight alpha). Returns a null pixmap on failure.
+static QPixmap wbPixmapFromHICON(HICON hIcon)
+{
+	if (hIcon == NULL)
+	{
+		return QPixmap();
+	}
+	ICONINFO ii;
+	memset(&ii, 0, sizeof(ii));
+	if (!::GetIconInfo(hIcon, &ii))
+	{
+		return QPixmap();
+	}
+	BITMAP bm;
+	memset(&bm, 0, sizeof(bm));
+	::GetObjectA(ii.hbmColor, sizeof(bm), &bm);
+	int w = bm.bmWidth;
+	int h = bm.bmHeight;
+	QImage img(w, h, QImage::Format_ARGB32);
+	BITMAPINFO bi;
+	memset(&bi, 0, sizeof(bi));
+	bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	bi.bmiHeader.biWidth = w;
+	bi.bmiHeader.biHeight = -h;		// top-down rows, matching QImage
+	bi.bmiHeader.biPlanes = 1;
+	bi.bmiHeader.biBitCount = 32;
+	bi.bmiHeader.biCompression = BI_RGB;
+	HDC dc = ::GetDC(NULL);
+	int got = ::GetDIBits(dc, ii.hbmColor, 0, h, img.bits(), &bi, DIB_RGB_COLORS);
+	::ReleaseDC(NULL, dc);
+	if (ii.hbmColor != NULL)
+	{
+		::DeleteObject(ii.hbmColor);
+	}
+	if (ii.hbmMask != NULL)
+	{
+		::DeleteObject(ii.hbmMask);
+	}
+	if (got != h)
+	{
+		return QPixmap();
+	}
+	return QPixmap::fromImage(img);
+}
+
+// Load the IDR_MAINFRAME icon (WorldBuilder.ico) at one size and turn it into a QPixmap.
+static QPixmap wbAppIconPixmap(int size)
+{
+	HINSTANCE inst = ::GetModuleHandleA(NULL);
+	HICON hIcon = (HICON)::LoadImageA(inst, MAKEINTRESOURCEA(IDR_MAINFRAME),
+		IMAGE_ICON, size, size, LR_DEFAULTCOLOR);
+	if (hIcon == NULL)
+	{
+		return QPixmap();
+	}
+	QPixmap pm = wbPixmapFromHICON(hIcon);
+	::DestroyIcon(hIcon);
+	return pm;
+}
+
+extern "C" void WBQtChrome_SetAppIcon(void)
+{
+	if (qApp == NULL)
+	{
+		return;
+	}
+	// Pull the same icon the MFC frame used (IDR_MAINFRAME == WorldBuilder.ico), at the sizes
+	// Windows asks for: 16px for the title bar / taskbar-small, 32/48 for Alt-Tab and the
+	// large taskbar. Adding several sizes to one QIcon lets Qt pick the crispest per surface.
+	QIcon icon;
+	const int sizes[] = { 16, 24, 32, 48 };
+	for (int i = 0; i < (int)(sizeof(sizes) / sizeof(sizes[0])); i++)
+	{
+		QPixmap pm = wbAppIconPixmap(sizes[i]);
+		if (!pm.isNull())
+		{
+			icon.addPixmap(pm);
+		}
+	}
+	if (!icon.isNull())
+	{
+		qApp->setWindowIcon(icon);
+	}
+}
 
 extern "C" int WBQtChrome_InstallMenuBar(void *frameHwnd, void *hMenuBar)
 {
