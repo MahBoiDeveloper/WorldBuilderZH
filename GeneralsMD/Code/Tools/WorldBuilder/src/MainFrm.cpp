@@ -713,15 +713,17 @@ void CMainFrame::onEditScripts()
 	// Setup the Script Dialog.
 	// This needs to be recreated each time so that it will have the current data.
 	m_scriptDialog = new ScriptDialog(this);
+#ifdef RTS_HAS_QT
+	// De-bridged Qt Script editor (qt-debridge): the dialog window is never Create()d --
+	// the ScriptDialog OBJECT is the model container only (no hidden tree/controls or
+	// message map). qtOpenModelOnly seeds it exactly like OnInitDialog minus the UI, and
+	// the Qt window drives the model-only qtM* command set (see WBQtScriptBridge.cpp).
+	m_scriptDialog->qtOpenModelOnly();
+	WBQtScript_Open(GetSafeHwnd(), frameRect.left, frameRect.top);
+#else
 	m_scriptDialog->Create(IDD_ScriptDialog, this);
 	m_scriptDialog->SetWindowPos(NULL, frameRect.left, frameRect.top, 0, 0, SWP_NOZORDER|SWP_NOSIZE);
  	m_scriptDialog->GetWindowRect(&frameRect);
-#ifdef RTS_HAS_QT
-	// Qt Script editor (Phase 9a): keep the MFC dialog created (so it loads m_sides and
-	// stays the model/commit backend) but hidden, and drive it from the Qt window instead.
-	m_scriptDialog->ShowWindow(SW_HIDE);
-	WBQtScript_Open(GetSafeHwnd(), frameRect.left, frameRect.top);
-#else
 	m_scriptDialog->ShowWindow(SW_SHOWNA);
 #endif
 }

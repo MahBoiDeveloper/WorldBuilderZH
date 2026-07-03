@@ -145,6 +145,29 @@ public:
 	void qtImportScripts(void);
 	void qtSaveNow(void);
 	static ScriptDialog *qtInstance(void) { return m_staticThis; }
+
+	// De-bridged (windowless) mode -- branch qt-debridge. In Qt mode the ScriptDialog
+	// window is never Create()d: the OBJECT is the model container only (m_sides +
+	// m_curSelection + option members), so no hidden tree/controls exist. qtOpenModelOnly
+	// seeds it exactly like OnInitDialog minus the UI; the qtM* variants replicate the
+	// On* handlers' MODEL cores (the tree-refresh tails do not apply -- the Qt tree
+	// rebuilds from the model after every command). All DEFINED in
+	// src/WBQtScriptBridge.cpp so this class's .cpp stays untouched for the OFF build.
+	void qtOpenModelOnly(void);
+	void qtMInsertScript(Script *pNewScript);
+	void qtMNewFolder(void);
+	void qtMNewScript(void);
+	void qtMEditScript(void);
+	void qtMCopyScript(void);
+	void qtMDelete(void);
+	void qtMAddDebug(void);
+	void qtMRemoveDebug(void);
+	void qtMPatchGC(void);
+	void qtMToggleActive(void);
+	void qtMDropOn(int dragListType, int targetListType);
+	void qtMVerify(void);
+	void qtMSetCheckbox(int which, int checked);
+	void qtMImportScripts(void);
 #endif
 
 protected:
