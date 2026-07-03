@@ -84,6 +84,9 @@ public:
 	void qtRemovePlayer(void);
 	void qtAddSkirmishPlayers(void);
 	void qtCommit(void);
+	// De-bridged (windowless) rebuild of the view model from m_sides (== updateTheUI
+	// minus the controls). Defined in src/WBQtPlayerListBridge.cpp.
+	void qtMRebuild(void);
 #endif
 
 // Implementation
