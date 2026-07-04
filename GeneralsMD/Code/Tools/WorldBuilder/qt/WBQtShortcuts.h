@@ -24,6 +24,12 @@ extern "C" {
 // pMsg is a Win32 MSG* (void* to keep this header afx/qt-free).
 int WBQtShortcuts_TranslateKey(void *pMsg);
 
+// 1 when a floating Qt tool window (not the viewport / main window) owns Win32 focus -- a text
+// field in a panel like Object Properties. The app's PreTranslateMessage then skips the base
+// (accelerator) translation for key/char messages so the MFC accel table (Ctrl+C/V/X/Z ...) does
+// not steal them from the focused QLineEdit.
+int WBQtShortcuts_QtToolWindowOwnsFocus(void);
+
 // Implemented on the MFC side (src/WBQtChromeBridge.cpp): run the command's CCmdUI to
 // check it is enabled, and if so PostMessage(WM_COMMAND) to the frame. Swallows a
 // disabled command (returns without posting). Called by the translate function.

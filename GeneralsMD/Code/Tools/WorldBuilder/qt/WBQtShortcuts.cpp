@@ -221,6 +221,27 @@ static int wbLookup(int vk, unsigned mods)
 	return 0;
 }
 
+// 1 when a floating Qt tool window (NOT the hosted viewport, NOT the Qt main window) owns Win32
+// focus -- i.e. a QLineEdit / combo in a panel like Object Properties. In that case the MFC
+// accelerator table (still loaded on the frame) must NOT translate Ctrl+C/V/X/Z etc., or it steals
+// them from the focused text field and fires the object command instead. The app's
+// PreTranslateMessage uses this to skip the base (accelerator) translation for those messages.
+extern "C" int WBQtShortcuts_QtToolWindowOwnsFocus(void)
+{
+	if (!WBQt_InversionActive())
+	{
+		return 0;
+	}
+	HWND focus = ::GetFocus();
+	if (focus == NULL)
+	{
+		return 0;
+	}
+	HWND view = reinterpret_cast<HWND>(WBQt_GetHostedViewWindow());
+	HWND mainWin = reinterpret_cast<HWND>(WBQt_MainWindowHwnd());
+	return (focus != view && focus != mainWin) ? 1 : 0;
+}
+
 extern "C" int WBQtShortcuts_TranslateKey(void *pMsgVoid)
 {
 	if (!WBQt_InversionActive())

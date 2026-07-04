@@ -1544,6 +1544,16 @@ BOOL CWorldBuilderApp::PreTranslateMessage(MSG *pMsg)
 	{
 		return TRUE;
 	}
+	// When a floating Qt tool window (e.g. an Object Properties text field) owns focus, skip
+	// the base PreTranslate for key/char messages: it would TranslateAccelerator the still-loaded
+	// MFC accel table (Ctrl+C/V/X/Z ...) and steal those keys from the focused QLineEdit, firing
+	// the object command instead. Returning FALSE lets the message dispatch straight to Qt.
+	if ((pMsg->message == WM_KEYDOWN || pMsg->message == WM_SYSKEYDOWN
+			|| pMsg->message == WM_CHAR || pMsg->message == WM_KEYUP || pMsg->message == WM_SYSKEYUP)
+		&& WBQtShortcuts_QtToolWindowOwnsFocus())
+	{
+		return FALSE;
+	}
 	return CWinApp::PreTranslateMessage(pMsg);
 }
 
