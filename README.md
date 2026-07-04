@@ -1,8 +1,6 @@
-## Prebuilt Installation
-
-You can download the latest publicly available build from the World Builder Discord server.
-Please check the appropriate channel for the most recent release and installation instructions.
-https://discord.gg/tJ6zyGb
+> **Building the Qt WorldBuilder?** This repo is the MFC->Qt inversion of the map editor. The Qt
+> build is off by default; see **[QT-BUILD.md](QT-BUILD.md)** for the 32-bit Qt5 setup and the
+> `-DRTS_ENABLE_WORLDBUILDER_QT=ON` flag.
 
 # Command & Conquer Generals (inc. Zero Hour) Source Code
 
