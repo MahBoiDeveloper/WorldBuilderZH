@@ -433,6 +433,14 @@ if(RTS_ENABLE_WORLDBUILDER_QT)
     # that mixed TU. RTS_HAS_QT: compile-time gate for the bootstrap calls.
     target_compile_definitions(z_worldbuilder_qt PRIVATE _AFXDLL NOMINMAX RTS_HAS_QT)
 
+    # WB_QT_KEYDEBUG: opt-in [WBDBG] OutputDebugString traces for the Qt inversion
+    # (WBQtDebug.h). Off by default; configure with -DWB_QT_KEYDEBUG=ON to enable. Forwarded
+    # to both the qt lib and the exe so WorldBuilder.cpp can log too.
+    option(WB_QT_KEYDEBUG "Emit [WBDBG] Qt-inversion key/focus debug traces" OFF)
+    if(WB_QT_KEYDEBUG)
+        target_compile_definitions(z_worldbuilder_qt PRIVATE WB_QT_KEYDEBUG)
+    endif()
+
     # dwmapi: DwmSetWindowAttribute for the dark title bar (WBQtTheme).
     # Qt5::GuiPrivate: qwinwidget.cpp uses the qpa platform-native-interface (a Qt private
     # header) to resolve a QWindow's HWND for MFC embedding.
@@ -441,6 +449,9 @@ if(RTS_ENABLE_WORLDBUILDER_QT)
     # Link the Qt lib into the exe and turn on the guarded bootstrap in WorldBuilder.cpp.
     target_link_libraries(z_worldbuilder PRIVATE z_worldbuilder_qt)
     target_compile_definitions(z_worldbuilder PRIVATE RTS_HAS_QT)
+    if(WB_QT_KEYDEBUG)
+        target_compile_definitions(z_worldbuilder PRIVATE WB_QT_KEYDEBUG)
+    endif()
 
     # WorldBuilder is an MFC app: it already has MFC's WinMain and no main(). Stop Qt's
     # CMake config from auto-linking qtmain.lib (which supplies a WinMain -> main shim and

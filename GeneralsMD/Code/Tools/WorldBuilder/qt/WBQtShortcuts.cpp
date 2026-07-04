@@ -7,6 +7,7 @@
 // Qt is not actually used here (this is Win32-only), but the file lives in the Qt static
 // lib so it links beside the rest of the bridge and stays out of the OFF build.
 #include "WBQtShortcuts.h"
+#include "WBQtDebug.h"
 
 #include <qt_windows.h>
 
@@ -239,7 +240,10 @@ extern "C" int WBQtShortcuts_QtToolWindowOwnsFocus(void)
 	}
 	HWND view = reinterpret_cast<HWND>(WBQt_GetHostedViewWindow());
 	HWND mainWin = reinterpret_cast<HWND>(WBQt_MainWindowHwnd());
-	return (focus != view && focus != mainWin) ? 1 : 0;
+	int owns = (focus != view && focus != mainWin) ? 1 : 0;
+	WBQT_DBGLOG("QtToolFocus: focus=%p view=%p main=%p owns=%d",
+		(void *)focus, (void *)view, (void *)mainWin, owns);
+	return owns;
 }
 
 extern "C" int WBQtShortcuts_TranslateKey(void *pMsgVoid)
@@ -256,6 +260,7 @@ extern "C" int WBQtShortcuts_TranslateKey(void *pMsgVoid)
 		return 0;		// only key-down drives hotkeys; KEYUP/CHAR/mouse untouched (polling ok)
 	}
 	const int vk = (int)pMsg->wParam;
+	WBQT_DBGLOG("TranslateKey: msg=0x%04X vk=0x%02X", msg, vk);
 
 	// F11 / Esc fullscreen: owned here regardless of focus (the frame's old handler is dead
 	// for viewport-focused keys under the inversion). Esc only exits when in fullscreen so a
@@ -288,6 +293,7 @@ extern "C" int WBQtShortcuts_TranslateKey(void *pMsgVoid)
 	HWND mainWin = reinterpret_cast<HWND>(WBQt_MainWindowHwnd());
 	if (focus != view && focus != mainWin)
 	{
+		WBQT_DBGLOG("TranslateKey: focus-gate reject (floating Qt window owns focus); pass to Qt");
 		return 0;
 	}
 
@@ -318,6 +324,7 @@ extern "C" int WBQtShortcuts_TranslateKey(void *pMsgVoid)
 	// which is why the gated post and the old OnKeyDown path both failed). Matches Edit>Delete.
 	if (mods == WBK_NONE && (vk == VK_DELETE || vk == VK_BACK))
 	{
+		WBQT_DBGLOG("TranslateKey: bare Del/Back -> post ID_EDIT_DELETE (unchecked)");
 		WBQtShortcuts_PostCommandUnchecked(WBID_EDIT_DELETE);
 		return 1;
 	}
@@ -339,6 +346,7 @@ extern "C" int WBQtShortcuts_TranslateKey(void *pMsgVoid)
 	{
 		return 0;
 	}
+	WBQT_DBGLOG("TranslateKey: hotkey vk=0x%02X mods=%u -> post command 0x%04X", vk, mods, commandId);
 	WBQtShortcuts_PostCommand(commandId);
 	return 1;
 }
