@@ -17,7 +17,7 @@ the Qt version you must install a 32-bit Qt5 and turn the option on.
     pip install aqtinstall
     aqt install-qt windows desktop 5.15.2 win32_msvc2019 -O C:\Qt
     ```
-  - You then have e.g. `C:\Qt.15.2\msvc2019` -- that path is your `CMAKE_PREFIX_PATH`.
+  - You then have e.g. `C:\Qt\5.15.2\msvc2019` -- that path is your `CMAKE_PREFIX_PATH`.
 - **Ninja** (ships with VS) and **CMake 3.25+** for the preset-based build below.
 
 ## Configure + build (Ninja, recommended)
@@ -50,6 +50,23 @@ cmake -S . -B build -G "Visual Studio 17 2022" -A Win32 ^
 
 cmake --build build --target z_worldbuilder --config Release
 ```
+
+## Debugging the Qt inversion
+
+Keyboard / focus routing under the inversion (which HWND owns focus, whether a key was posted
+as a command or passed to a Qt widget) can be traced with an opt-in facility. Configure with
+`-DWB_QT_KEYDEBUG=ON` and rebuild:
+
+```
+cmake --preset win32-internal -DWB_QT_KEYDEBUG=ON ^
+  -DRTS_ENABLE_WORLDBUILDER_QT=ON -DCMAKE_PREFIX_PATH="C:/Qt/5.15.2/msvc2019"
+cmake --build --preset win32-internal --target z_worldbuilder
+```
+
+It emits `[WBDBG] ...` lines via `OutputDebugString` -- read them with DebugView, cdb, or the
+Visual Studio Output window. It compiles to nothing when the option is OFF (the default), so
+normal builds pay zero cost and print no spam. Turn it back off with `-DWB_QT_KEYDEBUG=OFF`.
+The macro (`WBQT_DBGLOG`, in `qt/WBQtDebug.h`) is reusable across the Qt sources.
 
 ## Notes
 
