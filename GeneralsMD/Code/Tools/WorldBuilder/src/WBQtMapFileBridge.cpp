@@ -47,7 +47,16 @@ static TOpenMapInfo s_qtOpenInfo;
 
 // De-bridged view model (qt-debridge): the rows the hidden listbox used to hold, plus the
 // selection and the OK-enable state the MFC populate*/EnableWindow calls used to encode.
-static std::vector<CString> s_qtView;
+//
+// MUST be a CStringArray, NOT std::vector<CString>: WB globally overrides operator new/delete
+// (the game MemoryPool), so a std::vector's element storage comes from the game pool while each
+// CString's own buffer comes from MFC's CRT heap. When the vector reallocates/clears/copies its
+// CString elements (which the packed-.big drill does every populate cycle), the two allocators
+// cross and the heap gets corrupted -- detonating later on a free() with a __debugbreak from the
+// heap-corruption detector (seen live: CMemFile::Free -> CStringData::Release). CStringArray
+// keeps every allocation on the CRT heap, so there is no crossing. See the MemoryPool/Qt
+// allocator-collision note in the migration memory.
+static CStringArray s_qtView;
 static int s_qtViewSel = -1;
 static Bool s_qtOkEnabled = TRUE;
 
@@ -66,7 +75,7 @@ OpenMap *OpenMap::qtOpen(void)
 		// De-bridged (qt-debridge): the dialog window is never Create()d -- the object only
 		// carries the mode/list/sentinel state and the qtM* fills own the view model (the
 		// MFC populate* handlers early-return without their controls).
-		s_qtView.clear();
+		s_qtView.RemoveAll();
 		s_qtViewSel = -1;
 		s_qtOkEnabled = TRUE;
 		s_qtOpenMap->qtMPopulateMain(s_qtOpenMap->m_usingSystemDir);
@@ -115,7 +124,7 @@ void OpenMap::qtMPopulateMain(Bool systemMaps)
 		dirBuf[len++] = '\\';
 		dirBuf[len] = 0;
 	}
-	s_qtView.clear();
+	s_qtView.RemoveAll();
 	strcpy(findBuf, dirBuf);
 	strcat(findBuf, "*.*");
 
@@ -145,7 +154,7 @@ void OpenMap::qtMPopulateMain(Bool systemMaps)
 				{
 					if (!(status.m_attribute & CFile::directory))
 					{
-						s_qtView.push_back(CString(findData.cFileName));
+						s_qtView.Add(CString(findData.cFileName));
 						m_fullMapList.Add(findData.cFileName);
 						found = true;
 					}
@@ -173,7 +182,7 @@ void OpenMap::qtMPopulateBigs(void)
 {
 	m_packedMode = PM_LIST_BIGS;
 	m_currentBig.Empty();
-	s_qtView.clear();
+	s_qtView.RemoveAll();
 	m_fullMapList.RemoveAll();
 	m_packedMapPaths.RemoveAll();
 
@@ -188,7 +197,7 @@ void OpenMap::qtMPopulateBigs(void)
 			{
 				continue;
 			}
-			s_qtView.push_back(CString(fd.cFileName));
+			s_qtView.Add(CString(fd.cFileName));
 			m_fullMapList.Add(fd.cFileName);
 			found = true;
 		} while (FindNextFile(hFind, &fd));
@@ -221,7 +230,7 @@ void OpenMap::qtMPopulateMapsInBig(const CString &bigPath)
 	FilenameList maps;
 	pArchive->getFileListInDirectory(AsciiString(""), AsciiString(""), AsciiString("*.map"), maps, TRUE);
 
-	s_qtView.clear();
+	s_qtView.RemoveAll();
 	m_fullMapList.RemoveAll();
 	m_packedMapPaths.RemoveAll();
 
@@ -241,7 +250,7 @@ void OpenMap::qtMPopulateMapsInBig(const CString &bigPath)
 		{
 			name = name.Left(dot);
 		}
-		s_qtView.push_back(name);
+		s_qtView.Add(name);
 		m_fullMapList.Add(name);
 		m_packedMapPaths.Add(CString(fullPath.str()));
 		found = true;
@@ -267,7 +276,7 @@ void OpenMap::qtMPopulateMapsInBig(const CString &bigPath)
 
 int OpenMap::qtListCount(void)
 {
-	return (int)s_qtView.size();
+	return (int)s_qtView.GetSize();
 }
 
 void OpenMap::qtListItem(int i, char *buf, int cap)
@@ -276,7 +285,7 @@ void OpenMap::qtListItem(int i, char *buf, int cap)
 	{
 		buf[0] = 0;
 	}
-	if (i >= 0 && i < (int)s_qtView.size())
+	if (i >= 0 && i < (int)s_qtView.GetSize())
 	{
 		copyOut((LPCTSTR)s_qtView[i], buf, cap);
 	}
@@ -284,7 +293,7 @@ void OpenMap::qtListItem(int i, char *buf, int cap)
 
 int OpenMap::qtListCurSel(void)
 {
-	if (s_qtViewSel < 0 || s_qtViewSel >= (int)s_qtView.size())
+	if (s_qtViewSel < 0 || s_qtViewSel >= (int)s_qtView.GetSize())
 	{
 		return -1;
 	}
@@ -332,14 +341,14 @@ void OpenMap::qtSearch(const char *text)
 	CString search(text ? text : "");
 	search.MakeLower();
 
-	s_qtView.clear();
+	s_qtView.RemoveAll();
 	if (search.IsEmpty())
 	{
 		for (int i = 0; i < m_fullMapList.GetSize(); i++)
 		{
-			s_qtView.push_back(m_fullMapList[i]);
+			s_qtView.Add(m_fullMapList[i]);
 		}
-		s_qtViewSel = s_qtView.empty() ? -1 : 0;
+		s_qtViewSel = (s_qtView.GetSize() == 0) ? -1 : 0;
 		return;
 	}
 	bool found = false;
@@ -350,7 +359,7 @@ void OpenMap::qtSearch(const char *text)
 		lower.MakeLower();
 		if (lower.Find(search) != -1)
 		{
-			s_qtView.push_back(name);
+			s_qtView.Add(name);
 			found = true;
 		}
 	}
@@ -368,10 +377,10 @@ void OpenMap::qtSearch(const char *text)
 void OpenMap::qtResetSearch(void)
 {
 	// == OnResetSearch minus the edit/listbox.
-	s_qtView.clear();
+	s_qtView.RemoveAll();
 	for (int i = 0; i < m_fullMapList.GetSize(); i++)
 	{
-		s_qtView.push_back(m_fullMapList[i]);
+		s_qtView.Add(m_fullMapList[i]);
 	}
 	s_qtViewSel = (m_fullMapList.GetSize() > 0) ? 0 : -1;
 }
@@ -385,7 +394,7 @@ int OpenMap::qtPick(int row)
 	s_qtOpenInfo.browse = false;
 
 	// == OnOK minus the listbox/focus reads, keyed by the view row.
-	Bool rowValid = (row >= 0 && row < (int)s_qtView.size());
+	Bool rowValid = (row >= 0 && row < (int)s_qtView.GetSize());
 
 	if (m_packedMode == PM_LIST_BIGS)
 	{
