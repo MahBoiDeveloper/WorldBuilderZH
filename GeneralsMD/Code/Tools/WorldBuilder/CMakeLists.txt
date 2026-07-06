@@ -246,33 +246,35 @@ set(WORLDBUILDER_SRC
     "include/WorldBuilderView.h"
 )
 
-# Capture the short git commit hash at configure time so the startup WARNING box
-# can show the exact build it came from (WB_BUILD_COMMIT). Falls back to "unknown"
-# outside a git checkout.
-set(WB_BUILD_COMMIT "unknown")
+# Stamp the current git short commit hash into a generated header (WBBuildStamp.h) so the startup
+# WARNING box can show the exact build it came from (WB_BUILD_COMMIT). This runs at BUILD time -- a
+# custom command that always fires re-checks the hash on every build, and GitCommitStamp.cmake only
+# rewrites the header when the hash actually changes, so unchanged commits don't force a recompile.
 find_package(Git QUIET)
-if(GIT_FOUND)
-    execute_process(
-        COMMAND "${GIT_EXECUTABLE}" rev-parse --short HEAD
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        OUTPUT_VARIABLE WB_GIT_COMMIT
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET)
-    if(WB_GIT_COMMIT)
-        set(WB_BUILD_COMMIT "${WB_GIT_COMMIT}")
-    endif()
-endif()
+set(WB_BUILD_STAMP "${CMAKE_CURRENT_BINARY_DIR}/WBBuildStamp.h")
+add_custom_command(
+    OUTPUT "${WB_BUILD_STAMP}"
+    COMMAND "${CMAKE_COMMAND}"
+        -DGIT_EXECUTABLE=${GIT_EXECUTABLE}
+        -DSRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+        -DOUT_FILE=${WB_BUILD_STAMP}
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/GitCommitStamp.cmake"
+    COMMENT "Stamping git commit into WBBuildStamp.h"
+    VERBATIM)
+add_custom_target(z_worldbuilder_buildstamp DEPENDS "${WB_BUILD_STAMP}")
 
 add_executable(z_worldbuilder WIN32)
 
 target_sources(z_worldbuilder PRIVATE ${WORLDBUILDER_SRC})
 
-target_compile_definitions(z_worldbuilder PRIVATE WB_BUILD_COMMIT="${WB_BUILD_COMMIT}")
+# Depend on the stamp target so the header is regenerated before WorldBuilder.cpp compiles.
+add_dependencies(z_worldbuilder z_worldbuilder_buildstamp)
 
 target_include_directories(z_worldbuilder PRIVATE
     .
     include
     res
+    "${CMAKE_CURRENT_BINARY_DIR}"
 )
 
 target_link_libraries(z_worldbuilder PRIVATE

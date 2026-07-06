@@ -21,6 +21,16 @@
 
 #include "StdAfx.h"
 #include <eh.h>
+// WBBuildStamp.h is generated at build time (CMakeLists.txt / GitCommitStamp.cmake) and defines
+// WB_BUILD_COMMIT to the current git short hash. Fall back to "unknown" for a non-CMake build.
+#if defined(__has_include)
+#if __has_include("WBBuildStamp.h")
+#include "WBBuildStamp.h"
+#endif
+#endif
+#ifndef WB_BUILD_COMMIT
+#define WB_BUILD_COMMIT "unknown"
+#endif
 #include "WorldBuilder.h"
 #include "MainFrm.h"
 #include "DialogFont.h"
@@ -652,12 +662,9 @@ BOOL CWorldBuilderApp::InitInstance()
 
 	selectPointerTool();   
 
-	// WB_BUILD_COMMIT is the short git hash captured at configure time (see CMakeLists.txt);
-	// falls back to "unknown" for a non-CMake build. The message is HTML so the report link is
-	// clickable in the Qt message box (WBQtMessageBox enables rich-text link handling).
-#ifndef WB_BUILD_COMMIT
-#define WB_BUILD_COMMIT "unknown"
-#endif
+	// WB_BUILD_COMMIT is the short git hash stamped into WBBuildStamp.h at build time (included at
+	// the top of this file; see CMakeLists.txt / GitCommitStamp.cmake). The message is HTML so the
+	// report link is clickable in the Qt message box (WBQtMessageBox enables rich-text link handling).
 	AfxMessageBox(
 		"WARNING: This build of WorldBuilder is a work in progress.<br><br>"
 		"This version is still in testing and may corrupt or break your map, so please make a backup before using it.<br><br>"
