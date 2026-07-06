@@ -27,9 +27,9 @@ class QLineEdit;
 class QPushButton;
 class QRadioButton;
 class QSlider;
-class QSpinBox;
 class QTreeWidget;
 class QTreeWidgetItem;
+class WBQtScrubSpinBox;
 
 class WBQtTerrainMaterialPanel : public QWidget
 {
@@ -53,7 +53,9 @@ private slots:
 	void onImportFavorites();
 	void onFavoriteSelectionChanged();
 	void onWidthChanged(int v);
+	void onWidthSpinChanged(double v);
 	void onHeightChanged(int v);
+	void onHeightSpinChanged(double v);
 	void onPathingToggled();
 	void onPassableChanged();
 	void onPatternPaintToggled();
@@ -98,12 +100,13 @@ private:
 	QPushButton  *m_delFavBtn;
 	QPushButton  *m_importFavBtn;
 
-	// Brush size / z-height.
-	QSlider      *m_widthSlider;
-	QSpinBox     *m_widthSpin;
-	QLabel       *m_widthLabel;
-	QSlider      *m_heightSlider;
-	QSpinBox     *m_heightSpin;
+	// Brush size / z-height. The spinboxes scrub on a vertical click-drag (WBQtScrubSpinBox),
+	// like the Z / Angle fields in Object Properties.
+	QSlider           *m_widthSlider;
+	WBQtScrubSpinBox  *m_widthSpin;
+	QLabel            *m_widthLabel;
+	QSlider           *m_heightSlider;
+	WBQtScrubSpinBox  *m_heightSpin;
 
 	// Pathing.
 	QCheckBox    *m_paintPathing;

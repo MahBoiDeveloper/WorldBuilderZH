@@ -1,8 +1,10 @@
 // WBQtTerrainMaterialPanel.cpp -- see WBQtTerrainMaterialPanel.h.
 #include "WBQtTerrainMaterialPanel.h"
 #include "WBQtTerrainMaterialBridge.h"
+#include "WBQtScrubSpinBox.h"
 #include "WBQtTreeStyle.h"
 
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFrame>
@@ -34,7 +36,10 @@ WBQtTerrainMaterialPanel::WBQtTerrainMaterialPanel(QWidget *owner)
 	  m_updating(false)
 {
 	setWindowTitle("Terrain Material Options");
-	resize(340, 820);
+	// == IDD_TERRAIN_MATERIAL (200x382 DLU ~ 300x611 px). The MFC dialog packs the mirror,
+	// paint-mode, pathing and copy controls into single rows -- lay out the same way so the
+	// panel matches the classic dialog's footprint instead of stacking every control.
+	resize(300, 620);
 
 	QVBoxLayout *root = new QVBoxLayout(this);
 
@@ -52,101 +57,52 @@ WBQtTerrainMaterialPanel::WBQtTerrainMaterialPanel(QWidget *owner)
 	m_tree = new QTreeWidget(this);
 	m_tree->setHeaderHidden(true);
 	m_tree->setColumnCount(1);
-	// The texture tree is the primary control (like the MFC dialog) -- give it a large minimum
-	// so the many groups below can't squeeze it down to a few rows, and let it take the slack.
-	m_tree->setMinimumHeight(240);
+	// The texture tree is the primary control (== the 190x135 DLU tree) -- keep a solid
+	// minimum and let it take all the vertical slack.
+	m_tree->setMinimumHeight(200);
 	m_tree->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 	WBQtTreeStyle::applyTreeLines(m_tree);
 	root->addWidget(m_tree, 3);
 
-	m_nameLabel = new QLabel("No Selection", this);
-	root->addWidget(m_nameLabel);
-
-	// --- Swatches (foreground / background) + swap ---------------------------------------
-	QGroupBox *swatchBox = new QGroupBox("Textures", this);
-	QHBoxLayout *swatchLay = new QHBoxLayout(swatchBox);
-	QVBoxLayout *fgCol = new QVBoxLayout();
-	fgCol->addWidget(new QLabel("Foreground", swatchBox), 0, Qt::AlignHCenter);
-	m_fgSwatch = new QLabel(swatchBox);
-	m_fgSwatch->setFixedSize(64, 64);
-	m_fgSwatch->setFrameShape(QFrame::Box);
-	fgCol->addWidget(m_fgSwatch, 0, Qt::AlignHCenter);
-	QVBoxLayout *bgCol = new QVBoxLayout();
-	bgCol->addWidget(new QLabel("Background", swatchBox), 0, Qt::AlignHCenter);
-	m_bgSwatch = new QLabel(swatchBox);
-	m_bgSwatch->setFixedSize(64, 64);
-	m_bgSwatch->setFrameShape(QFrame::Box);
-	bgCol->addWidget(m_bgSwatch, 0, Qt::AlignHCenter);
-	m_swapBtn = new QPushButton("Swap", swatchBox);
-	swatchLay->addLayout(fgCol);
-	swatchLay->addWidget(m_swapBtn, 0, Qt::AlignVCenter);
-	swatchLay->addLayout(bgCol);
-	root->addWidget(swatchBox);
-
-	// --- Favorites -----------------------------------------------------------------------
-	QGroupBox *favBox = new QGroupBox("Favorites", this);
-	QVBoxLayout *favLay = new QVBoxLayout(favBox);
-	m_favTree = new QTreeWidget(favBox);
+	// --- Favorites: label + buttons strip above the list (== the MFC favorites strip) -----
+	QHBoxLayout *favHeadRow = new QHBoxLayout();
+	favHeadRow->addWidget(new QLabel("Favorites:", this));
+	favHeadRow->addStretch(1);
+	m_setFavBtn = new QPushButton("Set", this);
+	m_delFavBtn = new QPushButton("Delete", this);
+	m_importFavBtn = new QPushButton("Import", this);
+	favHeadRow->addWidget(m_setFavBtn);
+	favHeadRow->addWidget(m_delFavBtn);
+	favHeadRow->addWidget(m_importFavBtn);
+	root->addLayout(favHeadRow);
+	m_favTree = new QTreeWidget(this);
 	m_favTree->setHeaderHidden(true);
 	m_favTree->setColumnCount(1);
-	m_favTree->setMaximumHeight(120);
+	m_favTree->setMaximumHeight(80);	// == the 190x49 DLU favorites list
 	WBQtTreeStyle::applyTreeLines(m_favTree);
-	favLay->addWidget(m_favTree);
-	QHBoxLayout *favBtnRow = new QHBoxLayout();
-	m_setFavBtn = new QPushButton("Set", favBox);
-	m_delFavBtn = new QPushButton("Delete", favBox);
-	m_importFavBtn = new QPushButton("Import", favBox);
-	favBtnRow->addWidget(m_setFavBtn);
-	favBtnRow->addWidget(m_delFavBtn);
-	favBtnRow->addWidget(m_importFavBtn);
-	favLay->addLayout(favBtnRow);
-	root->addWidget(favBox);
+	root->addWidget(m_favTree);
 
-	// --- Brush size + z-height -----------------------------------------------------------
-	QGroupBox *sizeBox = new QGroupBox("Brush Size", this);
-	QVBoxLayout *sizeLay = new QVBoxLayout(sizeBox);
-	QHBoxLayout *wRow = new QHBoxLayout();
-	wRow->addWidget(new QLabel("Size in cells:", sizeBox));
-	m_widthSlider = new QSlider(Qt::Horizontal, sizeBox);
-	m_widthSlider->setRange(WBQtTerrainMaterial_GetMinTileSize(), WBQtTerrainMaterial_GetMaxTileSize());
-	m_widthSpin = new QSpinBox(sizeBox);
-	m_widthSpin->setRange(WBQtTerrainMaterial_GetMinTileSize(), WBQtTerrainMaterial_GetMaxTileSize());
-	wRow->addWidget(m_widthSlider, 1);
-	wRow->addWidget(m_widthSpin);
-	sizeLay->addLayout(wRow);
-	m_widthLabel = new QLabel("0.0 FEET.", sizeBox);
-	sizeLay->addWidget(m_widthLabel);
+	// --- Advanced Mirror Options: one row, MFC order ---------------------------------------
+	QGroupBox *mirrorBox = new QGroupBox("Advanced Mirror Options", this);
+	QHBoxLayout *mirrorLay = new QHBoxLayout(mirrorBox);
+	m_mirror = new QCheckBox("Toggle", mirrorBox);
+	m_mirrorX = new QCheckBox("Mirror X", mirrorBox);
+	m_mirrorXY = new QCheckBox("Diagonal", mirrorBox);
+	m_mirrorY = new QCheckBox("Mirror Y", mirrorBox);
+	mirrorLay->addWidget(m_mirror);
+	mirrorLay->addWidget(m_mirrorX);
+	mirrorLay->addWidget(m_mirrorXY);
+	mirrorLay->addWidget(m_mirrorY);
+	mirrorLay->addStretch(1);
+	root->addWidget(mirrorBox);
 
-	QHBoxLayout *zRow = new QHBoxLayout();
-	zRow->addWidget(new QLabel("Z height:", sizeBox));
-	m_heightSlider = new QSlider(Qt::Horizontal, sizeBox);
-	m_heightSlider->setRange(WBQtTerrainMaterial_GetMinZHeight(), WBQtTerrainMaterial_GetMaxZHeight());
-	m_heightSpin = new QSpinBox(sizeBox);
-	m_heightSpin->setRange(WBQtTerrainMaterial_GetMinZHeight(), WBQtTerrainMaterial_GetMaxZHeight());
-	zRow->addWidget(m_heightSlider, 1);
-	zRow->addWidget(m_heightSpin);
-	sizeLay->addLayout(zRow);
-	root->addWidget(sizeBox);
-
-	// --- Pathing (passable / impassable) -------------------------------------------------
-	QGroupBox *pathBox = new QGroupBox("Pathing", this);
-	QVBoxLayout *pathLay = new QVBoxLayout(pathBox);
-	m_paintPathing = new QCheckBox("Paint passable / impassable", pathBox);
-	pathLay->addWidget(m_paintPathing);
-	QHBoxLayout *passRow = new QHBoxLayout();
-	m_passable = new QRadioButton("Passable", pathBox);
-	m_impassable = new QRadioButton("Impassable", pathBox);
-	m_impassable->setChecked(true);
-	passRow->addWidget(m_passable);
-	passRow->addWidget(m_impassable);
-	pathLay->addLayout(passRow);
-	root->addWidget(pathBox);
-
-	// --- Pattern paint mode --------------------------------------------------------------
-	QGroupBox *patBox = new QGroupBox("Pattern Paint", this);
+	// --- Single Click Paint Mode: toggle / no-mixing / mode combo on one row ---------------
+	QGroupBox *patBox = new QGroupBox("Single Click Paint Mode", this);
 	QVBoxLayout *patLay = new QVBoxLayout(patBox);
-	m_patternPaint = new QCheckBox("Pattern paint", patBox);
-	patLay->addWidget(m_patternPaint);
+	QHBoxLayout *patRow = new QHBoxLayout();
+	m_patternPaint = new QCheckBox("Toggle", patBox);
+	m_noMixing = new QCheckBox("No Mixing", patBox);
+	m_noMixing->setToolTip("Don't auto-blend different texture classes.");
 	m_paintMode = new QComboBox(patBox);
 	int modeCount = WBQtTerrainMaterial_GetPaintModeCount();
 	for (int i = 0; i < modeCount; ++i)
@@ -157,7 +113,10 @@ WBQtTerrainMaterialPanel::WBQtTerrainMaterialPanel(QWidget *owner)
 			m_paintMode->addItem(QString::fromLatin1(buf));
 		}
 	}
-	patLay->addWidget(m_paintMode);
+	patRow->addWidget(m_patternPaint);
+	patRow->addWidget(m_noMixing);
+	patRow->addWidget(m_paintMode, 1);
+	patLay->addLayout(patRow);
 	QHBoxLayout *densRow = new QHBoxLayout();
 	m_densityLabel = new QLabel("Density:", patBox);
 	densRow->addWidget(m_densityLabel);
@@ -167,53 +126,113 @@ WBQtTerrainMaterialPanel::WBQtTerrainMaterialPanel(QWidget *owner)
 	patLay->addLayout(densRow);
 	root->addWidget(patBox);
 
-	// --- No mixing -----------------------------------------------------------------------
-	m_noMixing = new QCheckBox("No mixing (don't auto-blend different classes)", this);
-	root->addWidget(m_noMixing);
+	// --- Name / brush size / swap left, FG-BG swatches right (== the middle block) ---------
+	QHBoxLayout *midRow = new QHBoxLayout();
+	QVBoxLayout *midLeft = new QVBoxLayout();
+	m_nameLabel = new QLabel("No Selection", this);
+	midLeft->addWidget(m_nameLabel);
+	QHBoxLayout *wRow = new QHBoxLayout();
+	wRow->addWidget(new QLabel("Cell:", this));
+	m_widthSlider = new QSlider(Qt::Horizontal, this);
+	m_widthSlider->setRange(WBQtTerrainMaterial_GetMinTileSize(), WBQtTerrainMaterial_GetMaxTileSize());
+	m_widthSpin = new WBQtScrubSpinBox(this, /*axisVertical=*/true);
+	m_widthSpin->setDecimals(0);
+	m_widthSpin->setRange(WBQtTerrainMaterial_GetMinTileSize(), WBQtTerrainMaterial_GetMaxTileSize());
+	m_widthSpin->setSingleStep(1.0);
+	m_widthSpin->setToolTip("Drag up/down to scrub, or type a value.");
+	wRow->addWidget(m_widthSlider, 1);
+	wRow->addWidget(m_widthSpin);
+	m_widthLabel = new QLabel("0.0 FEET.", this);
+	wRow->addWidget(m_widthLabel);
+	midLeft->addLayout(wRow);
+	QHBoxLayout *zRow = new QHBoxLayout();
+	zRow->addWidget(new QLabel("Z:", this));
+	m_heightSlider = new QSlider(Qt::Horizontal, this);
+	m_heightSlider->setRange(WBQtTerrainMaterial_GetMinZHeight(), WBQtTerrainMaterial_GetMaxZHeight());
+	m_heightSpin = new WBQtScrubSpinBox(this, /*axisVertical=*/true);
+	m_heightSpin->setDecimals(0);
+	m_heightSpin->setRange(WBQtTerrainMaterial_GetMinZHeight(), WBQtTerrainMaterial_GetMaxZHeight());
+	m_heightSpin->setSingleStep(1.0);
+	m_heightSpin->setToolTip("Drag up/down to scrub, or type a value.");
+	zRow->addWidget(m_heightSlider, 1);
+	zRow->addWidget(m_heightSpin);
+	midLeft->addLayout(zRow);
+	midRow->addLayout(midLeft, 1);
+	QVBoxLayout *midRight = new QVBoxLayout();
+	QHBoxLayout *swatchRow = new QHBoxLayout();
+	m_fgSwatch = new QLabel(this);
+	m_fgSwatch->setFixedSize(48, 48);
+	m_fgSwatch->setFrameShape(QFrame::Box);
+	m_fgSwatch->setToolTip("Foreground texture");
+	m_bgSwatch = new QLabel(this);
+	m_bgSwatch->setFixedSize(48, 48);
+	m_bgSwatch->setFrameShape(QFrame::Box);
+	m_bgSwatch->setToolTip("Background texture");
+	swatchRow->addWidget(m_fgSwatch);
+	swatchRow->addWidget(m_bgSwatch);
+	midRight->addLayout(swatchRow);
+	m_swapBtn = new QPushButton("Swap", this);
+	midRight->addWidget(m_swapBtn);
+	midRow->addLayout(midRight);
+	root->addLayout(midRow);
 
-	// --- Copy mode -----------------------------------------------------------------------
-	QGroupBox *copyBox = new QGroupBox("Copy Mode", this);
-	QVBoxLayout *copyLay = new QVBoxLayout(copyBox);
-	m_copyTexture = new QCheckBox("Copy texture", copyBox);
-	m_copyTerrain = new QCheckBox("Copy terrain", copyBox);
-	m_raiseOnly = new QCheckBox("Raise only", copyBox);
-	copyLay->addWidget(m_copyTexture);
-	copyLay->addWidget(m_copyTerrain);
-	copyLay->addWidget(m_raiseOnly);
+	// --- Pathing: one row -------------------------------------------------------------------
+	QHBoxLayout *pathRow = new QHBoxLayout();
+	m_paintPathing = new QCheckBox("Paint passable / impassable", this);
+	m_passable = new QRadioButton("Passable", this);
+	m_impassable = new QRadioButton("Impassable", this);
+	m_impassable->setChecked(true);
+	// Radios parented to the panel need explicit groups, or Qt's implicit per-parent
+	// exclusivity would tie unrelated radio sets together.
+	QButtonGroup *passGroup = new QButtonGroup(this);
+	passGroup->addButton(m_passable);
+	passGroup->addButton(m_impassable);
+	pathRow->addWidget(m_paintPathing);
+	pathRow->addStretch(1);
+	pathRow->addWidget(m_passable);
+	pathRow->addWidget(m_impassable);
+	root->addLayout(pathRow);
+
+	// --- Copy mode: separator + two compact rows (== the MFC etched-line block) ------------
+	QFrame *copySep = new QFrame(this);
+	copySep->setFrameShape(QFrame::HLine);
+	copySep->setFrameShadow(QFrame::Sunken);
+	root->addWidget(copySep);
+	QHBoxLayout *copyRow = new QHBoxLayout();
+	m_copyTexture = new QCheckBox("Texture Copy", this);
+	m_copyTerrain = new QCheckBox("Terrain Copy", this);
+	m_raiseOnly = new QCheckBox("Raise Only", this);
+	copyRow->addWidget(m_copyTexture);
+	copyRow->addWidget(m_copyTerrain);
+	copyRow->addWidget(m_raiseOnly);
+	copyRow->addStretch(1);
+	root->addLayout(copyRow);
 	QHBoxLayout *saRow = new QHBoxLayout();
-	m_copySelect = new QRadioButton("Select", copyBox);
-	m_copyApply = new QRadioButton("Apply", copyBox);
+	m_copySelect = new QRadioButton("Select", this);
+	m_copyApply = new QRadioButton("Apply", this);
+	QButtonGroup *saGroup = new QButtonGroup(this);
+	saGroup->addButton(m_copySelect);
+	saGroup->addButton(m_copyApply);
 	saRow->addWidget(m_copySelect);
 	saRow->addWidget(m_copyApply);
-	copyLay->addLayout(saRow);
-	QHBoxLayout *rotRow = new QHBoxLayout();
-	m_rot0 = new QRadioButton("0", copyBox);
-	m_rot90 = new QRadioButton("90", copyBox);
-	m_rot180 = new QRadioButton("180", copyBox);
-	m_rot270 = new QRadioButton("270", copyBox);
+	saRow->addSpacing(12);
+	saRow->addWidget(new QLabel("Rotate:", this));
+	m_rot0 = new QRadioButton("0", this);
+	m_rot90 = new QRadioButton("90", this);
+	m_rot180 = new QRadioButton("180", this);
+	m_rot270 = new QRadioButton("270", this);
 	m_rot0->setChecked(true);
-	rotRow->addWidget(new QLabel("Rotate:", copyBox));
-	rotRow->addWidget(m_rot0);
-	rotRow->addWidget(m_rot90);
-	rotRow->addWidget(m_rot180);
-	rotRow->addWidget(m_rot270);
-	copyLay->addLayout(rotRow);
-	root->addWidget(copyBox);
-
-	// --- Mirror --------------------------------------------------------------------------
-	QGroupBox *mirrorBox = new QGroupBox("Mirror", this);
-	QVBoxLayout *mirrorLay = new QVBoxLayout(mirrorBox);
-	m_mirror = new QCheckBox("Toggle", mirrorBox);
-	m_mirrorX = new QCheckBox("Mirror X", mirrorBox);
-	m_mirrorY = new QCheckBox("Mirror Y", mirrorBox);
-	m_mirrorXY = new QCheckBox("Diagonal", mirrorBox);
-	mirrorLay->addWidget(m_mirror);
-	mirrorLay->addWidget(m_mirrorX);
-	mirrorLay->addWidget(m_mirrorY);
-	mirrorLay->addWidget(m_mirrorXY);
-	root->addWidget(mirrorBox);
-
-	root->addStretch(1);
+	QButtonGroup *rotGroup = new QButtonGroup(this);
+	rotGroup->addButton(m_rot0);
+	rotGroup->addButton(m_rot90);
+	rotGroup->addButton(m_rot180);
+	rotGroup->addButton(m_rot270);
+	saRow->addWidget(m_rot0);
+	saRow->addWidget(m_rot90);
+	saRow->addWidget(m_rot180);
+	saRow->addWidget(m_rot270);
+	saRow->addStretch(1);
+	root->addLayout(saRow);
 
 	// Seed everything under the guard so nothing echoes back to the tool while we populate.
 	m_updating = true;
@@ -266,9 +285,9 @@ WBQtTerrainMaterialPanel::WBQtTerrainMaterialPanel(QWidget *owner)
 	connect(m_delFavBtn, SIGNAL(clicked()), this, SLOT(onDeleteFavorite()));
 	connect(m_importFavBtn, SIGNAL(clicked()), this, SLOT(onImportFavorites()));
 	connect(m_widthSlider, SIGNAL(valueChanged(int)), this, SLOT(onWidthChanged(int)));
-	connect(m_widthSpin, SIGNAL(valueChanged(int)), this, SLOT(onWidthChanged(int)));
+	connect(m_widthSpin, SIGNAL(valueChanged(double)), this, SLOT(onWidthSpinChanged(double)));
 	connect(m_heightSlider, SIGNAL(valueChanged(int)), this, SLOT(onHeightChanged(int)));
-	connect(m_heightSpin, SIGNAL(valueChanged(int)), this, SLOT(onHeightChanged(int)));
+	connect(m_heightSpin, SIGNAL(valueChanged(double)), this, SLOT(onHeightSpinChanged(double)));
 	connect(m_paintPathing, SIGNAL(clicked()), this, SLOT(onPathingToggled()));
 	connect(m_passable, SIGNAL(clicked()), this, SLOT(onPassableChanged()));
 	connect(m_impassable, SIGNAL(clicked()), this, SLOT(onPassableChanged()));
@@ -697,6 +716,17 @@ void WBQtTerrainMaterialPanel::onWidthChanged(int v)
 	setWidthRow(v);
 	WBQtTerrainMaterial_SetWidth(v);
 	m_updating = false;
+}
+
+// The scrub spinboxes are double-valued (0 decimals) -- funnel into the int handlers.
+void WBQtTerrainMaterialPanel::onWidthSpinChanged(double v)
+{
+	onWidthChanged(qRound(v));
+}
+
+void WBQtTerrainMaterialPanel::onHeightSpinChanged(double v)
+{
+	onHeightChanged(qRound(v));
 }
 
 void WBQtTerrainMaterialPanel::onHeightChanged(int v)
