@@ -4,6 +4,7 @@
 #include <QAbstractItemView>
 #include <QPainter>
 #include <QProxyStyle>
+#include <QScrollBar>
 #include <QStyle>
 #include <QStyleFactory>
 #include <QStyleOption>
@@ -43,9 +44,9 @@ namespace
 
 			// Arrow only: clip the base draw to a centred square around the handle so none of its
 			// full-cell connector lines survive the clip.
+			const int half = qMin(rect.width(), rect.height()) / 3;
 			if (s & State_Children)
 			{
-				const int half = qMin(rect.width(), rect.height()) / 3;
 				QRect arrowClip(cx - half, cy - half, half * 2, half * 2);
 				painter->save();
 				painter->setClipRect(arrowClip);
@@ -53,8 +54,29 @@ namespace
 				painter->restore();
 			}
 
+			// No connector lines in the ROOT column: a full-height line hugging the panel edge
+			// (with a stub into every top-level item) reads as clutter, and it overdrew the
+			// expand arrows so parents did not look expandable. Root items show just their
+			// arrow; lines only connect the members of an expanded group. The root column is
+			// the cell at logical x 0 -- rect is in viewport coordinates, so add back the
+			// horizontal scroll offset before testing.
+			int logicalLeft = rect.left();
+			const QAbstractScrollArea *area = qobject_cast<const QAbstractScrollArea *>(widget);
+			if (area != NULL && area->horizontalScrollBar() != NULL)
+			{
+				logicalLeft += area->horizontalScrollBar()->value();
+			}
+			if (logicalLeft <= 0)
+			{
+				return;
+			}
+
 			// A mid-grey between window and text reads well on both dark and light palettes.
 			QColor lineColor = option->palette.color(QPalette::Mid);
+
+			// Lines stop short of the expand arrow (gap = the arrow clip box) so they never
+			// cross through it.
+			const int gap = (s & State_Children) ? half : 0;
 
 			painter->save();
 			painter->setPen(lineColor);
@@ -62,23 +84,24 @@ namespace
 			// Vertical run for items that have siblings continuing below them.
 			if (s & State_Sibling)
 			{
-				painter->drawLine(cx, rect.top(), cx, rect.bottom());
+				painter->drawLine(cx, rect.top(), cx, cy - gap);
+				painter->drawLine(cx, cy + gap, cx, rect.bottom());
 			}
 			// The last child in a group: the vertical run stops at this item's centre.
 			else if (s & State_Item)
 			{
-				painter->drawLine(cx, rect.top(), cx, cy);
+				painter->drawLine(cx, rect.top(), cx, cy - gap);
 			}
 			// Horizontal elbow into the item itself.
 			if (s & State_Item)
 			{
-				painter->drawLine(cx, cy, rect.right(), cy);
+				painter->drawLine(cx + gap, cy, rect.right(), cy);
 			}
 			// A collapsed/expanded parent has a short vertical stub above its handle so the line
 			// meets its own parent's run.
 			if (s & State_Children)
 			{
-				painter->drawLine(cx, rect.top(), cx, cy);
+				painter->drawLine(cx, rect.top(), cx, cy - gap);
 			}
 
 			painter->restore();
