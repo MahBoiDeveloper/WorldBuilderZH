@@ -261,7 +261,6 @@ add_custom_command(
         -P "${CMAKE_CURRENT_SOURCE_DIR}/GitCommitStamp.cmake"
     COMMENT "Stamping git commit into WBBuildStamp.h"
     VERBATIM)
-add_custom_target(z_worldbuilder_buildstamp DEPENDS "${WB_BUILD_STAMP}")
 
 add_executable(z_worldbuilder WIN32)
 
@@ -307,13 +306,20 @@ if(WIN32 OR "${CMAKE_SYSTEM}" MATCHES "Windows")
     target_compile_definitions(z_worldbuilder PRIVATE _AFXDLL)
     target_sources(z_worldbuilder PRIVATE res/WorldBuilder.rc)
     # Per-config exe names so a Debug and a Release build deployed to the same folder
-    # don't clobber each other: WorldBuilderZH_d.exe (Debug) vs WorldBuilderZH_r.exe (Release).
-    # Other configs (Internal/Profile are Release-config; MinSizeRel/RelWithDebInfo) keep the
-    # base name.
-    set_target_properties(z_worldbuilder PROPERTIES
-        OUTPUT_NAME WorldBuilderZH
-        OUTPUT_NAME_DEBUG WorldBuilderZH_d
-        OUTPUT_NAME_RELEASE WorldBuilderZH_r)
+    # don't clobber each other. The Qt build is named for what it is (WorldBuilderZH_Qt.exe);
+    # the plain MFC build keeps the historical _d/_r scheme. Other configs (Internal/Profile
+    # are Release-config; MinSizeRel/RelWithDebInfo) keep the base name.
+    if(RTS_ENABLE_WORLDBUILDER_QT)
+        set_target_properties(z_worldbuilder PROPERTIES
+            OUTPUT_NAME WorldBuilderZH_Qt
+            OUTPUT_NAME_DEBUG WorldBuilderZH_Qt_d
+            OUTPUT_NAME_RELEASE WorldBuilderZH_Qt)
+    else()
+        set_target_properties(z_worldbuilder PROPERTIES
+            OUTPUT_NAME WorldBuilderZH
+            OUTPUT_NAME_DEBUG WorldBuilderZH_d
+            OUTPUT_NAME_RELEASE WorldBuilderZH_r)
+    endif()
 else()
     set_target_properties(z_worldbuilder PROPERTIES OUTPUT_NAME worldbuilderzh)
 endif()
