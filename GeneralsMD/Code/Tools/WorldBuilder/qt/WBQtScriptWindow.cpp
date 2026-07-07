@@ -25,12 +25,15 @@
 #include <QStyle>
 #include <QTreeWidgetItemIterator>
 #include <QVBoxLayout>
+#include <QWindow>
 
 #include <qt_windows.h>
 
 // Defined in WBQtBridge.cpp: the Qt main window's HWND when inverted, else the passed
 // MFC frame HWND -- the native owner for standalone Qt top-levels.
 void *WBQt_EffectiveOwnerHwnd(void *frameHwnd);
+// Defined in WBQtBridge.cpp: the Qt main window as a QWidget* (NULL when not inverted).
+QWidget *WBQt_MainWindowWidget(void);
 
 WBQtScriptWindow *WBQtScriptWindow::s_instance = NULL;
 
@@ -737,10 +740,25 @@ extern "C" void WBQtScript_Open(void *frameHwnd, int x, int y)
 	// Own the window by the visible top-level (the Qt main window when inverted, else the
 	// WB frame), like the MFC modeless ScriptDialog: an owned window always stacks above
 	// its owner (the script window can never fall behind the main window) and minimizes
-	// with it. Native ownership only -- NOT a Qt parent, so the 9b standalone-top-level
-	// focus behavior is unchanged.
-	::SetWindowLongPtr(reinterpret_cast<HWND>(win->winId()), GWLP_HWNDPARENT,
-		reinterpret_cast<LONG_PTR>(WBQt_EffectiveOwnerHwnd(frameHwnd)));
+	// with it. The ownership MUST go through the QWindow transient parent: the Windows QPA
+	// maintains GWLP_HWNDPARENT from that property and resets a raw SetWindowLongPtr write
+	// back to 0 on its next internal update (verified live -- the owner read back NULL and
+	// the window fell behind the main window). Still NOT a Qt widget parent, so the 9b
+	// standalone-top-level focus behavior is unchanged.
+	QWidget *mainWidget = WBQt_MainWindowWidget();
+	if (mainWidget != NULL)
+	{
+		win->winId();			// force the QWindow to exist before setting its owner
+		mainWidget->winId();
+		win->windowHandle()->setTransientParent(mainWidget->windowHandle());
+	}
+	else
+	{
+		// Not inverted: the owner is the native MFC frame, which has no QWindow; the raw
+		// write is best effort there (the frame path predates the inversion).
+		::SetWindowLongPtr(reinterpret_cast<HWND>(win->winId()), GWLP_HWNDPARENT,
+			reinterpret_cast<LONG_PTR>(WBQt_EffectiveOwnerHwnd(frameHwnd)));
+	}
 
 	win->move(x, y);
 	win->show();
