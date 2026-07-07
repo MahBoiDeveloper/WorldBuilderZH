@@ -173,6 +173,7 @@ public:
 	// build is byte-for-byte unchanged.
 public:
 	static void qtRefreshPanel(void);           ///< called from updateTextures to reseed the Qt tree
+	static void qtRefreshSelection(void);       ///< light push: fg pick changed outside the Qt panel (eyedropper)
 	static int  qtIsSingleCell(void);           ///< 1 = single-tile tool (multi-only controls off)
 	static int  qtGetWidthEdit(void);           ///< read the IDC_SIZE_EDIT box the tools follow
 	static void qtSetWidthEdit(int width);      ///< write it through the same setWidth path

@@ -20,6 +20,7 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QTreeWidget>
+#include <QTreeWidgetItemIterator>
 #include <QVBoxLayout>
 
 WBQtTerrainMaterialPanel *WBQtTerrainMaterialPanel::s_instance = NULL;
@@ -920,11 +921,42 @@ void WBQtTerrainMaterialPanel::refreshFromState()
 	m_updating = false;
 }
 
+// Light push: the fg texture changed outside the panel (eyedropper pick). Re-select the tree
+// item and refresh the swatches/name only -- rebuilding the whole tree per pick would be the
+// per-click O(N) trap and would drop the user's scroll position.
+void WBQtTerrainMaterialPanel::refreshSelectionFromState()
+{
+	m_updating = true;
+	int fgClass = WBQtTerrainMaterial_GetFgTexClass();
+	QTreeWidgetItemIterator it(m_tree);
+	while (*it)
+	{
+		if ((*it)->data(0, kTexClassRole).toInt() == fgClass)
+		{
+			m_tree->setCurrentItem(*it);
+			m_tree->scrollToItem(*it);
+			break;
+		}
+		++it;
+	}
+	refreshSwatches();
+	refreshName();
+	m_updating = false;
+}
+
 // --- Forward push function (MFC/tool -> widget), the Qt-side of WBQtTerrainMaterialBridge.h --
 extern "C" void WBQtTerrainMaterial_PushRefresh(void)
 {
 	if (WBQtTerrainMaterialPanel::instance() != NULL)
 	{
 		WBQtTerrainMaterialPanel::instance()->refreshFromState();
+	}
+}
+
+extern "C" void WBQtTerrainMaterial_PushSelection(void)
+{
+	if (WBQtTerrainMaterialPanel::instance() != NULL)
+	{
+		WBQtTerrainMaterialPanel::instance()->refreshSelectionFromState();
 	}
 }

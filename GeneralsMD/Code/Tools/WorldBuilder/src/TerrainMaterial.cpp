@@ -129,6 +129,9 @@ void TerrainMaterial::setFgTexClass(Int texClass)
 		m_staticThis->m_currentFgTexture=texClass;
 		m_staticThis->m_terrainSwatches.Invalidate();
 		updateTextureSelection();
+#ifdef RTS_HAS_QT
+		qtRefreshSelection();	// the pick can come from outside the Qt panel (eyedropper)
+#endif
 	}
 }
 
@@ -139,6 +142,9 @@ void TerrainMaterial::setBgTexClass(Int texClass)
 	if (m_staticThis) {
 		m_staticThis->m_currentBgTexture=texClass;
 		m_staticThis->m_terrainSwatches.Invalidate();
+#ifdef RTS_HAS_QT
+		qtRefreshSelection();	// keep the Qt bg swatch in step too
+#endif
 	}
 }
 
@@ -1383,10 +1389,16 @@ void TerrainMaterial::OnToggleNoMixing()
 // The Qt panel defines this (extern "C") in WBQtTerrainMaterialPanel.cpp; forward-declared here
 // so we do not have to pull in the Qt panel header (which drags in Qt) from this MFC TU.
 extern "C" void WBQtTerrainMaterial_PushRefresh(void);
+extern "C" void WBQtTerrainMaterial_PushSelection(void);
 
 void TerrainMaterial::qtRefreshPanel(void)
 {
 	WBQtTerrainMaterial_PushRefresh();
+}
+
+void TerrainMaterial::qtRefreshSelection(void)
+{
+	WBQtTerrainMaterial_PushSelection();
 }
 
 int TerrainMaterial::qtIsSingleCell(void)

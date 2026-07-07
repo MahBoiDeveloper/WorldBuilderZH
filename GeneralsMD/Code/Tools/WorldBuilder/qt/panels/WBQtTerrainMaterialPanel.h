@@ -41,6 +41,10 @@ public:
 	// Re-seed the whole panel from the current MFC/tool state (WBQtTerrainMaterial_PushRefresh).
 	void refreshFromState();
 
+	// Light push (WBQtTerrainMaterial_PushSelection): the fg selection changed outside the panel
+	// (eyedropper pick) -- re-select the tree item and refresh the swatches/name, no tree rebuild.
+	void refreshSelectionFromState();
+
 	static WBQtTerrainMaterialPanel *instance() { return s_instance; }
 
 private slots:
