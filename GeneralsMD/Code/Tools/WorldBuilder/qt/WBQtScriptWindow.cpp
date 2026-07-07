@@ -55,6 +55,13 @@ WBQtScriptTree::WBQtScriptTree(WBQtScriptWindow *owner)
 
 void WBQtScriptTree::dropEvent(QDropEvent *event)
 {
+	// DragDrop mode (needed so Ctrl+drag merge drops arrive) also admits foreign drags;
+	// only this tree's own items are meaningful here.
+	if (event->source() != this)
+	{
+		event->ignore();
+		return;
+	}
 	QTreeWidgetItem *dragItem = currentItem();
 	QTreeWidgetItem *targetItem = itemAt(event->pos());
 	if (dragItem == NULL || targetItem == NULL || dragItem == targetItem)
@@ -149,7 +156,12 @@ WBQtScriptWindow::WBQtScriptWindow(QWidget *owner)
 	m_tree->setColumnCount(1);
 	m_tree->setDragEnabled(true);
 	m_tree->setAcceptDrops(true);
-	m_tree->setDragDropMode(QAbstractItemView::InternalMove);
+	// NOT InternalMove: that mode rejects any non-move drop, and Ctrl+drag proposes a COPY
+	// action, so the Script Merge Ctrl+drop never reached dropEvent (forbidden cursor).
+	// DragDrop accepts both; plain drag still defaults to move, and dropEvent guards that
+	// the drag came from this tree. qtMDropOn reads the live Ctrl state itself for merge.
+	m_tree->setDragDropMode(QAbstractItemView::DragDrop);
+	m_tree->setDefaultDropAction(Qt::MoveAction);
 	m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
 	m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
 	WBQtTreeStyle::applyTreeLines(m_tree);
