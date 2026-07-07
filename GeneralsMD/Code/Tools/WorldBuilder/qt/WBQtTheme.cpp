@@ -83,6 +83,12 @@ namespace
 		p.setColor(QPalette::Disabled, QPalette::WindowText, disabled);
 		p.setColor(QPalette::Disabled, QPalette::Text, disabled);
 		p.setColor(QPalette::Disabled, QPalette::ButtonText, disabled);
+		// Kill the "etched" disabled-text ghost: styles draw disabled text twice, with a
+		// second copy offset (1,1) in the Disabled Light colour. Light defaults to near-white,
+		// so on the dark theme disabled menu items rendered BRIGHTER than enabled ones.
+		// Matching Light to the background hides the ghost; disabled text then reads as the
+		// intended dim grey.
+		p.setColor(QPalette::Disabled, QPalette::Light, window);
 		return p;
 	}
 
