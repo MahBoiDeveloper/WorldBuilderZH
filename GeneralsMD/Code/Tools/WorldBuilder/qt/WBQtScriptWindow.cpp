@@ -352,8 +352,7 @@ void WBQtScriptWindow::rebuildTree()
 
 	// Preserve the user's expand/collapse state across model rebuilds (every command
 	// triggers one; expandAll() here used to blow the state away and reopen every folder).
-	// On the first build of a window there is no state yet: players start expanded so the
-	// scripts/folders are visible, folders start collapsed.
+	// On the first build of a window there is no state yet: everything starts collapsed.
 	const bool firstBuild = (m_tree->topLevelItemCount() == 0);
 	QSet<int> expanded;
 	if (!firstBuild)
@@ -437,11 +436,7 @@ void WBQtScriptWindow::rebuildTree()
 			lastAtDepth[d] = NULL;
 		}
 
-		if (firstBuild)
-		{
-			item->setExpanded(depth == 0);
-		}
-		else
+		if (!firstBuild)
 		{
 			item->setExpanded(expanded.contains(listType));
 		}
